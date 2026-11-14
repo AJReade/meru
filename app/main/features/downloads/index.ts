@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { DisposableStore } from "../../../core/disposable.ts";
 import {
+  countedReceived,
   progressOf,
   pruneHistory,
   SHOWN_DOWNLOADS,
@@ -89,8 +90,13 @@ interface Active {
   destination: Destination;
   received: number;
   total: number;
+  /** The share it had reached before it last restarted from nothing, which it counts as received until it passes it again. */
+  floor: number;
   done: boolean;
 }
+
+const countedOf = ({ floor, received, total }: Active): number =>
+  countedReceived(received, total, floor);
 
 const pathOf = (destination: Destination): string =>
   destination.kind === "known" ? destination.path : destination.suggested;
@@ -348,6 +354,7 @@ export class Downloads {
         ? { kind: "asking", suggested: target }
         : { kind: "known", path: target },
       done: false,
+      floor: 0,
       id: start.id,
       received: 0,
       total: start.totalBytes,
@@ -438,7 +445,7 @@ export class Downloads {
   /** Takes the download off those under way, counting what it received as arrived so the bar does not run backwards. */
   #settle(active: Active) {
     if (this.#active.delete(active.id) && !active.done) {
-      this.#settledBytes += active.received;
+      this.#settledBytes += countedOf(active);
     }
     this.#showProgress();
   }
@@ -449,6 +456,9 @@ export class Downloads {
       return;
     }
     if (event.kind === "progress") {
+      if (event.received < active.received && active.total > 0) {
+        active.floor = Math.max(active.floor, active.received / active.total);
+      }
       active.received = event.received;
       active.total = event.total;
       this.#showProgress();
@@ -474,7 +484,15 @@ export class Downloads {
     if (running.length === 0) {
       this.#settledBytes = 0;
     }
-    this.#options.progress.set(progressOf(running, this.#settledBytes));
+    this.#options.progress.set(
+      progressOf(
+        running.map((active) => ({
+          received: countedOf(active),
+          total: active.total,
+        })),
+        this.#settledBytes
+      )
+    );
   }
 
   /** Calls the download off, records it as failed, tells the user and then deletes what it wrote, so a disk that refuses the delete loses nothing else. */

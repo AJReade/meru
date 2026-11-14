@@ -180,6 +180,13 @@ export type DownloadProgress =
   | { readonly kind: "indeterminate" }
   | { readonly kind: "fraction"; readonly value: number };
 
+/** What a download counts as having received of `total` once it has restarted from nothing, as Chromium restarts a resumed download whose server will not continue where it stopped: no less than `floor`, the share it had reached before, so the bar holds until the new transfer passes it rather than running back. */
+export const countedReceived = (
+  received: number,
+  total: number,
+  floor: number
+): number => (total > 0 ? Math.max(received, floor * total) : received);
+
 /** The share of the bytes under way that have arrived, or indeterminate while any download's size is unknown. `settledBytes` are what the downloads that ended while others ran received, whether they finished, failed or were cancelled, counted as arrived of as much, so that no download ending moves the bar backwards. */
 export const progressOf = (
   active: readonly { readonly received: number; readonly total: number }[],

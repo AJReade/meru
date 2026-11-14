@@ -5,6 +5,7 @@ import {
   HISTORY_DAYS,
   HISTORY_LIMIT,
   nameKey,
+  countedReceived,
   progressOf,
   pruneHistory,
   takenAmong,
@@ -178,5 +179,16 @@ describe(progressOf, () => {
       kind: "fraction",
       value: 0.75,
     });
+  });
+});
+
+describe(countedReceived, () => {
+  it("counts a restarted download as having the share it had reached until it passes it, and an unknown size as what arrived", () => {
+    expect([
+      countedReceived(0, 200, 0.75),
+      countedReceived(160, 200, 0.75),
+      countedReceived(10, 0, 0.75),
+      countedReceived(10, 100, 0),
+    ]).toStrictEqual([150, 160, 10, 10]);
   });
 });

@@ -295,6 +295,24 @@ describe(Downloads, () => {
     expect(values[1]).toBeGreaterThanOrEqual(values[0] ?? 1);
   });
 
+  it("holds the bar where a download had reached when it restarts from nothing, and moves on once it passes it", async () => {
+    const { port, progress } = await setup();
+    const first = port.start({ suggestedName: "a", totalBytes: 100 });
+    port.progress(first.id, 75, 100);
+    const before = progress.shown;
+    port.progress(first.id, 0, 100);
+    const restarted = progress.shown;
+    port.progress(first.id, 50, 100);
+    const climbing = progress.shown;
+    port.progress(first.id, 80, 100);
+    expect([before, restarted, climbing, progress.shown]).toStrictEqual([
+      { kind: "fraction", value: 0.75 },
+      { kind: "fraction", value: 0.75 },
+      { kind: "fraction", value: 0.75 },
+      { kind: "fraction", value: 0.8 },
+    ]);
+  });
+
   it("shows the combined progress of the downloads under way, indeterminate while a size is unknown, and none once they end", async () => {
     const { port, progress } = await setup();
     const first = port.start({ suggestedName: "a", totalBytes: 100 });
