@@ -39,6 +39,22 @@ export const gmailPageSettingsSchema = z.object({
 
 export type GmailPageSettings = z.infer<typeof gmailPageSettingsSchema>;
 
+/** What a page can do to a message through Gmail's own action endpoint. */
+export const mailActionSchema = z.enum(["archive", "markRead"]);
+
+export type MailAction = z.infer<typeof mailActionSchema>;
+
+/** Why an action did not reach Gmail: the page carries no version marker or no action token, Gmail answered with a status or with its sign-in script, or the request threw. */
+export const mailActionRefusalSchema = z.enum([
+  "noMarker",
+  "noToken",
+  "status",
+  "signIn",
+  "threw",
+]);
+
+export type MailActionRefusal = z.infer<typeof mailActionRefusalSchema>;
+
 /** What a Gmail pane's page asks of main; the profile is the sender's, never the payload's. */
 export const gmail = defineChannels("gmail", {
   /** The settings the page paints its first frame with, read once as the preload starts. */
@@ -55,6 +71,12 @@ export const gmail = defineChannels("gmail", {
   navigated: event(
     z.object({ id: z.number().int().min(0), navigated: z.boolean() })
   ),
+  /** Whether Gmail took the action of the `mailAction` push of this id. */
+  mailActed: event(
+    z.object({ acted: z.boolean(), id: z.number().int().min(0) })
+  ),
+  /** An action Gmail refused, once per reason per page load, which main logs as a warning. */
+  mailActionFailed: event(z.object({ reason: mailActionRefusalSchema })),
 });
 
 export const gmailPushes = definePushes("gmail", {
@@ -64,6 +86,14 @@ export const gmailPushes = definePushes("gmail", {
     z.object({
       hash: z.string().startsWith("#").max(2000),
       id: z.number().int().min(0),
+    })
+  ),
+  /** Acts on a message through Gmail's own action endpoint, which only a page holds the credentials for; the page answers `mailActed` with the id. */
+  mailAction: push(
+    z.object({
+      action: mailActionSchema,
+      id: z.number().int().min(0),
+      messageId: z.string().min(1).max(100),
     })
   ),
 });

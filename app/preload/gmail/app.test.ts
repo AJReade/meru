@@ -4,6 +4,7 @@ import { gmail } from "../../shared/channels/gmail.ts";
 import { gmailSurface } from "../../shared/channels/surfaces.ts";
 import { FakeContentBridge } from "../content/fake-bridge.ts";
 import { startGmail } from "./app.ts";
+import { FakeGmailHttp } from "./fake-http.ts";
 import { hideGmailLogo } from "./features/hide-gmail-logo.ts";
 import { needsSignIn } from "./features/needs-sign-in.ts";
 import { mountGmail, stylesWith, testSettings } from "./testing.ts";
@@ -46,8 +47,10 @@ describe(startGmail, () => {
 
     const app = startGmail({
       bridge,
+      cookie: () => "",
       document,
       features: [hideGmailLogo],
+      http: new FakeGmailHttp(),
       location: { href: () => testSettings.mailbox, setHash: () => {} },
     });
 

@@ -17,11 +17,13 @@ import { FakeShell } from "../../../test/fakes/shell.ts";
 import { unwrap } from "../../../test/result.ts";
 import { PRO, testApp } from "../../testing.ts";
 import {
+  ACT_TIMEOUT,
   Gmail,
   NAVIGATE_TIMEOUT,
   USER_STYLES_FILE,
   USER_STYLES_LIMIT,
   USER_STYLES_SETTLE,
+  WAKE_TIMEOUT,
 } from "./index.ts";
 
 const FREE: Entitlement = { expiresAt: null, kind: "free", source: "stored" };
@@ -33,6 +35,7 @@ const setup = async (given: Entitlement = PRO) => {
   const app = await testApp({ entitlement: () => entitlement });
   const log = new FakeLog();
   const shell = new FakeShell();
+  const woken: string[] = [];
   const feature = new Gmail({
     clock: app.clock,
     commands: app.commands,
@@ -48,6 +51,9 @@ const setup = async (given: Entitlement = PRO) => {
     shell,
     signIn: "https://accounts.google.com/",
     userStylesPath: `/user-data/${USER_STYLES_FILE}`,
+    wake: (tabId) => {
+      woken.push(tabId);
+    },
   });
   await feature.start();
   const [tab] = app.profiles.snapshot().tabs;
@@ -65,7 +71,18 @@ const setup = async (given: Entitlement = PRO) => {
     entitlement = next;
     app.events.emit("entitlement.changed", { entitlement: next });
   };
-  return { app, detach, entitle, feature, log, pushed, request, shell, tab };
+  return {
+    app,
+    detach,
+    entitle,
+    feature,
+    log,
+    pushed,
+    request,
+    shell,
+    tab,
+    woken,
+  };
 };
 
 describe(Gmail, () => {
@@ -228,6 +245,67 @@ describe(Gmail, () => {
     );
     app.clock.advance(NAVIGATE_TIMEOUT);
     await expect(moved).resolves.toBeFalsy();
+  });
+
+  it("asks the tab's page to act on a message and answers what Gmail did with it", async () => {
+    const { feature, pushed, request, tab, woken } = await setup();
+    const acted = feature.act(tab.id, "FMfcg", "archive");
+    expect(pushed(gmailPushes.mailAction)).toStrictEqual([
+      { action: "archive", id: 0, messageId: "FMfcg" },
+    ]);
+    expect(woken).toStrictEqual([]);
+    unwrap(request(gmail.mailActed, { acted: true, id: 0 }));
+    await expect(acted).resolves.toStrictEqual({ ok: true, value: undefined });
+
+    const refused = feature.act(tab.id, "FMfcg", "markRead");
+    unwrap(request(gmail.mailActed, { acted: false, id: 1 }));
+    await expect(refused).resolves.toStrictEqual({
+      error: "refused",
+      ok: false,
+    });
+  });
+
+  it("refuses an action no page answers for, and one whose tab has no page even after it is woken", async () => {
+    const { app, detach, feature, tab, woken } = await setup();
+    const silent = feature.act(tab.id, "FMfcg", "archive");
+    app.clock.advance(ACT_TIMEOUT);
+    await expect(silent).resolves.toStrictEqual({ error: "silent", ok: false });
+
+    detach();
+    const pageless = feature.act(tab.id, "FMfcg", "archive");
+    expect(woken).toStrictEqual([tab.id]);
+    app.clock.advance(WAKE_TIMEOUT);
+    await expect(pageless).resolves.toStrictEqual({
+      error: "noPage",
+      ok: false,
+    });
+  });
+
+  it("acts once the woken tab has a page, and writes a warning for a refusal the page reports", async () => {
+    const { app, detach, feature, log, pushed, tab } = await setup();
+    const WOKEN = 44;
+    detach();
+    const acted = feature.act(tab.id, "FMfcg", "archive");
+    feature.page(tab).attach(WOKEN);
+    await expect
+      .poll(() => pushed(gmailPushes.mailAction))
+      .toStrictEqual([{ action: "archive", id: 0, messageId: "FMfcg" }]);
+    unwrap(
+      app.registrar.dispatch(WOKEN, wireName(gmail.mailActed), {
+        acted: true,
+        id: 0,
+      })
+    );
+    await expect(acted).resolves.toMatchObject({ ok: true });
+
+    unwrap(
+      app.registrar.dispatch(WOKEN, wireName(gmail.mailActionFailed), {
+        reason: "noToken",
+      })
+    );
+    expect(log.at("warn")).toStrictEqual([
+      "Gmail refused an action on a message",
+    ]);
   });
 
   it("refuses a page's request once its view is gone", async () => {

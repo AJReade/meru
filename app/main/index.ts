@@ -271,6 +271,10 @@ const start = async () => {
     shell,
     signIn: signInOf(gmailOverride),
     userStylesPath: path.join(userDataDir(), USER_STYLES_FILE),
+    // A tab whose view some stage keeps loads the mailbox at once; one no window shows has its next view start there.
+    wake: (tabId) => {
+      stages.load(tabId, `${gmailOverride ?? GMAIL_URL}/`);
+    },
   });
   await gmail.start();
   const google = new Google({

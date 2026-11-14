@@ -24,6 +24,7 @@ import {
 } from "../../../shared/channels/gmail.ts";
 import type {
   GmailPageSettings,
+  MailAction,
   UserStylesState,
 } from "../../../shared/channels/gmail.ts";
 import {
@@ -43,6 +44,12 @@ export const USER_STYLES_LIMIT = 256 * 1024;
 
 // How long a page is given to say it took an address before main loads the address itself.
 export const NAVIGATE_TIMEOUT = 1000;
+
+// How long a page is given to answer an action, as 3.x gave it: Gmail's endpoint answers in one request, but a page that navigated away mid-action answers never.
+export const ACT_TIMEOUT = 15_000;
+
+// How long the tab is given to get a page once it has been woken, after which the action is refused rather than left hanging.
+export const WAKE_TIMEOUT = 5000;
 
 // An editor saves in several writes, each of which the watch may report, so a read waits for the writes to stop.
 export const USER_STYLES_SETTLE = 200;
@@ -70,8 +77,13 @@ export interface GmailOptions {
   readonly mailbox: string;
   /** The address Google's sign-in starts with. */
   readonly signIn: string;
+  /** Points the tab at the mailbox, so a tab with no page acts once it has one. */
+  readonly wake: (tabId: string) => void;
   readonly log: LogPort;
 }
+
+/** Why an action on a message did not run: the tab has no page even after being woken, the page did not answer, or Gmail refused it. */
+export type GmailActError = "noPage" | "silent" | "refused";
 
 /** What the Gmail pane's page applies: its settings, the user's styles while Pro allows them, the pages it runs in, and what each page reports back. */
 export class Gmail {
@@ -88,7 +100,19 @@ export class Gmail {
       readonly timeout: Unsubscribe;
     }
   >();
+  /** Each action a page has yet to answer, by its id. */
+  readonly #actions = new Map<
+    number,
+    {
+      readonly contentsId: number;
+      readonly settle: (acted: boolean) => void;
+      readonly timeout: Unsubscribe;
+    }
+  >();
+  /** Whoever waits for a tab to get a page, by tab id. */
+  readonly #waking = new Map<string, Set<(contentsId: number) => void>>();
   #nextNavigation = 0;
+  #nextAction = 0;
   #userStyles = "";
   #tooLarge: UserStylesState["tooLarge"] = null;
   #stylesState: UserStylesState;
@@ -115,6 +139,20 @@ export class Gmail {
           this.#options.log.error("A Gmail page's preload failed", {
             error: { message, name: what, stack },
             profileId,
+          });
+          return ok(undefined);
+        },
+        mailActed: ({ acted, id }, { contentsId }) => {
+          const waiting = this.#actions.get(id);
+          if (waiting?.contentsId === contentsId) {
+            waiting.settle(acted);
+          }
+          return ok(undefined);
+        },
+        mailActionFailed: ({ reason }, { profileId }) => {
+          this.#options.log.warn("Gmail refused an action on a message", {
+            profileId,
+            reason,
           });
           return ok(undefined);
         },
@@ -192,6 +230,10 @@ export class Gmail {
       arguments: [contentSurfaceArgument("gmail")],
       attach: (contentsId): Unsubscribe => {
         this.#pages.set(tab.id, contentsId);
+        for (const waiting of this.#waking.get(tab.id) ?? []) {
+          waiting(contentsId);
+        }
+        this.#waking.delete(tab.id);
         const unassign = this.#options.registrar.assign(
           contentsId,
           gmailSurface,
@@ -206,6 +248,59 @@ export class Gmail {
       },
       preload: this.#options.preload,
     };
+  }
+
+  /** Acts on one of the tab's messages through Gmail's own action endpoint, which only its page can reach: a tab with no page is woken first, and an action the page does not answer for, or Gmail refuses, is refused here rather than reported as done. */
+  async act(
+    tabId: string,
+    messageId: string,
+    action: MailAction
+  ): Promise<Result<undefined, GmailActError>> {
+    const contentsId = this.#pages.get(tabId) ?? (await this.#woken(tabId));
+    if (contentsId === undefined) {
+      return err("noPage");
+    }
+    const id = this.#nextAction;
+    this.#nextAction += 1;
+    const { promise, resolve } = Promise.withResolvers<boolean | undefined>();
+    const settle = (acted: boolean | undefined) => {
+      this.#actions.get(id)?.timeout();
+      this.#actions.delete(id);
+      resolve(acted);
+    };
+    this.#actions.set(id, {
+      contentsId,
+      settle,
+      timeout: this.#options.clock.schedule(ACT_TIMEOUT, () => {
+        settle(undefined);
+      }),
+    });
+    this.#options.registrar.push(contentsId, gmailPushes.mailAction, {
+      action,
+      id,
+      messageId,
+    });
+    const acted = await promise;
+    if (acted === undefined) {
+      return err("silent");
+    }
+    return acted ? ok(undefined) : err("refused");
+  }
+
+  /** The page the tab gets once it has been pointed at the mailbox, or nothing while it got none in time: no stage makes a view of a tab out of sight, so an action on a tab whose group no window shows waits in vain. */
+  async #woken(tabId: string): Promise<number | undefined> {
+    const { promise, resolve } = Promise.withResolvers<number | undefined>();
+    const waiting = this.#waking.get(tabId) ?? new Set();
+    waiting.add(resolve);
+    this.#waking.set(tabId, waiting);
+    const timeout = this.#options.clock.schedule(WAKE_TIMEOUT, () => {
+      waiting.delete(resolve);
+      resolve(undefined);
+    });
+    this.#options.wake(tabId);
+    const contentsId = await promise;
+    timeout();
+    return contentsId;
   }
 
   /** Takes the tab's page to `url` by its fragment, as Gmail moves between its own views, when the tab has a page on the mailbox and the address is the mailbox's; false, once the page says it is elsewhere or does not answer in time, leaves it to the caller to load. */

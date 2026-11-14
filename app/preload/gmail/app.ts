@@ -8,11 +8,17 @@ import { DomScheduler } from "../content/scheduler.ts";
 import { StyleLayers } from "../content/styles.ts";
 import type { GmailFeature, PageLocation } from "./feature.ts";
 import { gmailFeatures } from "./features/index.ts";
+import { GmailRpc } from "./rpc.ts";
+import type { GmailHttp } from "./rpc.ts";
 
 export interface GmailAppOptions {
   readonly document: Document;
   readonly bridge: Bridge<GmailSurface>;
   readonly location: PageLocation;
+  /** Gmail's own endpoints, which only a page's requests carry the credentials for. */
+  readonly http: GmailHttp;
+  /** The page's cookies, which carry Gmail's action token. */
+  readonly cookie: () => string;
   readonly features?: readonly GmailFeature[];
   readonly now?: () => number;
   readonly grace?: number;
@@ -58,8 +64,18 @@ export const startGmail = (options: GmailAppOptions): GmailApp => {
   });
   const asked = new Set<string>();
   let applied = new DisposableStore();
+  let current = first.value;
+  const rpc = new GmailRpc({
+    cookie: options.cookie,
+    http: options.http,
+    mailbox: () => current.mailbox,
+    markup: () => document.documentElement.outerHTML,
+    now: options.now ?? Date.now,
+    signIn: () => current.signIn,
+  });
 
   const apply = (settings: GmailPageSettings) => {
+    current = settings;
     applied.dispose();
     const store = new DisposableStore();
     applied = store;
@@ -74,6 +90,7 @@ export const startGmail = (options: GmailAppOptions): GmailApp => {
           bridge,
           document,
           location,
+          rpc,
           once: (key) => {
             const asking = !asked.has(key);
             asked.add(key);

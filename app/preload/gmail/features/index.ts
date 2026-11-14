@@ -3,6 +3,7 @@ import { hideGmailLogo } from "./hide-gmail-logo.ts";
 import { hidePromoBanner } from "./hide-promo-banner.ts";
 import { hideUpgradeButton } from "./hide-upgrade-button.ts";
 import { labelColors } from "./label-colors.ts";
+import { mailAction } from "./mail-action.ts";
 import { navigate } from "./navigate.ts";
 import { needsSignIn } from "./needs-sign-in.ts";
 import { reverseConversation } from "./reverse-conversation.ts";
@@ -15,6 +16,7 @@ export const gmailFeatures: readonly GmailFeature[] = [
   hidePromoBanner,
   hideUpgradeButton,
   labelColors,
+  mailAction,
   navigate,
   needsSignIn,
   reverseConversation,

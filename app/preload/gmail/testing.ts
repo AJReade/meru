@@ -11,6 +11,7 @@ import { isHtmlElement, queryAll } from "../content/query.ts";
 import type { StyleRule } from "../content/styles.ts";
 import { startGmail } from "./app.ts";
 import type { GmailApp } from "./app.ts";
+import { FakeGmailHttp } from "./fake-http.ts";
 import type { GmailFeature } from "./feature.ts";
 
 export const MAILBOX = "https://mail.google.com/mail/u/0";
@@ -44,6 +45,8 @@ export const stylesWith = (
 export interface MountedGmail {
   readonly app: GmailApp;
   readonly bridge: FakeContentBridge<typeof gmailSurface>;
+  /** Gmail's endpoints as the test answers them. */
+  readonly http: FakeGmailHttp;
   /** Takes the page elsewhere, as Gmail navigating itself would. */
   readonly go: (href: string) => void;
   /** The fragment the page was taken to, if any. */
@@ -66,10 +69,13 @@ export const mountGmail = (options: {
   href?: string;
   now?: () => number;
   grace?: number;
+  /** The page's cookies, which carry Gmail's action token. */
+  cookie?: string;
 }): MountedGmail => {
   document.head.innerHTML = "";
   document.body.innerHTML = options.html ?? "";
   const bridge = new FakeContentBridge(gmailSurface);
+  const http = new FakeGmailHttp();
   const settings = { ...testSettings, ...options.settings };
   bridge.answer(gmail.settings, settings);
   let hash: string | undefined;
@@ -84,9 +90,11 @@ export const mountGmail = (options: {
   };
   const app = startGmail({
     bridge,
+    cookie: () => options.cookie ?? "",
     document,
     features: options.features,
     grace: options.grace,
+    http,
     location: {
       href: () => href,
       setHash: (next) => {
@@ -101,6 +109,7 @@ export const mountGmail = (options: {
   return {
     app,
     bridge,
+    http,
     change: (next) => {
       bridge.push(gmailPushes.settingsChanged, {
         ...settings,
