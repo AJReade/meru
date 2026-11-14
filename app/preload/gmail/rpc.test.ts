@@ -53,7 +53,7 @@ describe(GmailRpc, () => {
     const { http, rpc } = setup();
     http.answer(`${MAILBOX}/s/`, { status: 200, text: "" });
 
-    await expect(rpc.archive(MESSAGE)).resolves.toStrictEqual({
+    await expect(rpc.act("archive", MESSAGE)).resolves.toStrictEqual({
       ok: true,
       value: undefined,
     });
@@ -70,8 +70,12 @@ describe(GmailRpc, () => {
     const { http, rpc } = setup();
     http.answer(`${MAILBOX}/s/`, { status: 200, text: "" });
 
-    await expect(rpc.markRead(MESSAGE)).resolves.toMatchObject({ ok: true });
-    await expect(rpc.markRead(MESSAGE)).resolves.toMatchObject({ ok: true });
+    await expect(rpc.act("markRead", MESSAGE)).resolves.toMatchObject({
+      ok: true,
+    });
+    await expect(rpc.act("markRead", MESSAGE)).resolves.toMatchObject({
+      ok: true,
+    });
     expect(http.posted.map((post) => asked(post.field))).toStrictEqual([
       body(3),
       body(3),
@@ -84,7 +88,9 @@ describe(GmailRpc, () => {
     http.answer(`${MAILBOX}/`, { status: 200, text: mailbox });
     http.answer(`${MAILBOX}/s/`, { status: 200, text: "" });
 
-    await expect(rpc.archive(MESSAGE)).resolves.toMatchObject({ ok: true });
+    await expect(rpc.act("archive", MESSAGE)).resolves.toMatchObject({
+      ok: true,
+    });
     expect(http.asked).toStrictEqual([`${MAILBOX}/`]);
     expect(http.posted[0]?.url).toContain(`ik=${MARKER}`);
   });
@@ -93,14 +99,14 @@ describe(GmailRpc, () => {
     const { http, rpc } = setup({ html: "<div role='main'></div>" });
     http.answer(`${MAILBOX}/`, { status: 200, text: "<title>Sign in</title>" });
 
-    await expect(rpc.archive(MESSAGE)).resolves.toStrictEqual({
+    await expect(rpc.act("archive", MESSAGE)).resolves.toStrictEqual({
       error: "noMarker",
       ok: false,
     });
     expect(http.posted).toStrictEqual([]);
 
     const tokenless = setup({ cookie: "SID=x" });
-    await expect(tokenless.rpc.archive(MESSAGE)).resolves.toStrictEqual({
+    await expect(tokenless.rpc.act("archive", MESSAGE)).resolves.toStrictEqual({
       error: "noToken",
       ok: false,
     });
@@ -111,14 +117,16 @@ describe(GmailRpc, () => {
     const { http, rpc } = setup();
     http.answer(`${MAILBOX}/s/`, { status: 200, text: REFUSAL });
 
-    await expect(rpc.archive(MESSAGE)).resolves.toStrictEqual({
+    await expect(rpc.act("archive", MESSAGE)).resolves.toStrictEqual({
       error: "signIn",
       ok: false,
     });
 
     document.body.innerHTML = "<div role='main'></div>";
     http.answer(`${MAILBOX}/`, { status: 200, text: mailbox });
-    await expect(rpc.archive(MESSAGE)).resolves.toMatchObject({ ok: false });
+    await expect(rpc.act("archive", MESSAGE)).resolves.toMatchObject({
+      ok: false,
+    });
     expect(http.asked).toStrictEqual([`${MAILBOX}/`]);
   });
 
@@ -126,13 +134,13 @@ describe(GmailRpc, () => {
     const { http, rpc } = setup();
     http.answer(`${MAILBOX}/s/`, { status: 500, text: "" });
 
-    await expect(rpc.archive(MESSAGE)).resolves.toStrictEqual({
+    await expect(rpc.act("archive", MESSAGE)).resolves.toStrictEqual({
       error: "status",
       ok: false,
     });
 
     http.throwOn(new Error("the network is gone"));
-    await expect(rpc.archive(MESSAGE)).resolves.toStrictEqual({
+    await expect(rpc.act("archive", MESSAGE)).resolves.toStrictEqual({
       error: "threw",
       ok: false,
     });

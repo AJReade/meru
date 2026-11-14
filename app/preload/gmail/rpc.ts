@@ -63,18 +63,6 @@ export class GmailRpc {
     this.#options = options;
   }
 
-  async archive(
-    messageId: string
-  ): Promise<Result<undefined, MailActionRefusal>> {
-    return await this.act("archive", messageId);
-  }
-
-  async markRead(
-    messageId: string
-  ): Promise<Result<undefined, MailActionRefusal>> {
-    return await this.act("markRead", messageId);
-  }
-
   async act(
     action: MailAction,
     messageId: string
