@@ -413,6 +413,7 @@ export class Downloads {
         void this.#complete(active);
       }
     } else if (event.kind === "interrupted") {
+      this.#options.log.warn("A download was interrupted");
       void this.#fail(active);
     } else {
       this.#active.delete(active.id);
@@ -429,14 +430,14 @@ export class Downloads {
     this.#options.progress.set(progressOf(running, this.#finishedBytes));
   }
 
+  /** Calls the download off, deletes what it wrote, records it as failed and tells the user. */
   async #fail(active: Active) {
-    const { downloads, log, notifications, settings } = this.#options;
+    const { downloads, notifications, settings } = this.#options;
     this.#active.delete(active.id);
     this.#showProgress();
     downloads.cancel(active.id);
     await downloads.remove(active.written);
     const name = this.#record(active, "failed");
-    log.warn("A download was interrupted");
     notifications.show(
       {
         body: msg`The download of ${name} was interrupted.`,
@@ -459,8 +460,7 @@ export class Downloads {
       log.error("A download could not be moved where it was saved", {
         error,
       });
-      await downloads.remove(active.written);
-      this.#record(active, "failed");
+      await this.#fail(active);
       return;
     }
     // Before anything else touches the file, so nothing can open it unquarantined.

@@ -6,12 +6,10 @@ const UNITS: readonly (readonly [Intl.RelativeTimeFormatUnit, number])[] = [
   ["minute", 60_000],
 ];
 
+const format = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+
 /** How long before `now` `then` was, in the largest unit it fills, and "now" under a minute. */
-export const relativeTime = (
-  then: number,
-  now: number,
-  format = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" })
-): string => {
+export const relativeTime = (then: number, now: number): string => {
   const elapsed = Math.max(0, now - then);
   for (const [unit, size] of UNITS) {
     if (elapsed >= size) {
@@ -22,7 +20,7 @@ export const relativeTime = (
 };
 
 /** How often the times move on: the finest unit shown is the minute. */
-export const TICK = 30_000;
+const TICK = 30_000;
 
 /** The time now, moving on every `TICK`, so every row of a list reads one clock. */
 export const useNow = (): number => {

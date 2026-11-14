@@ -13,7 +13,7 @@ import {
 } from "./define.ts";
 
 /** The download history, newest first. */
-export const downloadsSnapshotSchema = z.object({
+const downloadsSnapshotSchema = z.object({
   items: z.array(downloadSchema),
 });
 

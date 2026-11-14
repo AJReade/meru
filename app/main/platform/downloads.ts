@@ -120,7 +120,11 @@ export const createDownloads = (options: {
       event.preventDefault();
       return;
     }
-    mkdirSync(path.dirname(target.path), { recursive: true });
+    try {
+      mkdirSync(path.dirname(target.path), { recursive: true });
+    } catch {
+      // A folder that cannot be made fails the download once Chromium writes to it, which the feature hears as an interruption.
+    }
     item.setSavePath(target.path);
     follow(id, item);
   };
