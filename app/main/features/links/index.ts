@@ -8,7 +8,7 @@ import type { Profiles } from "../profiles/index.ts";
 import type { SettingsStore } from "../settings/index.ts";
 import type { Stages } from "../stage/index.ts";
 
-export interface LinksOptions {
+interface LinksOptions {
   readonly log: LogPort;
   readonly profiles: Pick<Profiles, "state" | "tab" | "openTab" | "focusTab">;
   readonly settings: Pick<SettingsStore, "get">;

@@ -15,7 +15,7 @@ import type { Inbox } from "../inbox/index.ts";
 import type { Profiles } from "../profiles/index.ts";
 import type { SettingsStore } from "../settings/index.ts";
 
-export interface NotificationsOptions {
+interface NotificationsOptions {
   readonly notifications: NotificationPort;
   readonly platform: Platform;
   readonly inbox: Pick<Inbox, "important">;

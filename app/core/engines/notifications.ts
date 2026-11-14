@@ -11,13 +11,13 @@ export const notifiable = (
     ? arrived
     : arrived.filter((entry) => important.has(entry.id));
 
-export interface MailNotice {
+interface MailNotice {
   readonly title: string;
   readonly subtitle?: string;
   readonly body?: string;
 }
 
-export interface MailNoticeOptions {
+interface MailNoticeOptions {
   readonly platform: Platform;
   readonly profileLabel: string;
   /** Names the profile before the sender, for someone with several. */

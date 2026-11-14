@@ -18,7 +18,7 @@ export interface SleepInput {
   readonly singleInstance: SingleInstance;
 }
 
-export interface SleepPlan {
+interface SleepPlan {
   /** Every tab asleep once the sweep is carried out. */
   readonly asleep: ReadonlySet<string>;
   /** The tabs to put to sleep now, a subset of `asleep`. */

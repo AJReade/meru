@@ -27,7 +27,7 @@ import { partitionOf } from "../../../core/records/profile.ts";
 import type { Profiles } from "../profiles/index.ts";
 import type { SettingsStore } from "../settings/index.ts";
 
-export interface InboxOptions {
+interface InboxOptions {
   readonly sessions: Pick<SessionPort, "fetchText">;
   readonly clock: Clock;
   readonly online: OnlinePort;

@@ -23,7 +23,7 @@ export interface LinkContext {
   readonly disposition?: Disposition;
 }
 
-export type LinkTarget =
+type LinkTarget =
   | { readonly action: "samePane" }
   /** A tab of the app takes the link: `tabId` when one of the profile's tabs already shows it, a new one otherwise. */
   | {

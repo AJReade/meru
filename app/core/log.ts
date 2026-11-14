@@ -1,6 +1,6 @@
 import { serializeError } from "./errors.ts";
 
-export const LOG_LEVELS = ["debug", "info", "warn", "error"] as const;
+const LOG_LEVELS = ["debug", "info", "warn", "error"] as const;
 
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
@@ -8,7 +8,7 @@ export type LogLevel = (typeof LOG_LEVELS)[number];
 type EnvelopeKey = "level" | "message" | "scope" | "time";
 
 /** What a line says beyond its message, as values a reader can filter on; an `error` field is written as `{ name, message, stack }`. */
-export type LogFields = Readonly<Record<string, unknown>> &
+type LogFields = Readonly<Record<string, unknown>> &
   Readonly<Partial<Record<EnvelopeKey, never>>>;
 
 /** A levelled, structured log: a message that stays the same from one occurrence to the next, and the fields that vary. */

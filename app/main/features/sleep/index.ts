@@ -19,7 +19,7 @@ import { sleepCommands } from "./commands.ts";
 
 const MINUTE = 60_000;
 
-export interface SleepOptions {
+interface SleepOptions {
   readonly clock: Clock;
   readonly events: Pick<AppEvents, "on" | "emit">;
   /** The window whose focused tab the menu's toggle shows, as the menu asks it. */
