@@ -4,7 +4,7 @@ import type { GmailFeature } from "../feature.ts";
 import { parseHtml } from "../html.ts";
 
 // Gmail cuts a body over about 102 KB on the server, so the rest is never in the page; the "View entire message" link opens the print view of that one message, which holds the whole body.
-export const clippedEntry: SelectorEntry = {
+const clippedEntry: SelectorEntry = {
   anchor: '.iX > a[href*="view=lg"]',
   id: "clippedMessages",
 };
@@ -20,7 +20,7 @@ const URL_ATTRIBUTES = new Set([
   "xlink:href",
 ]);
 /** How many whole messages a page keeps, so going back to a long thread does not fetch them again. */
-export const CLIPPED_CACHE = 5;
+const CLIPPED_CACHE = 5;
 
 const allowedUrl = (name: string, value: string, base: string): boolean => {
   let protocol: string;

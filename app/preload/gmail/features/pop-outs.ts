@@ -4,14 +4,14 @@ import type { SelectorEntry } from "../../content/selectors.ts";
 import type { GmailFeature } from "../feature.ts";
 
 // Gmail tags the Compose button with `gh="cm"`, its compose action.
-export const composeEntry: SelectorEntry = {
+const composeEntry: SelectorEntry = {
   anchor: '[gh="cm"][role="button"]',
   context: '[role="navigation"]',
   id: "composeButton",
 };
 
 // Below the last message of a conversation, `.amn` holds Reply and Forward, each a `span.ams` with the link role.
-export const replyForwardEntry: SelectorEntry = {
+const replyForwardEntry: SelectorEntry = {
   anchor: 'span.ams[role="link"]',
   cacheClass: true,
   hop: ".amn",
@@ -19,7 +19,7 @@ export const replyForwardEntry: SelectorEntry = {
 };
 
 /** Turns a plain click on `element` into a Shift-click, which Gmail answers by opening the compose in a window of its own, and marks the element while it does; a click with Shift held already goes through as it is. */
-export const shiftClicks = (element: HTMLElement): Unsubscribe => {
+const shiftClicks = (element: HTMLElement): Unsubscribe => {
   const click = (event: MouseEvent) => {
     if (event.shiftKey) {
       return;

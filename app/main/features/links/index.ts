@@ -27,7 +27,7 @@ interface LinksOptions {
 }
 
 /** The size 3.x opens a Gmail pop-out at. */
-export const POP_OUT_SIZE = { height: 600, width: 800 } as const;
+const POP_OUT_SIZE = { height: 600, width: 800 } as const;
 
 /** Carries out where resolveLinkTarget sends a link a pane's page opens. */
 export class Links {

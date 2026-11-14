@@ -2,7 +2,7 @@ import type { SelectorEntry } from "../../content/selectors.ts";
 import type { GmailFeature } from "../feature.ts";
 
 // An attachment's chip carries the address it downloads from in `download_url`; `.hq` is the strip that holds a message's chips, and `.hq.gt` that strip by Gmail's classes, which says a message has attachments while the anchor finds none.
-export const attachmentsEntry: SelectorEntry = {
+const attachmentsEntry: SelectorEntry = {
   anchor: "span[download_url]",
   cacheClass: true,
   context: ".hq.gt",

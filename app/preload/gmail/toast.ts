@@ -1,5 +1,5 @@
 // The shadcn toast's shape resolved into plain values, in px because a rem inside a shadow root is measured against Gmail's root font size; the surface follows the app's popovers. The preload cannot load the interface's style sheet, which would put the whole of Tailwind's output into every Gmail page.
-export const TOAST_CSS = `
+const TOAST_CSS = `
 .toaster {
   --toast-surface: oklch(1 0 0);
   --toast-text: oklch(0.145 0 0);
@@ -56,7 +56,7 @@ export const TOAST_CSS = `
 @media (prefers-reduced-motion: reduce) { .toast, .toast-action, .toast-close { transition: none; } }`;
 
 /** Matches the opacity transition in `TOAST_CSS`. */
-export const FADE_MS = 200;
+const FADE_MS = 200;
 
 const SVG = "http://www.w3.org/2000/svg";
 

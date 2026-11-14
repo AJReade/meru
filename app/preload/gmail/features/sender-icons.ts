@@ -4,7 +4,7 @@ import type { GmailFeature } from "../feature.ts";
 
 const ICON = 16;
 
-export const SENDER_ICONS_CSS = `
+const SENDER_ICONS_CSS = `
 .meru-sender-icons { display: flex; align-items: center; justify-content: flex-end; min-width: ${ICON * 1.5}px; margin-right: ${ICON / 2}px; }
 .meru-sender-icons img { width: ${ICON}px; height: ${ICON}px; border-radius: 50%; background-color: #ffffff; }
 .meru-sender-icons img + img { margin-left: -${ICON / 2}px; }`;
@@ -12,7 +12,7 @@ export const SENDER_ICONS_CSS = `
 const SENDER = 'span[email*="@"]';
 
 // A thread row carries each sender as a span with the address in `email`; `tr.zA` is Gmail's class for a thread row, which says the list shows while no sender is found.
-export const senderIconsEntry: SelectorEntry = {
+const senderIconsEntry: SelectorEntry = {
   anchor: SENDER,
   context: "tr.zA",
   hop: "tr[id]",

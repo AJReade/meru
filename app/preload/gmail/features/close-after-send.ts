@@ -4,7 +4,7 @@ import type { SelectorEntry } from "../../content/selectors.ts";
 import type { GmailFeature } from "../feature.ts";
 
 // Gmail's "Message sent" bar, `.vh`, holds Undo, `#link_undo`, beside View message, `#link_vsm`; Undo alone also follows other actions, such as archiving.
-export const messageSentEntry: SelectorEntry = {
+const messageSentEntry: SelectorEntry = {
   anchor: "#link_undo",
   id: "messageSent",
 };

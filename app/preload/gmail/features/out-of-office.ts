@@ -4,7 +4,7 @@ import { cssOf } from "../../content/styles.ts";
 import type { GmailFeature } from "../feature.ts";
 
 // 3.x's selector, `:7` holding `:k`, rests on ids Gmail numbers in the order it builds the page; the banner's link to the settings page it is turned off on, `#settings/general`, says the same thing without them.
-export const OUT_OF_OFFICE_BANNER = String.raw`#\:7:has(#\:k), [role="alert"]:has(a[href$="#settings/general"])`;
+const OUT_OF_OFFICE_BANNER = String.raw`#\:7:has(#\:k), [role="alert"]:has(a[href$="#settings/general"])`;
 
 export const hideOutOfOfficeBannerRules: readonly StyleRule[] = [
   { declarations: "display: none !important;", selector: OUT_OF_OFFICE_BANNER },
