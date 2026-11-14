@@ -28,6 +28,7 @@ const setup = async () => {
   const log = new FakeLog();
   const google = new Google({
     commands: app.commands,
+    events: app.events,
     log: log.scoped("google"),
     preload: "/dist/preload/google.cjs",
     registrar: app.registrar,
@@ -41,6 +42,20 @@ const setup = async () => {
 };
 
 describe(Google, () => {
+  it("toggles the Meet page focused last, whatever order they opened in", async () => {
+    const { app, google, toggles } = await setup();
+    google.page(tabOf("first", "meet")).attach(4);
+    google.page(tabOf("second", "meet")).attach(5);
+    app.events.emit("tab.focused", { groupId: "g", tabId: "first" });
+    unwrap(app.commands.run("google.toggleMeetMicrophone", { windowId: 1 }));
+    app.events.emit("tab.focused", { groupId: "g", tabId: "docs" });
+    unwrap(app.commands.run("google.toggleMeetCamera", { windowId: 1 }));
+    expect(toggles()).toStrictEqual([
+      { contentsId: 4, payload: { toggle: "microphone" } },
+      { contentsId: 4, payload: { toggle: "camera" } },
+    ]);
+  });
+
   it("toggles the latest Meet page's microphone and camera, and nothing while none is open", async () => {
     const { app, google, toggles } = await setup();
     expect(app.commands.enabled("google.toggleMeetMicrophone")).toBeFalsy();
