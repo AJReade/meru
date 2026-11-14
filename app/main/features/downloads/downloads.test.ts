@@ -33,12 +33,12 @@ const settle = async () => {
 const setup = async ({
   fs = new FakeFs(),
   platform = "darwin",
-}: { fs?: FakeFs; platform?: Platform } = {}) => {
+  port = new FakeDownloads(),
+}: { fs?: FakeFs; platform?: Platform; port?: FakeDownloads } = {}) => {
   const clock = new FakeClock(START);
   const app = await testApp({ clock, fs });
   const { open, stages, views } = testStages(app);
   const { window } = open();
-  const port = new FakeDownloads(DOWNLOADS);
   const dialogs = new FakeDialogs();
   const progress = new FakeProgress();
   const shell = new FakeShell();
@@ -198,6 +198,101 @@ describe(Downloads, () => {
       "The download of big.iso was interrupted.",
     ]);
     expect(log.at("warn")).toStrictEqual(["A download was interrupted"]);
+  });
+
+  it("records a failed download and says so even when its partial file cannot be deleted, and logs the refusal", async () => {
+    const { feature, log, notifications, port } = await setup();
+    const { id, path: written } = port.start({ suggestedName: "long.pdf" });
+    port.stuck.add(written ?? "");
+    port.interrupt(id);
+    await settle();
+    expect(feature.snapshot().items).toMatchObject([
+      { fileName: "long.pdf", state: "failed" },
+    ]);
+    expect(notifications.shown.map(({ spec }) => spec.title)).toStrictEqual([
+      "Download failed",
+    ]);
+    expect(log.at("warn")).toStrictEqual([
+      "A download was interrupted",
+      "A download's file could not be deleted",
+    ]);
+  });
+
+  it("records a saved download that cannot be moved where the dialog said as failed, under the name chosen", async () => {
+    const { dialogs, feature, port, settings } = await setup();
+    settings.set("downloads.saveAs", true);
+    const { id } = port.start({ suggestedName: "a.zip" });
+    port.complete(id);
+    const chosen = path.join(path.sep, "Volumes", "Gone", "a.zip");
+    port.stuck.add(chosen);
+    await settle();
+    dialogs.answer(chosen);
+    await settle();
+    expect(feature.snapshot().items).toMatchObject([
+      { exists: false, filePath: chosen, state: "failed" },
+    ]);
+  });
+
+  it("records a download interrupted before the save dialog answers under the name it suggested", async () => {
+    const { feature, notifications, port, settings } = await setup();
+    settings.set("downloads.saveAs", true);
+    const { id } = port.start({ suggestedName: "cut.pdf" });
+    port.interrupt(id);
+    await settle();
+    expect(feature.snapshot().items).toMatchObject([
+      { fileName: "cut.pdf", filePath: at("cut.pdf"), state: "failed" },
+    ]);
+    expect(notifications.shown.map(({ spec }) => spec.body)).toStrictEqual([
+      "The download of cut.pdf was interrupted.",
+    ]);
+  });
+
+  it("empties the pending folder of what no download under way is writing, on start and when a dialog closes", async () => {
+    const port = new FakeDownloads();
+    const crashed = path.join(PENDING, "left-by-a-crash");
+    port.files.add(crashed);
+    const { dialogs, settings } = await setup({ port });
+    await settle();
+    expect(port.files.has(crashed)).toBeFalsy();
+
+    settings.set("downloads.saveAs", true);
+    const first = port.start({ suggestedName: "a.zip" });
+    const second = port.start({ suggestedName: "b.zip" });
+    const orphan = path.join(PENDING, "orphan");
+    port.files.add(orphan);
+    await settle();
+    dialogs.answer(null);
+    await settle();
+    expect([
+      port.files.has(orphan),
+      port.files.has(first.path ?? ""),
+      port.files.has(second.path ?? ""),
+    ]).toStrictEqual([false, false, true]);
+  });
+
+  it("keeps the bar from running backwards when a download is cancelled or fails while another runs", async () => {
+    const { port, progress } = await setup();
+    const first = port.start({ suggestedName: "a", totalBytes: 100 });
+    const second = port.start({ suggestedName: "b", totalBytes: 100 });
+    const third = port.start({ suggestedName: "c", totalBytes: 100 });
+    port.progress(first.id, 10, 100);
+    port.progress(second.id, 90, 100);
+    port.progress(third.id, 50, 100);
+    expect(progress.shown).toStrictEqual({ kind: "fraction", value: 0.5 });
+    port.cancel(second.id);
+    const afterCancel = progress.shown;
+    port.interrupt(third.id);
+    await settle();
+    const afterFailure = progress.shown;
+    expect([afterCancel.kind, afterFailure.kind]).toStrictEqual([
+      "fraction",
+      "fraction",
+    ]);
+    const values = [afterCancel, afterFailure].map((shown) =>
+      shown.kind === "fraction" ? shown.value : 0
+    );
+    expect(values[0]).toBeGreaterThanOrEqual(0.5);
+    expect(values[1]).toBeGreaterThanOrEqual(values[0] ?? 1);
   });
 
   it("shows the combined progress of the downloads under way, indeterminate while a size is unknown, and none once they end", async () => {

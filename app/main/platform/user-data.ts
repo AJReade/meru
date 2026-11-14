@@ -35,3 +35,6 @@ export const placeUserData = (root: string): void => {
 
 /** Where the app keeps its user data, once `placeUserData` has had its say. */
 export const userDataDir = (): string => app.getPath("userData");
+
+/** The folder the system keeps downloads in. */
+export const systemDownloadsDir = (): string => app.getPath("downloads");

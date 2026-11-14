@@ -7,7 +7,6 @@ import { ENTITLEMENT_URL } from "../core/entitlement/api.ts";
 import { acceptedKeys, importKeys } from "../core/entitlement/keys.ts";
 import { AppEvents } from "../core/events.ts";
 import { themeOf } from "../core/ports.ts";
-import type { DownloadPort } from "../core/ports.ts";
 import type { Tab } from "../core/records/tab.ts";
 import { allowlist } from "../shared/channels/define.ts";
 import { surfaces } from "../shared/channels/surfaces.ts";
@@ -44,7 +43,11 @@ import {
   createElectronPorts,
 } from "./platform/ports.ts";
 import { createElectronUpdater } from "./platform/updater.ts";
-import { placeUserData, userDataDir } from "./platform/user-data.ts";
+import {
+  placeUserData,
+  systemDownloadsDir,
+  userDataDir,
+} from "./platform/user-data.ts";
 import { CommandDispatcher } from "./shell/commands.ts";
 import { exposeE2e, recordingDesktop, RecordingShell } from "./shell/e2e.ts";
 import { logFailures } from "./shell/failures.ts";
@@ -73,11 +76,8 @@ const testPaneUrl =
       : "about:blank";
 
 // The suite finds a download in its own user data rather than in the Downloads folder of whoever runs it.
-const downloadsDirectory = (
-  e2e: boolean,
-  port: Pick<DownloadPort, "defaultDirectory">
-): string =>
-  e2e ? path.join(userDataDir(), "Downloads") : port.defaultDirectory;
+const downloadsDirectory = (e2e: boolean): string =>
+  e2e ? path.join(userDataDir(), "Downloads") : systemDownloadsDir();
 
 /** Closes the tab whose view shows the page `contentsId`. */
 const closeTabOf =
@@ -351,7 +351,7 @@ const start = async () => {
     clock: ports.clock,
     closeTab: closeTabOf(stages, profiles),
     commands,
-    defaultDirectory: downloadsDirectory(e2e, ports.downloads),
+    defaultDirectory: downloadsDirectory(e2e),
     dialogs: ports.dialogs,
     downloads: ports.downloads,
     fs: ports.fs,

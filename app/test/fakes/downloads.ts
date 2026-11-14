@@ -7,11 +7,12 @@ import type {
   DownloadTarget,
 } from "../../core/ports.ts";
 
-/** Downloads over a folder tree held in memory, with the platform's paths; a test starts each download and moves it along as the network would. */
+/** Downloads over a folder tree held in memory, with the platform's paths, on a disk that folds case as macOS's and Windows' do by default; a test starts each download and moves it along as the network would. */
 export class FakeDownloads implements DownloadPort {
-  readonly defaultDirectory: string;
   /** Every file on the fake disk, by absolute path. */
   readonly files = new Set<string>();
+  /** Paths the disk refuses to delete or move, as one whose name is too long or whose folder is a file. */
+  readonly stuck = new Set<string>();
   /** Each download under way, by id, with where it is being written. */
   readonly active = new Map<string, string>();
   /** Every address a page was asked to download, in order. */
@@ -21,10 +22,6 @@ export class FakeDownloads implements DownloadPort {
   #decide: ((start: DownloadStart) => DownloadTarget) | undefined;
   readonly #listeners = new Set<(event: DownloadEvent) => void>();
   #count = 0;
-
-  constructor(defaultDirectory = "/Users/me/Downloads") {
-    this.defaultDirectory = defaultDirectory;
-  }
 
   readonly handle = (decide: (start: DownloadStart) => DownloadTarget) => {
     this.#decide = decide;
@@ -96,10 +93,17 @@ export class FakeDownloads implements DownloadPort {
     this.requested.push({ contentsId, url });
   };
 
-  readonly namesIn = (directory: string) =>
-    [...this.files]
+  readonly occupied = (path: string) => {
+    const key = path.toLowerCase();
+    return [...this.files].some((file) => file.toLowerCase() === key);
+  };
+
+  readonly namesIn = async (directory: string) => {
+    await Promise.resolve();
+    return [...this.files]
       .filter((path) => nodePath.dirname(path) === directory)
       .map((path) => nodePath.basename(path));
+  };
 
   readonly exists = async (path: string) => {
     await Promise.resolve();
@@ -108,11 +112,17 @@ export class FakeDownloads implements DownloadPort {
 
   readonly remove = async (path: string) => {
     await Promise.resolve();
+    if (this.stuck.has(path)) {
+      throw new Error(`ENAMETOOLONG: ${path}`);
+    }
     this.files.delete(path);
   };
 
   readonly move = async (from: string, to: string) => {
     await Promise.resolve();
+    if (this.stuck.has(from) || this.stuck.has(to)) {
+      throw new Error(`ENOTDIR: ${to}`);
+    }
     if (!this.files.delete(from)) {
       throw new Error(`ENOENT: ${from}`);
     }

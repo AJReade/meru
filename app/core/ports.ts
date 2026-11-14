@@ -392,8 +392,6 @@ export type DownloadEvent =
 
 /** Every session's downloads, and the files they leave. */
 export interface DownloadPort {
-  /** The folder the system keeps downloads in. */
-  readonly defaultDirectory: string;
   /** Takes the decision on each download as it starts, which has to be made before `decide` returns: Chromium asks for the path there and then, and shows a save dialog of its own when given none. */
   readonly handle: (
     decide: (start: DownloadStart) => DownloadTarget
@@ -403,8 +401,10 @@ export interface DownloadPort {
   readonly cancel: (id: string) => void;
   /** Downloads `url` in the session of the page `contentsId`, as a link to it would. */
   readonly download: (contentsId: number, url: string) => void;
-  /** The names in the folder, read at once since a download's path is decided before `handle`'s callback returns; none when it cannot be read. */
-  readonly namesIn: (directory: string) => readonly string[];
+  /** Whether anything is at the path, answered at once since a download's path is decided before `handle`'s callback returns; the disk's own rule says whether names differing in case are one. */
+  readonly occupied: (path: string) => boolean;
+  /** The names in the folder; none when it cannot be read. */
+  readonly namesIn: (directory: string) => Promise<readonly string[]>;
   readonly exists: (path: string) => Promise<boolean>;
   /** Deletes the file, doing nothing when it is already gone. */
   readonly remove: (path: string) => Promise<void>;

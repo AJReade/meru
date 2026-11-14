@@ -220,10 +220,7 @@ export const createElectronPorts = (): Ports => ({
   notifications: createNotifications(),
   tray: createTray(),
   progress: progressBar,
-  downloads: createDownloads({
-    defaultDirectory: app.getPath("downloads"),
-    platform: platformOf(process.platform),
-  }),
+  downloads: createDownloads({ platform: platformOf(process.platform) }),
   dialogs,
   sessions: createSessions(),
   shell: {

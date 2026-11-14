@@ -7,6 +7,7 @@ import {
   nameKey,
   progressOf,
   pruneHistory,
+  takenAmong,
   uniqueName,
   withPreferredExtension,
 } from "./downloads.ts";
@@ -37,19 +38,19 @@ describe(uniqueName, () => {
     },
     { existing: [".env"], expected: ".env (1)", suggested: ".env" },
   ])("names $suggested $expected beside $existing", (fixture) => {
-    expect(uniqueName(fixture.existing, fixture.suggested, "darwin")).toBe(
-      fixture.expected
-    );
+    expect(
+      uniqueName(fixture.suggested, takenAmong(fixture.existing, "darwin"))
+    ).toBe(fixture.expected);
   });
 
   it("takes a name that differs only in case for the same file on macOS and Windows, and for another on Linux", () => {
-    expect(uniqueName(["Report.PDF"], "report.pdf", "darwin")).toBe(
+    expect(uniqueName("report.pdf", takenAmong(["Report.PDF"], "darwin"))).toBe(
       "report (1).pdf"
     );
-    expect(uniqueName(["Report.PDF"], "report.pdf", "win32")).toBe(
+    expect(uniqueName("report.pdf", takenAmong(["Report.PDF"], "win32"))).toBe(
       "report (1).pdf"
     );
-    expect(uniqueName(["Report.PDF"], "report.pdf", "linux")).toBe(
+    expect(uniqueName("report.pdf", takenAmong(["Report.PDF"], "linux"))).toBe(
       "report.pdf"
     );
   });
@@ -57,7 +58,9 @@ describe(uniqueName, () => {
   it("folds case wider than either mapping alone, and composed and decomposed forms together", () => {
     expect(nameKey("STRASSE", "darwin")).toBe(nameKey("straße", "darwin"));
     expect(nameKey("ΣΟΦΟΣ", "darwin")).toBe(nameKey("σοφος", "darwin"));
-    expect(uniqueName(["Café.txt"], "café.txt", "darwin")).toBe("café (1).txt");
+    expect(uniqueName("café.txt", takenAmong(["Café.txt"], "darwin"))).toBe(
+      "café (1).txt"
+    );
   });
 });
 
@@ -104,6 +107,21 @@ describe(pruneHistory, () => {
     expect(kept.map(({ id }) => id)).toStrictEqual(["now", "last week"]);
   });
 
+  it("reads a time after now as now, and drops one further ahead than the history keeps", () => {
+    const kept = pruneHistory(
+      [
+        download("yesterday", DAY),
+        download("tomorrow", -DAY),
+        download("next year", -365 * DAY),
+      ],
+      NOW
+    );
+    expect(kept.map(({ createdAt, id }) => ({ createdAt, id }))).toStrictEqual([
+      { createdAt: NOW, id: "tomorrow" },
+      { createdAt: NOW - DAY, id: "yesterday" },
+    ]);
+  });
+
   it("keeps the newest of more than the limit", () => {
     const many = Array.from({ length: HISTORY_LIMIT + 5 }, (_, index) =>
       download(`d${index}`, index * 1000)
@@ -114,6 +132,14 @@ describe(pruneHistory, () => {
     expect(kept.at(-1)?.id).toBe(`d${HISTORY_LIMIT - 1}`);
   });
 });
+
+const value = (
+  active: readonly { received: number; total: number }[],
+  settled: number
+) => {
+  const progress = progressOf(active, settled);
+  return progress.kind === "fraction" ? progress.value : Number.NaN;
+};
 
 describe(progressOf, () => {
   it("shows nothing with no download under way", () => {
@@ -132,7 +158,22 @@ describe(progressOf, () => {
     ).toStrictEqual({ kind: "indeterminate" });
   });
 
-  it("counts finished bytes so the bar never runs backwards", () => {
+  it("never runs backwards as downloads finish, fail or are cancelled while others run", () => {
+    const both = value(
+      [
+        { received: 10, total: 100 },
+        { received: 90, total: 100 },
+      ],
+      0
+    );
+    const secondEnded = value([{ received: 10, total: 100 }], 90);
+    const firstEnded = value([{ received: 90, total: 100 }], 10);
+    expect(both).toBe(0.5);
+    expect(secondEnded).toBeGreaterThanOrEqual(both);
+    expect(firstEnded).toBeGreaterThanOrEqual(both);
+  });
+
+  it("counts settled bytes as arrived", () => {
     expect(progressOf([{ received: 50, total: 100 }], 100)).toStrictEqual({
       kind: "fraction",
       value: 0.75,

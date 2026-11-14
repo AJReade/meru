@@ -1,9 +1,9 @@
-import { spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { once } from "node:events";
-import { mkdirSync, readdirSync } from "node:fs";
-import { access, copyFile, rename, rm } from "node:fs/promises";
+import { existsSync, mkdirSync } from "node:fs";
+import { access, copyFile, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import { app, BrowserWindow, dialog, webContents } from "electron";
 import type {
@@ -24,14 +24,8 @@ import type {
 } from "../../core/ports.ts";
 import type { Platform } from "../../core/records/platform.ts";
 
-const run = async (file: string, args: readonly string[]) => {
-  const child = spawn(file, args, { stdio: "ignore" });
-  const closed: unknown[] = await once(child, "close");
-  const [code] = closed;
-  if (code !== 0) {
-    throw new Error(`${file} exited with ${String(code)}`);
-  }
-};
+// oxlint-disable-next-line typescript/strict-void-return -- promisify reads the callback, not the ChildProcess execFile returns.
+const run = promisify(execFile);
 
 // Chromium quarantines a download in-process on Windows only and otherwise expects the embedder to, which Electron does not, so without this Gatekeeper never checks a file Meru downloads. The value is flags, the time in hex seconds, the agent and an empty event id, since Launch Services keeps no download history row for Meru's.
 const quarantine = async (file: string) => {
@@ -62,7 +56,6 @@ const moveFile = async (from: string, to: string) => {
 /** Every session's downloads: hears `will-download` on each session as it is created, so a profile's partition made later is heard too. */
 export const createDownloads = (options: {
   readonly platform: Platform;
-  readonly defaultDirectory: string;
 }): DownloadPort => {
   let decide: ((start: DownloadStart) => DownloadTarget) | undefined;
   const listeners = new Set<(event: DownloadEvent) => void>();
@@ -149,7 +142,6 @@ export const createDownloads = (options: {
         }
       }, 0);
     },
-    defaultDirectory: options.defaultDirectory,
     download: (contentsId, url) => {
       webContents.fromId(contentsId)?.downloadURL(url);
     },
@@ -174,13 +166,14 @@ export const createDownloads = (options: {
       };
     },
     move: moveFile,
-    namesIn: (directory) => {
+    namesIn: async (directory) => {
       try {
-        return readdirSync(directory);
+        return await readdir(directory);
       } catch {
         return [];
       }
     },
+    occupied: existsSync,
     onEvent: (listener) => {
       listeners.add(listener);
       return () => {

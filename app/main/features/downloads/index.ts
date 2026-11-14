@@ -8,6 +8,7 @@ import {
   progressOf,
   pruneHistory,
   SHOWN_DOWNLOADS,
+  takenAmong,
   uniqueName,
   withPreferredExtension,
 } from "../../../core/engines/downloads.ts";
@@ -75,16 +76,24 @@ const historySnapshot: SnapshotSpec<History, "items"> = {
 /** How long a Save Image As waits for its download to arrive before it is forgotten. */
 export const SAVE_AS_LIFETIME = 60_000;
 
-/** A download under way: where it is written, where it goes once it is whole, which a save dialog may not have answered yet, and how far it has got. */
+/** Where a download goes once it is whole: a path, or, while the save dialog has not answered, the one it suggested. */
+type Destination =
+  | { readonly kind: "known"; readonly path: string }
+  | { readonly kind: "asking"; readonly suggested: string };
+
+/** A download under way: where it is written, where it goes, and how far it has got. */
 interface Active {
   readonly id: string;
   readonly createdAt: number;
   readonly written: string;
-  target: string | undefined;
+  destination: Destination;
   received: number;
   total: number;
   done: boolean;
 }
+
+const pathOf = (destination: Destination): string =>
+  destination.kind === "known" ? destination.path : destination.suggested;
 
 type DownloadError = "unknownDownload";
 
@@ -131,7 +140,7 @@ export class Downloads {
   readonly #disposables = new DisposableStore();
   readonly #active = new Map<string, Active>();
   #items: readonly Download[] = [];
-  #finishedBytes = 0;
+  #settledBytes = 0;
   #pendingSaves: { readonly url: string; readonly expiresAt: number }[] = [];
   #asking: Promise<void> = Promise.resolve();
 
@@ -191,6 +200,7 @@ export class Downloads {
         snapshot: () => ok(this.snapshot()),
       })
     );
+    void this.#sweepPending();
   }
 
   dispose(): void {
@@ -315,27 +325,31 @@ export class Downloads {
       });
     }
     const directory = this.#directory();
-    const held = [...this.#active.values()].flatMap(({ target }) =>
-      target !== undefined && path.dirname(target) === directory
-        ? [path.basename(target)]
-        : []
+    // Chromium creates a download's file only moments after it starts, so until then the disk says a held name is free.
+    const held = takenAmong(
+      [...this.#active.values()].flatMap(({ destination }) => {
+        const file = pathOf(destination);
+        return path.dirname(file) === directory ? [path.basename(file)] : [];
+      }),
+      platform
     );
     const target = path.join(
       directory,
       uniqueName(
-        [...downloads.namesIn(directory), ...held],
         withPreferredExtension(start.suggestedName, start.mimeType),
-        platform
+        (name) => held(name) || downloads.occupied(path.join(directory, name))
       )
     );
     const ask = this.#takeSaveAs(start.url) || settings.get("downloads.saveAs");
     const written = ask ? path.join(pendingDirectory, start.id) : target;
     this.#active.set(start.id, {
       createdAt: clock.now(),
+      destination: ask
+        ? { kind: "asking", suggested: target }
+        : { kind: "known", path: target },
       done: false,
       id: start.id,
       received: 0,
-      target: ask ? undefined : target,
       total: start.totalBytes,
       written,
     });
@@ -379,20 +393,54 @@ export class Downloads {
     }
     const chosen = await this.#options.dialogs.save(suggested);
     const active = this.#active.get(id);
-    if (active === undefined) {
-      return;
+    if (active !== undefined) {
+      if (chosen === null) {
+        this.#settle(active);
+        this.#options.downloads.cancel(id);
+      } else {
+        active.destination = { kind: "known", path: chosen };
+        if (active.done) {
+          await this.#complete(active);
+        }
+      }
     }
-    if (chosen === null) {
-      this.#active.delete(id);
-      this.#options.downloads.cancel(id);
-      await this.#options.downloads.remove(active.written);
-      this.#showProgress();
-      return;
+    void this.#sweepPending();
+  }
+
+  /** Deletes what the pending folder holds that no download under way is writing, such as what a crash or a cancelled dialog left. */
+  async #sweepPending() {
+    const { downloads, pendingDirectory } = this.#options;
+    const names = await downloads.namesIn(pendingDirectory);
+    const owned = new Set(
+      [...this.#active.values()].map(({ written }) => written)
+    );
+    await Promise.all(
+      names
+        .map((name) => path.join(pendingDirectory, name))
+        .filter((file) => !owned.has(file))
+        .map(async (file) => {
+          await this.#delete(file);
+        })
+    );
+  }
+
+  /** Deletes a file, logging rather than throwing when the disk refuses. */
+  async #delete(file: string) {
+    try {
+      await this.#options.downloads.remove(file);
+    } catch (error) {
+      this.#options.log.warn("A download's file could not be deleted", {
+        error,
+      });
     }
-    active.target = chosen;
-    if (active.done) {
-      await this.#complete(active);
+  }
+
+  /** Takes the download off those under way, counting what it received as arrived so the bar does not run backwards. */
+  #settle(active: Active) {
+    if (this.#active.delete(active.id) && !active.done) {
+      this.#settledBytes += active.received;
     }
+    this.#showProgress();
   }
 
   #follow(event: DownloadEvent) {
@@ -405,19 +453,18 @@ export class Downloads {
       active.total = event.total;
       this.#showProgress();
     } else if (event.kind === "done") {
-      active.done = true;
       active.received = event.received;
-      this.#finishedBytes += event.received;
+      this.#settledBytes += event.received;
+      active.done = true;
       this.#showProgress();
-      if (active.target !== undefined) {
+      if (active.destination.kind === "known") {
         void this.#complete(active);
       }
     } else if (event.kind === "interrupted") {
       this.#options.log.warn("A download was interrupted");
       void this.#fail(active);
     } else {
-      this.#active.delete(active.id);
-      this.#showProgress();
+      this.#settle(active);
       this.#record(active, "cancelled");
     }
   }
@@ -425,18 +472,16 @@ export class Downloads {
   #showProgress() {
     const running = [...this.#active.values()].filter(({ done }) => !done);
     if (running.length === 0) {
-      this.#finishedBytes = 0;
+      this.#settledBytes = 0;
     }
-    this.#options.progress.set(progressOf(running, this.#finishedBytes));
+    this.#options.progress.set(progressOf(running, this.#settledBytes));
   }
 
-  /** Calls the download off, deletes what it wrote, records it as failed and tells the user. */
+  /** Calls the download off, records it as failed, tells the user and then deletes what it wrote, so a disk that refuses the delete loses nothing else. */
   async #fail(active: Active) {
     const { downloads, notifications, settings } = this.#options;
-    this.#active.delete(active.id);
-    this.#showProgress();
+    this.#settle(active);
     downloads.cancel(active.id);
-    await downloads.remove(active.written);
     const name = this.#record(active, "failed");
     notifications.show(
       {
@@ -446,11 +491,12 @@ export class Downloads {
       },
       noop
     );
+    await this.#delete(active.written);
   }
 
   async #complete(active: Active) {
     const { downloads, log, settings, shell } = this.#options;
-    const { target = active.written } = active;
+    const target = pathOf(active.destination);
     this.#active.delete(active.id);
     try {
       if (target !== active.written) {
@@ -504,7 +550,7 @@ export class Downloads {
 
   /** Records how the download ended and answers the name it ended under. */
   #record(active: Active, state: Download["state"]): string {
-    const filePath = active.target ?? active.written;
+    const filePath = pathOf(active.destination);
     const fileName = path.basename(filePath);
     this.#write([
       {

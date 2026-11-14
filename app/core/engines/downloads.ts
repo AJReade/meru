@@ -133,17 +133,22 @@ const nextName = (name: string): string => {
   return `${base.trim()} (${Number(count) + 1})${extension}`;
 };
 
-/** `suggested` itself, or the first of `name (1).ext`, `name (2).ext` and on that none of `existing` would share a file with on the platform's disks. */
-export const uniqueName = (
-  existing: Iterable<string>,
-  suggested: string,
+/** Whether a name is one of `names` on the platform's disks. */
+export const takenAmong = (
+  names: Iterable<string>,
   platform: Platform
+): ((name: string) => boolean) => {
+  const keys = new Set(Array.from(names, (name) => nameKey(name, platform)));
+  return (name) => keys.has(nameKey(name, platform));
+};
+
+/** `suggested` itself, or the first of `name (1).ext`, `name (2).ext` and on that `taken` does not hold. */
+export const uniqueName = (
+  suggested: string,
+  taken: (name: string) => boolean
 ): string => {
-  const taken = new Set(
-    Array.from(existing, (name) => nameKey(name, platform))
-  );
   let candidate = suggested;
-  while (taken.has(nameKey(candidate, platform))) {
+  while (taken(candidate)) {
     candidate = nextName(candidate);
   }
   return candidate;
@@ -158,13 +163,14 @@ export const SHOWN_DOWNLOADS = 50;
 
 const DAY = 86_400_000;
 
-/** The history as it is kept at `now`, newest first: nothing older than `HISTORY_DAYS` and no more than `HISTORY_LIMIT`. */
+/** The history as it is kept at `now`, newest first: nothing further from `now` than `HISTORY_DAYS` either way, a time after `now`, which only a changed clock or a hand edit gives, read as `now`, and no more than `HISTORY_LIMIT`. */
 export const pruneHistory = (
   items: readonly Download[],
   now: number
 ): readonly Download[] =>
   items
-    .filter((item) => now - item.createdAt < HISTORY_DAYS * DAY)
+    .filter((item) => Math.abs(now - item.createdAt) < HISTORY_DAYS * DAY)
+    .map((item) => (item.createdAt > now ? { ...item, createdAt: now } : item))
     .toSorted((a, b) => b.createdAt - a.createdAt)
     .slice(0, HISTORY_LIMIT);
 
@@ -174,10 +180,10 @@ export type DownloadProgress =
   | { readonly kind: "indeterminate" }
   | { readonly kind: "fraction"; readonly value: number };
 
-/** The share of the bytes under way that have arrived, counting what finished while others ran so the bar never runs backwards, or indeterminate while any download's size is unknown. */
+/** The share of the bytes under way that have arrived, or indeterminate while any download's size is unknown. `settledBytes` are what the downloads that ended while others ran received, whether they finished, failed or were cancelled, counted as arrived of as much, so that no download ending moves the bar backwards. */
 export const progressOf = (
   active: readonly { readonly received: number; readonly total: number }[],
-  finishedBytes: number
+  settledBytes: number
 ): DownloadProgress => {
   if (active.length === 0) {
     return { kind: "none" };
@@ -189,6 +195,6 @@ export const progressOf = (
   const total = active.reduce((sum, item) => sum + item.total, 0);
   return {
     kind: "fraction",
-    value: (finishedBytes + received) / (finishedBytes + total),
+    value: (settledBytes + received) / (settledBytes + total),
   };
 };
