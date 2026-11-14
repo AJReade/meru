@@ -1,15 +1,16 @@
 import { DisposableStore } from "../../../core/disposable.ts";
 import {
+  appNotice,
   mailNotice,
   MAX_MAIL_NOTICES,
   messageUrl,
   notifiable,
 } from "../../../core/engines/notifications.ts";
-import type { AppEvents } from "../../../core/events.ts";
+import type { AppEventMap, AppEvents } from "../../../core/events.ts";
 import type { NotificationPort } from "../../../core/ports.ts";
 import type { FeedEntry } from "../../../core/records/feed.ts";
 import type { Platform } from "../../../core/records/platform.ts";
-import { gmail } from "../../../shared/apps.ts";
+import { appById, gmail } from "../../../shared/apps.ts";
 import type { MailAction } from "../../../shared/channels/gmail.ts";
 import { msg } from "../../../shared/msg.ts";
 import type { Inbox } from "../inbox/index.ts";
@@ -52,6 +53,9 @@ export class Notifications {
     this.#disposables.add(
       this.#options.events.on("mail.arrived", ({ profileId, entries }) => {
         void this.#notify(profileId, entries);
+      }),
+      this.#options.events.on("page.notified", (raised) => {
+        this.#notifyFromPage(raised);
       })
     );
   }
@@ -146,6 +150,38 @@ export class Notifications {
   #gmailTab(profileId: string) {
     return this.#options.profiles.state.tabs.find(
       (found) => found.profileId === profileId && found.appId === gmail.id
+    );
+  }
+
+  /** Shows what a Google app's page raised, under one global setting, titled with the app rather than with the page's own title, and brings its tab to the front when it is clicked. */
+  #notifyFromPage({
+    appId,
+    notification,
+    profileId,
+    tabId,
+  }: AppEventMap["page.notified"]): void {
+    const { notifications, platform, profiles, settings } = this.#options;
+    if (!settings.get("notifications.allowFromWorkspaceApps")) {
+      return;
+    }
+    const profile = profiles.profile(profileId);
+    const app = appById(appId);
+    if (profile === undefined || app === undefined) {
+      return;
+    }
+    notifications.show(
+      appNotice(notification, {
+        // Calendar plays a sound of its own for an event about to start, so a second one from the system doubles it.
+        alwaysSilent: appId === "calendar",
+        appName: app.name,
+        labelled: profiles.state.profiles.length > 1,
+        platform,
+        profileLabel: profile.label,
+      }),
+      () => {
+        profiles.focusTab(tabId);
+        this.#options.showWindow();
+      }
     );
   }
 

@@ -1,6 +1,7 @@
 import type { Unsubscribe } from "./ports.ts";
 import type { Entitlement } from "./records/entitlement.ts";
 import type { FeedEntry } from "./records/feed.ts";
+import type { PageNotification } from "./records/notification.ts";
 
 /** The signals a feature sends up to whoever assembles the app, by name. */
 export interface AppEventMap {
@@ -12,6 +13,13 @@ export interface AppEventMap {
   readonly "mail.arrived": {
     readonly profileId: string;
     readonly entries: readonly FeedEntry[];
+  };
+  /** A Google app's page raised a notification of its own, which it asked the browser to show. */
+  readonly "page.notified": {
+    readonly profileId: string;
+    readonly tabId: string;
+    readonly appId: string;
+    readonly notification: PageNotification;
   };
   /** Something a menu item shows, such as whether it is enabled, may have changed. */
   readonly "menu.invalidated": null;
@@ -41,6 +49,7 @@ export class AppEvents {
     "inbox.changed": new Set(),
     "mail.arrived": new Set(),
     "menu.invalidated": new Set(),
+    "page.notified": new Set(),
     "profile.selected": new Set(),
     "profiles.changed": new Set(),
     "sidebar.changed": new Set(),

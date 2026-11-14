@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import type { AppEventMap } from "../../../core/events.ts";
 import type { Tab } from "../../../core/records/tab.ts";
 import { wireName } from "../../../shared/channels/define.ts";
 import {
   google as googleChannels,
   googlePushes,
 } from "../../../shared/channels/google.ts";
-import { googleSurface } from "../../../shared/channels/surfaces.ts";
 import { FakeGlobalShortcuts } from "../../../test/fakes/global-shortcuts.ts";
 import { FakeLog } from "../../../test/fakes/log.ts";
 import { unwrap } from "../../../test/result.ts";
@@ -98,7 +98,37 @@ describe(Google, () => {
         message: "A Google page's preload failed",
       },
     ]);
-    expect(googleSurface.requests).toHaveLength(1);
+  });
+
+  it("sends on what a page raised as a notification, under the tab and app that raised it", async () => {
+    const { app, google } = await setup();
+    const raised: AppEventMap["page.notified"][] = [];
+    app.events.on("page.notified", (notified) => {
+      raised.push(notified);
+    });
+    google.page(tabOf("calendar", "calendar")).attach(3);
+
+    unwrap(
+      app.registrar.dispatch(3, wireName(googleChannels.notify), {
+        body: "Starts in ten minutes",
+        title: "Standup",
+      })
+    );
+    // A page main never gave a surface is refused before a handler sees it.
+    expect(
+      app.registrar.dispatch(9, wireName(googleChannels.notify), {
+        title: "From a page of nobody's",
+      }).ok
+    ).toBeFalsy();
+
+    expect(raised).toStrictEqual([
+      {
+        appId: "calendar",
+        notification: { body: "Starts in ten minutes", title: "Standup" },
+        profileId: "personal",
+        tabId: "calendar",
+      },
+    ]);
   });
 
   it("takes the toggles' accelerators system-wide while a Meet call is open, and hands them back when the last goes", async () => {

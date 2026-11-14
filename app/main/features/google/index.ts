@@ -33,7 +33,7 @@ export interface GoogleOptions {
   /** The built Google preload. */
   readonly preload: string;
   readonly log: LogPort;
-  readonly events: Pick<AppEvents, "on">;
+  readonly events: Pick<AppEvents, "on" | "emit">;
 }
 
 const TOGGLE_COMMANDS: Readonly<Record<string, MeetToggle>> = {
@@ -48,6 +48,8 @@ export class Google {
   /** Meet's pages, the one focused last at the end, which the toggles act on. */
   readonly #meets: { readonly tabId: string; readonly contentsId: number }[] =
     [];
+  /** The tab of each page, so a notification is answered as the tab and app that raised it. */
+  readonly #pages = new Map<number, Tab>();
   /** The accelerator the system gave for each toggle. */
   readonly #held = new Map<string, MeetToggle>();
   /** The accelerators the system refused, so each is warned about once. */
@@ -72,6 +74,18 @@ export class Google {
             error: { message, name: what, stack },
             profileId,
           });
+          return ok(undefined);
+        },
+        notify: (notification, { contentsId }) => {
+          const tab = this.#pages.get(contentsId);
+          if (tab !== undefined) {
+            this.#options.events.emit("page.notified", {
+              appId: tab.appId,
+              notification,
+              profileId: tab.profileId,
+              tabId: tab.id,
+            });
+          }
           return ok(undefined);
         },
       }),
@@ -114,12 +128,14 @@ export class Google {
           googleSurface,
           tab.profileId
         );
+        this.#pages.set(contentsId, tab);
         if (tab.appId === "meet") {
           this.#meets.push({ contentsId, tabId: tab.id });
           this.#applyShortcuts();
         }
         return () => {
           unassign();
+          this.#pages.delete(contentsId);
           const index = this.#meets.findIndex(
             (meet) => meet.contentsId === contentsId
           );

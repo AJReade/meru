@@ -59,7 +59,7 @@ export const createBadge = (platform: Platform): BadgePort => ({
 export const createNotifications = (): NotificationPort => {
   const shown = new Set<Notification>();
   return {
-    show: ({ actions, ...spec }, onClick, onAction) => {
+    show: ({ actions, persistent, ...spec }, onClick, onAction) => {
       if (!Notification.isSupported()) {
         return;
       }
@@ -69,6 +69,7 @@ export const createNotifications = (): NotificationPort => {
           text,
           type: "button" as const,
         })),
+        timeoutType: persistent === true ? "never" : "default",
       });
       const release = () => {
         shown.delete(notification);

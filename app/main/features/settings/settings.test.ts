@@ -355,6 +355,7 @@ describe("a Pro setting", () => {
           { key: "links.openInApp", profileId: null },
           { key: "links.excludedApps", profileId: null },
           { key: "notifications.newEmails", profileId: null },
+          { key: "notifications.allowFromWorkspaceApps", profileId: null },
         ],
       ],
     ]);
@@ -411,6 +412,7 @@ describe("a Pro setting", () => {
         { key: "links.excludedApps", profileId: null },
         { key: "notifications.newEmails", profileId: null },
         { key: "notifications.newEmails", profileId: "work" },
+        { key: "notifications.allowFromWorkspaceApps", profileId: null },
       ],
     ]);
   });

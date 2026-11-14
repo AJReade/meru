@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ONE_UNREAD, TWO_UNREAD } from "../fixtures/gmail-feeds.ts";
 import type { FeedEntry } from "../records/feed.ts";
 import { parseFeed } from "./feed.ts";
-import { mailNotice, notifiable } from "./notifications.ts";
+import { appNotice, mailNotice, notifiable } from "./notifications.ts";
 
 const entriesOf = (text: string): readonly FeedEntry[] => {
   const parsed = parseFeed(text);
@@ -70,5 +70,65 @@ describe(mailNotice, () => {
             }),
           ]
     ).toStrictEqual([{ body: "2024", title: "12345" }, { title: "Work" }]);
+  });
+});
+
+describe(appNotice, () => {
+  const raised = {
+    body: "Starts in ten minutes",
+    title: "Standup",
+  } as const;
+  const shown = {
+    alwaysSilent: false,
+    appName: "Calendar",
+    labelled: false,
+    profileLabel: "Work",
+  } as const;
+
+  it("titles the notice with the app, keeping the page's own title as the subtitle on macOS and above the body elsewhere", () => {
+    expect([
+      appNotice(raised, { ...shown, platform: "darwin" }),
+      appNotice(raised, { ...shown, labelled: true, platform: "win32" }),
+    ]).toStrictEqual([
+      {
+        body: "Starts in ten minutes",
+        persistent: false,
+        silent: false,
+        subtitle: "Standup",
+        title: "Calendar",
+      },
+      {
+        body: "Standup\nStarts in ten minutes",
+        persistent: false,
+        silent: false,
+        title: "[Work] Calendar",
+      },
+    ]);
+  });
+
+  it("keeps what the page asked of the sound and the timeout, and silences an app that plays its own", () => {
+    expect([
+      appNotice(
+        { ...raised, requireInteraction: true, silent: true },
+        { ...shown, platform: "linux" }
+      ),
+      appNotice(
+        { title: "Standup" },
+        { ...shown, alwaysSilent: true, platform: "darwin" }
+      ),
+    ]).toStrictEqual([
+      {
+        body: "Standup\nStarts in ten minutes",
+        persistent: true,
+        silent: true,
+        title: "Calendar",
+      },
+      {
+        persistent: false,
+        silent: true,
+        subtitle: "Standup",
+        title: "Calendar",
+      },
+    ]);
   });
 });

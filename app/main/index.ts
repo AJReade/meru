@@ -67,13 +67,15 @@ const signInOf = (gmailOverride: string | undefined): string =>
     ? GOOGLE_SIGN_IN
     : new URL("/signin", gmailOverride).href;
 
-// The suite's Gmail pane shows the stand-in mailbox when it is given one, and every other pane nothing.
+// The suite's panes show the stand-ins they are given, the Gmail one its mailbox and every other Google app one page between them, and nothing without.
 const testPaneUrl =
-  (gmailOverride: string | undefined) =>
-  (tab: Tab): string =>
-    tab.appId === "gmail" && gmailOverride !== undefined
-      ? `${gmailOverride}/`
-      : "about:blank";
+  (gmailOverride: string | undefined, googleOverride: string | undefined) =>
+  (tab: Tab): string => {
+    if (tab.appId === "gmail") {
+      return gmailOverride === undefined ? "about:blank" : `${gmailOverride}/`;
+    }
+    return googleOverride ?? "about:blank";
+  };
 
 // The suite finds a download in its own user data rather than in the Downloads folder of whoever runs it.
 const downloadsDirectory = (e2e: boolean): string =>
@@ -297,7 +299,11 @@ const start = async () => {
     commands,
     content: (tab) =>
       tab.appId === "gmail" ? gmail.page(tab) : google.page(tab),
-    ...(e2e ? { paneUrl: testPaneUrl(gmailOverride) } : {}),
+    ...(e2e
+      ? {
+          paneUrl: testPaneUrl(gmailOverride, process.env.MERU_GOOGLE_URL),
+        }
+      : {}),
     historyOf: (tabId) => sleep.historyOf(tabId),
     onOpen: (tabId, url, disposition) => links.open(tabId, url, disposition),
     onPopup: (url) => links.popup(url),

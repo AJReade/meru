@@ -1,4 +1,5 @@
 import type { FeedEntry } from "../records/feed.ts";
+import type { PageNotification } from "../records/notification.ts";
 import type { Platform } from "../records/platform.ts";
 
 /** Which of the mail that arrived to notify about: all of it, or only what the Important feed lists; without that feed, all, since a missed notification costs more than an extra one. */
@@ -52,6 +53,52 @@ export const mailNotice = (
   }
   const lines = [subject, summary].filter((line) => line !== undefined);
   return { title, ...(lines.length === 0 ? {} : { body: lines.join("\n") }) };
+};
+
+interface AppNotice extends MailNotice {
+  readonly silent: boolean;
+  /** Stays on screen until it is answered. */
+  readonly persistent: boolean;
+}
+
+interface AppNoticeOptions {
+  readonly platform: Platform;
+  readonly profileLabel: string;
+  /** Names the profile before the app, for someone with several. */
+  readonly labelled: boolean;
+  /** The app's name in the catalog, which the notification is titled with. */
+  readonly appName: string;
+  /** The app says what it wants silently, as Calendar does, which plays its own sound. */
+  readonly alwaysSilent: boolean;
+}
+
+/** What a notification a Google app's page raised says: the app as the title, since a page's own title says little, with what the page called it under that on macOS, which has a subtitle, and above its body elsewhere. */
+export const appNotice = (
+  notification: PageNotification,
+  options: AppNoticeOptions
+): AppNotice => {
+  const { appName, labelled, platform, profileLabel } = options;
+  const title = labelled ? `[${profileLabel}] ${appName}` : appName;
+  const silent = options.alwaysSilent || (notification.silent ?? false);
+  const persistent = notification.requireInteraction ?? false;
+  if (platform === "darwin") {
+    return {
+      persistent,
+      silent,
+      subtitle: notification.title,
+      title,
+      ...(notification.body === undefined ? {} : { body: notification.body }),
+    };
+  }
+  const lines = [notification.title, notification.body].filter(
+    (line) => line !== undefined && line !== ""
+  );
+  return {
+    persistent,
+    silent,
+    title,
+    ...(lines.length === 0 ? {} : { body: lines.join("\n") }),
+  };
 };
 
 /** The address in the mailbox that opens a message in a profile's pane. */

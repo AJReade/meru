@@ -8,6 +8,7 @@ import { TWO_UNREAD } from "../../../core/fixtures/gmail-feeds.ts";
 import { gmail } from "../../../shared/apps.ts";
 import { chromeSurface } from "../../../shared/channels/surfaces.ts";
 import { FakeNotifications } from "../../../test/fakes/notifications.ts";
+import { unwrap } from "../../../test/result.ts";
 import { PRO, testApp } from "../../testing.ts";
 import { Notifications } from "./index.ts";
 
@@ -49,10 +50,16 @@ const setup = async () => {
     events.emit("mail.arrived", { entries: arrived, profileId });
     await setImmediate();
   };
+  const focused: string[] = [];
+  events.on("tab.focused", ({ tabId }) => {
+    focused.push(tabId);
+  });
   return {
     acted,
     arrive,
+    events,
     first,
+    focused,
     loaded,
     port,
     profiles,
@@ -156,5 +163,45 @@ describe(Notifications, () => {
       loaded: ["https://mail.google.com/mail/u/0/#inbox"],
       shown: [{ silent: false, title: "6 new emails" }],
     });
+  });
+
+  it("shows what a Google app's page raised, and brings its tab to the front when it is clicked", async () => {
+    const { events, first, focused, port, profiles, shown } = await setup();
+    const tab = unwrap(profiles.openTab(first, "calendar"));
+    events.emit("page.notified", {
+      appId: "calendar",
+      notification: { body: "Starts in ten minutes", title: "Standup" },
+      profileId: first,
+      tabId: tab.id,
+    });
+    expect(port.shown.map((raised) => raised.spec)).toStrictEqual([
+      {
+        body: "Starts in ten minutes",
+        persistent: false,
+        // Calendar plays its own sound, so the notification is silent whatever the page asked.
+        silent: true,
+        subtitle: "Standup",
+        title: "Calendar",
+      },
+    ]);
+
+    port.shown[0]?.click();
+    expect({ focused, shown: shown() }).toStrictEqual({
+      focused: [tab.id],
+      shown: 1,
+    });
+  });
+
+  it("shows nothing a Google app's page raised while the setting is off", async () => {
+    const { events, first, port, profiles, settings } = await setup();
+    settings.set("notifications.allowFromWorkspaceApps", false);
+    const tab = unwrap(profiles.openTab(first, "calendar"));
+    events.emit("page.notified", {
+      appId: "calendar",
+      notification: { title: "Standup" },
+      profileId: first,
+      tabId: tab.id,
+    });
+    expect(port.shown).toStrictEqual([]);
   });
 });
