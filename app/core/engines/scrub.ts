@@ -1,20 +1,90 @@
-/** The placeholder every email address becomes. */
+/** The address every `mailto:` link becomes. */
 export const EMAIL_PLACEHOLDER = "person@example.com";
 
-/** The placeholder every person's name becomes. */
-export const NAME_PLACEHOLDER = "Sender";
+/** The origin an address outside Google's own becomes. */
+export const ORIGIN_PLACEHOLDER = "https://example.com";
 
-/** The placeholder every subject becomes, in the list, in a thread and in the document's title. */
-export const SUBJECT_PLACEHOLDER = "Subject";
+/** What a path or fragment segment that is not one of Gmail's own words becomes. */
+export const SEGMENT_PLACEHOLDER = "x";
 
-/** The placeholder every message snippet becomes. */
-export const SNIPPET_PLACEHOLDER = "Snippet";
+// The names Gmail gives its own controls, as an `aria-label`, a tooltip, a title, an alt text or a control's text. Anything else a page says may be the user's: a name, an address, a subject, a label.
+const CONTROL_WORDS = new Set([
+  "Advanced search options",
+  "All Mail",
+  "Archive",
+  "Back to Inbox",
+  "Categories",
+  "Chat",
+  "Compose",
+  "Delete",
+  "Drafts",
+  "Expand all",
+  "Forums",
+  "Forward",
+  "Gmail",
+  "Google apps",
+  "Important",
+  "In new window",
+  "Inbox",
+  "Labels",
+  "Less",
+  "Main menu",
+  "Mark as read",
+  "Mark as unread",
+  "Meet",
+  "More",
+  "More email options",
+  "Move to",
+  "Newer",
+  "Not starred",
+  "Older",
+  "Primary",
+  "Print all",
+  "Promotions",
+  "Refresh",
+  "Reply",
+  "Reply all",
+  "Report spam",
+  "Scheduled",
+  "Search mail",
+  "Select",
+  "Send",
+  "Sent",
+  "Settings",
+  "Show search options",
+  "Show trimmed content",
+  "Snooze",
+  "Snoozed",
+  "Social",
+  "Spam",
+  "Starred",
+  "Support",
+  "Trash",
+  "Updates",
+  "Upgrade",
+]);
 
-/** What a URL's query string becomes, so the shape of the address survives without its tokens. */
-export const QUERY_PLACEHOLDER = "?[scrubbed]";
+// Gmail's views, the first segment of the fragment that addresses them.
+const VIEWS = new Set([
+  "all",
+  "category",
+  "chats",
+  "drafts",
+  "imp",
+  "inbox",
+  "label",
+  "scheduled",
+  "search",
+  "sent",
+  "settings",
+  "snoozed",
+  "spam",
+  "starred",
+  "trash",
+]);
 
-/** What an inline `data:` URL becomes: the shortest address of the same scheme. */
-export const DATA_URL_PLACEHOLDER = "data:,";
+// A view whose next segment is the user's own words: a label's name, a category or a search.
+const NAMED_VIEWS = new Set(["label", "category", "search"]);
 
 const ID_ATTRIBUTES = new Set([
   "data-legacy-last-message-id",
@@ -25,8 +95,50 @@ const ID_ATTRIBUTES = new Set([
   "data-thread-id",
 ]);
 
-// Gmail writes a sender's name on the element that carries the address, and a hovercard's name beside its id; a form field's name, such as compose's `to` and `subjectbox`, is markup a fixture is selected by.
-const NAME_WITH = ["email", "data-hovercard-id"];
+// ARIA states and properties whose values are tokens or numbers rather than words a page wrote.
+const ARIA_TOKENS = new Set([
+  "aria-busy",
+  "aria-checked",
+  "aria-current",
+  "aria-disabled",
+  "aria-expanded",
+  "aria-haspopup",
+  "aria-hidden",
+  "aria-level",
+  "aria-live",
+  "aria-modal",
+  "aria-multiselectable",
+  "aria-orientation",
+  "aria-posinset",
+  "aria-pressed",
+  "aria-readonly",
+  "aria-required",
+  "aria-selected",
+  "aria-setsize",
+]);
+
+// ARIA properties that name other elements by id.
+const ARIA_REFERENCES = new Set([
+  "aria-activedescendant",
+  "aria-controls",
+  "aria-describedby",
+  "aria-labelledby",
+  "aria-owns",
+]);
+
+const WORDED = new Set(["aria-label", "data-tooltip", "title", "alt"]);
+
+// A form field's name compose and search are selected by.
+const FIELD_NAMES = new Set(["bcc", "cc", "q", "subjectbox", "to"]);
+
+const TOKEN = /^[\w-]{1,24}$/u;
+// The classes and ids Gmail generates are short words; `:1a` is the shape of the ids it numbers.
+const GENERATED = /^:?[A-Za-z\d][\w-]{0,31}$/u;
+const PATH_DATA = /^[\d\s.,MmLlHhVvCcSsQqTtAaZz-]+$/u;
+const PLAIN_SEGMENT = /^(?:[a-z]{1,16}|\d{1,3})$/u;
+const GOOGLE_HOST = /^(?:[\w-]+\.)*google\.com$/u;
+const ADDRESS =
+  /^(?:(?<scheme>[a-z][\w+.-]*):\/\/(?<host>[^/?#]*))?(?<path>[^?#]*)(?:\?[^#]*)?(?<hash>#.*)?$/iu;
 
 const VOID_ELEMENTS = new Set([
   "area",
@@ -47,18 +159,12 @@ const VOID_ELEMENTS = new Set([
 const TAG =
   /<(?<closing>\/?)(?<name>[a-z][\w-]*)(?<attrs>(?:"[^"]*"|'[^']*'|[^>"'])*)>/giu;
 const ATTRIBUTE =
-  /(?<name>[A-Za-z_:][\w:.-]*)=(?:"(?<double>[^"]*)"|'(?<single>[^']*)')/gu;
-const SCRIPT_BODY =
-  /(?<open><script\b(?:"[^"]*"|'[^']*'|[^>"'])*>)[\s\S]*?(?<close><\/script\s*>)/giu;
-const EMAIL = /[\w.+-]+@[a-z\d-]+(?:\.[a-z\d-]+)*\.[a-z]{2,}/giu;
-const QUERY =
-  /(?<address>(?:[a-z][\w+.-]*:\/\/|\/)[^\s?#"'<>]*)\?[^\s#"'<>]*/giu;
-// Gmail's session token and inbox key, which a link carries outside a query string as well.
-const TOKEN = /\b(?<key>at|ik)=[\w%.~+/-]+/gu;
-const DATA_URL = /\bdata:[a-z][\w.+-]*\/[^\s"')>]*/giu;
-// A Gmail address names the open thread after its view, such as #inbox/FMfcgz… or #label/Work/FMfcgz…
-const HASH_ID =
-  /(?<prefix>#[A-Za-z\d%._-]+(?:\/[A-Za-z\d%._-]+)*\/)(?<id>[A-Za-z\d]{15,})/gu;
+  /(?<name>[A-Za-z_:][\w:.-]*)(?:\s*=\s*(?:"(?<double>[^"]*)"|'(?<single>[^']*)'|(?<bare>[^\s"'=<>`]+)))?/gu;
+const COMMENT = /<!--[\s\S]*?(?:-->|$)/gu;
+const DOCTYPE = /^\s*<!doctype[^>]*>/iu;
+// A script's and a style's contents are dropped whole: Gmail inlines its session state, keys and tokens in one, and avatar addresses in the other.
+const RAW_TEXT =
+  /(?<open><(?<name>script|style)\b(?:"[^"]*"|'[^']*'|[^>"'])*>)[\s\S]*?(?<close><\/\k<name>\s*>)/giu;
 
 interface Tag {
   readonly attrs: string;
@@ -96,244 +202,178 @@ export const tagsOf = (html: string): readonly Tag[] => {
   return found;
 };
 
-const attributesOf = (attrs: string): ReadonlyMap<string, string> => {
-  const found = new Map<string, string>();
-  for (const match of attrs.matchAll(ATTRIBUTE)) {
-    const name = match.groups?.name?.toLowerCase();
-    const value = match.groups?.double ?? match.groups?.single;
-    if (name !== undefined && value !== undefined) {
-      found.set(name, value);
-    }
-  }
-  return found;
-};
-
 /** A placeholder per original value, the same one each time it is seen, numbered per kind. */
 const makeIds = () => {
   const seen = new Map<string, string>();
   const counts = new Map<string, number>();
   return (value: string, kind: string): string => {
-    if (value === "") {
-      return value;
-    }
-    const known = seen.get(value);
+    const key = `${kind}\u0000${value}`;
+    const known = seen.get(key);
     if (known !== undefined) {
       return known;
     }
     const next = (counts.get(kind) ?? 0) + 1;
     counts.set(kind, next);
     const made = `${kind}-${next}`;
-    seen.set(value, made);
+    seen.set(key, made);
     return made;
   };
 };
 
 type Ids = ReturnType<typeof makeIds>;
 
-/** Replaces each match with what `replacer` answers for it, which a replacement string cannot express. */
-const replaceEach = (
-  text: string,
-  pattern: RegExp,
-  replacer: (match: RegExpExecArray) => string
-): string => {
-  let out = "";
-  let cursor = 0;
-  for (const match of text.matchAll(pattern)) {
-    out += text.slice(cursor, match.index) + replacer(match);
-    cursor = match.index + match[0].length;
+/** A fragment with Gmail's view kept, the user's words in it numbered, and anything else a placeholder. */
+const fragmentShape = (hash: string, ids: Ids): string => {
+  const [view = "", ...rest] = hash.slice(1).split("/");
+  if (!VIEWS.has(view)) {
+    return hash === "#" ? hash : `#${SEGMENT_PLACEHOLDER}`;
   }
-  return out + text.slice(cursor);
-};
-
-/** The contents of every `<script>` dropped, its tags kept: Gmail inlines its session state, keys and tokens there. */
-export const dropScriptBodies = (html: string): string =>
-  html.replaceAll(SCRIPT_BODY, "$<open>$<close>");
-
-/** Every query string, session token and inline `data:` URL replaced, the address around them kept. */
-export const scrubUrls = (text: string): string =>
-  text
-    .replaceAll(QUERY, `$<address>${QUERY_PLACEHOLDER}`)
-    .replaceAll(TOKEN, "$<key>=[scrubbed]")
-    .replaceAll(DATA_URL, DATA_URL_PLACEHOLDER);
-
-/** Every email address replaced, wherever it sits: text, a `mailto:` link, a hovercard's id, a title or a label. */
-export const scrubEmails = (text: string): string =>
-  text.replaceAll(EMAIL, EMAIL_PLACEHOLDER);
-
-const scrubValue = (
-  name: string,
-  value: string,
-  named: boolean,
-  ids: Ids
-): string => {
-  if (name === "nonce") {
-    return "";
-  }
-  if (ID_ATTRIBUTES.has(name)) {
-    return ids(value, name.includes("message") ? "message" : "thread");
-  }
-  if (name === "name" && named) {
-    return NAME_PLACEHOLDER;
-  }
-  return scrubEmails(scrubUrls(value));
-};
-
-const scrubAttributes = (attrs: string, ids: Ids): string => {
-  const attributes = attributesOf(attrs);
-  const named = NAME_WITH.some((key) => attributes.has(key));
-  return replaceEach(attrs, ATTRIBUTE, (match) => {
-    const name = match.groups?.name;
-    const double = match.groups?.double;
-    const value = double ?? match.groups?.single;
-    if (name === undefined || value === undefined) {
-      return match[0];
+  const shaped = rest.map((segment, index) => {
+    if (index === 0 && NAMED_VIEWS.has(view)) {
+      return ids(segment, view);
     }
-    const quote = double === undefined ? "'" : '"';
-    const scrubbed = scrubValue(name.toLowerCase(), value, named, ids);
-    return `${name}=${quote}${scrubbed}${quote}`;
+    return ids(segment, "thread");
   });
+  return `#${[view, ...shaped].join("/")}`;
 };
 
-const rewriteTags = (html: string, ids: Ids): string => {
-  let out = "";
-  let cursor = 0;
-  for (const tag of tagsOf(html)) {
-    if (tag.closing) {
-      continue;
-    }
-    out += html.slice(cursor, tag.start);
-    out += `<${tag.raw}${scrubAttributes(tag.attrs, ids)}>`;
-    cursor = tag.end;
-  }
-  return out + html.slice(cursor);
-};
-
-/** The placeholder the element's text becomes, or null for an element whose text is kept. */
-const textPlaceholder = (
-  name: string,
-  attributes: ReadonlyMap<string, string>
-): string | null => {
-  if (name === "title") {
-    return SUBJECT_PLACEHOLDER;
-  }
-  if (attributes.has("email")) {
-    return NAME_PLACEHOLDER;
-  }
-  if (name === "h2" && attributes.has("data-legacy-thread-id")) {
-    return SUBJECT_PLACEHOLDER;
-  }
-  const classes = (attributes.get("class") ?? "").split(/\s+/u);
-  // Gmail's list draws a subject as bog or bqe and the snippet after it as y2.
-  if (classes.includes("bog") || classes.includes("bqe")) {
-    return SUBJECT_PLACEHOLDER;
-  }
-  if (classes.includes("y2")) {
-    return SNIPPET_PLACEHOLDER;
-  }
-  return null;
-};
-
-/** The index of the tag that closes the element opened at `opened`, or undefined when nothing does. */
-const closeOf = (tags: readonly Tag[], opened: number): number | undefined => {
-  const open = tags[opened];
-  if (open === undefined) {
-    return undefined;
-  }
-  let depth = 1;
-  for (let index = opened + 1; index < tags.length; index += 1) {
-    const tag = tags[index];
-    if (tag === undefined || tag.name !== open.name) {
-      continue;
-    }
-    if (tag.closing) {
-      depth -= 1;
-      if (depth === 0) {
-        return index;
-      }
-    } else if (!tag.empty) {
-      depth += 1;
-    }
-  }
-  return undefined;
-};
-
-/** The element's content with its first text taken by `placeholder` and the rest dropped, every tag within it kept. */
-const replaceTexts = (
-  html: string,
-  tags: readonly Tag[],
-  opened: number,
-  closed: number,
-  placeholder: string
+const originOf = (
+  scheme: string | undefined,
+  host: string | undefined
 ): string => {
-  const open = tags[opened];
-  const close = tags[closed];
-  if (open === undefined || close === undefined) {
+  if (scheme === undefined || host === undefined) {
     return "";
   }
-  let out = "";
-  let cursor = open.end;
-  let taken = false;
-  const text = (slice: string) => {
-    if (slice.trim() === "") {
-      return slice;
-    }
-    if (taken) {
-      return "";
-    }
-    taken = true;
-    return placeholder;
-  };
-  for (let index = opened + 1; index < closed; index += 1) {
-    const tag = tags[index];
-    if (tag === undefined) {
-      continue;
-    }
-    out += text(html.slice(cursor, tag.start)) + html.slice(tag.start, tag.end);
-    cursor = tag.end;
-  }
-  return out + text(html.slice(cursor, close.start));
+  const google =
+    GOOGLE_HOST.test(host.toLowerCase()) && /^https?$/iu.test(scheme);
+  return google
+    ? `${scheme.toLowerCase()}://${host.toLowerCase()}`
+    : ORIGIN_PLACEHOLDER;
 };
 
-const scrubTexts = (html: string): string => {
-  const tags = tagsOf(html);
-  let out = "";
-  let cursor = 0;
-  for (const [opened, tag] of tags.entries()) {
-    if (tag.closing || tag.empty || tag.end < cursor) {
-      continue;
-    }
-    const placeholder = textPlaceholder(tag.name, attributesOf(tag.attrs));
-    if (placeholder === null) {
-      continue;
-    }
-    const closed = closeOf(tags, opened);
-    const close = closed === undefined ? undefined : tags[closed];
-    if (closed === undefined || close === undefined) {
-      continue;
-    }
-    out += html.slice(cursor, tag.end);
-    out += replaceTexts(html, tags, opened, closed, placeholder);
-    cursor = close.start;
+/** The shape of an address: Google's origins kept and any other made one placeholder, each path segment that is not a plain word replaced, the query dropped, and the fragment as Gmail's views shape it. */
+export const addressShape = (address: string, ids: Ids = makeIds()): string => {
+  if (address.toLowerCase().startsWith("mailto:")) {
+    return `mailto:${EMAIL_PLACEHOLDER}`;
   }
-  return out + html.slice(cursor);
+  const parts = ADDRESS.exec(address)?.groups;
+  if (parts === undefined) {
+    return SEGMENT_PLACEHOLDER;
+  }
+  const { scheme, host, path = "", hash } = parts;
+  const origin = originOf(scheme, host);
+  // A path on someone else's site says what the user visited there, so only Google's own keeps its words.
+  const foreign = origin === ORIGIN_PLACEHOLDER;
+  const shapedPath = path
+    .split("/")
+    .map((segment) =>
+      segment === "" || (!foreign && PLAIN_SEGMENT.test(segment))
+        ? segment
+        : SEGMENT_PLACEHOLDER
+    )
+    .join("/");
+  return `${origin}${shapedPath}${hash === undefined ? "" : fragmentShape(hash, ids)}`;
 };
+
+const escapeAttribute = (value: string): string =>
+  value.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+
+const tokenOf = (value: string): string | undefined =>
+  TOKEN.test(value) ? value : undefined;
+
+const generatedOf = (value: string): string | undefined => {
+  const kept = value.split(/\s+/u).filter((one) => GENERATED.test(one));
+  return kept.length === 0 ? undefined : kept.join(" ");
+};
+
+const wordOf = (value: string): string | undefined =>
+  CONTROL_WORDS.has(value) ? value : undefined;
+
+type Keep = (value: string, ids: Ids) => string | undefined;
+
+// Every attribute a fixture keeps, and what of its value; any other is dropped.
+const KEPT: Readonly<Record<string, Keep>> = {
+  class: generatedOf,
+  d: (value) => (PATH_DATA.test(value) ? value : undefined),
+  dir: tokenOf,
+  href: (value, ids) => addressShape(value, ids),
+  id: (value) => (GENERATED.test(value) ? value : undefined),
+  name: (value) => (FIELD_NAMES.has(value) ? value : undefined),
+  role: tokenOf,
+  tabindex: (value) => (/^-?\d{1,3}$/u.test(value) ? value : undefined),
+  type: tokenOf,
+  viewbox: (value) => (/^[\d\s.-]+$/u.test(value) ? value : undefined),
+  ...Object.fromEntries(
+    [...ID_ATTRIBUTES].map((name): [string, Keep] => [
+      name,
+      (value, ids) =>
+        ids(value, name.includes("message") ? "message" : "thread"),
+    ])
+  ),
+  ...Object.fromEntries(
+    [...ARIA_REFERENCES].map((name): [string, Keep] => [name, generatedOf])
+  ),
+  ...Object.fromEntries(
+    [...ARIA_TOKENS].map((name): [string, Keep] => [name, tokenOf])
+  ),
+  ...Object.fromEntries(
+    [...WORDED].map((name): [string, Keep] => [name, wordOf])
+  ),
+};
+
+const rewriteTag = (tag: Tag, ids: Ids): string => {
+  if (tag.closing) {
+    return `</${tag.raw}>`;
+  }
+  const kept: string[] = [];
+  for (const match of tag.attrs.matchAll(ATTRIBUTE)) {
+    const raw = match.groups?.name;
+    const name = raw?.toLowerCase();
+    const value =
+      match.groups?.double ?? match.groups?.single ?? match.groups?.bare ?? "";
+    if (raw === undefined || name === undefined) {
+      continue;
+    }
+    const scrubbed = Object.hasOwn(KEPT, name)
+      ? KEPT[name]?.(value, ids)
+      : undefined;
+    if (scrubbed !== undefined) {
+      kept.push(` ${raw}="${escapeAttribute(scrubbed)}"`);
+    }
+  }
+  const selfClosing = tag.attrs.trimEnd().endsWith("/") ? " /" : "";
+  return `<${tag.raw}${kept.join("")}${selfClosing}>`;
+};
+
+/** A text as long as `text` with every character but whitespace an `x`, unless it is one of Gmail's own control words. */
+const placeholderOf = (text: string): string =>
+  CONTROL_WORDS.has(text.trim()) ? text : text.replaceAll(/\S/gu, "x");
 
 /**
- * The captured document with everything personal taken out, so it can be checked into a public
- * repository as a fixture: addresses, names, subjects, snippets, thread and message ids, script
- * bodies, query strings, inline data and nonces. An id becomes a placeholder by value, the same one
- * each time, so structure that relies on two ids being equal survives; the numbering starts afresh
- * on every call.
+ * The captured document with nothing of the user's left, so it can be checked into a public
+ * repository as a fixture. It keeps what Gmail itself writes and drops the rest: every text becomes
+ * a placeholder of its length unless it is one of Gmail's own control words, every attribute not on
+ * the allowlist goes (roles, ARIA states, generated classes and ids, icon path data and Gmail's own
+ * control names stay), a thread's or message's id becomes a counter, an address keeps only its
+ * shape, and comments, scripts' and styles' contents go whole. The counters start afresh on every
+ * call, so the same capture always scrubs to the same text.
  */
-export const scrubHtml = (html: string): string => {
+export const scrubHtml = (input: string): string => {
   const ids = makeIds();
-  const structure = scrubTexts(rewriteTags(dropScriptBodies(html), ids));
-  const hashed = replaceEach(structure, HASH_ID, (match) => {
-    const prefix = match.groups?.prefix;
-    const id = match.groups?.id;
-    return prefix === undefined || id === undefined
-      ? match[0]
-      : `${prefix}${ids(id, "thread")}`;
-  });
-  return scrubEmails(scrubUrls(hashed));
+  const doctype = DOCTYPE.exec(input)?.[0].trim();
+  const html = input
+    .replace(DOCTYPE, "")
+    .replaceAll(COMMENT, "")
+    .replaceAll(RAW_TEXT, "$<open>$<close>");
+  let out = doctype === undefined ? "" : `${doctype}\n`;
+  let cursor = 0;
+  let raw = false;
+  for (const tag of tagsOf(html)) {
+    const text = html.slice(cursor, tag.start);
+    out += raw ? "" : placeholderOf(text);
+    out += rewriteTag(tag, ids);
+    raw = !tag.closing && (tag.name === "script" || tag.name === "style");
+    cursor = tag.end;
+  }
+  return out + placeholderOf(html.slice(cursor));
 };

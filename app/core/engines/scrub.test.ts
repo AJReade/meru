@@ -1,57 +1,88 @@
 import { describe, expect, it } from "vitest";
 
-import { scrubHtml } from "./scrub.ts";
+import { addressShape, scrubHtml } from "./scrub.ts";
+
+// A page holding everything a capture must not let through, as a signed-in Gmail draws it.
+const PRIVATE_PAGE = `<!doctype html><html><head><title>Inbox (3) - tim@example.org - Gmail</title>
+<style nonce="r4nd0m">.avatar { background: url(https://lh3.googleusercontent.com/a/ACg8ocJ1secretAvatarPath=s40-p) }</style>
+<script nonce="r4nd0m">var GM_ID_KEY = "secret"; window.GLOBALS = [1, "AF6bupN"];</script></head><body>
+<a aria-label="Google Account: Tim Cheung&#10;(tim@example.org)" href="https://accounts.google.com/SignOutOptions?hl=en&amp;continue=https://mail.google.com/mail/u/0/"><img src="https://lh3.googleusercontent.com/a/ACg8ocJ1secretAvatarPath=s40-p" alt="Tim Cheung"></a>
+<div class="aim"><span data-tooltip="Therapy - Dr Smith" class="nU">Therapy - Dr Smith</span></div>
+<a href="#label/Therapy+-+Dr+Smith" title="Therapy - Dr Smith">Therapy - Dr Smith</a>
+<div class="at" title="Therapy - Dr Smith"><div class="av">Therapy - Dr Smith</div></div>
+<div class="ahR"><div class="hN" data-name="Therapy - Dr Smith"></div></div>
+<h2 class="hP" data-legacy-thread-id="18c0ffee">Your biopsy results</h2>
+<span class="gD" email="doctor@clinic.example" name="Dr Smith" data-hovercard-id="doctor@clinic.example">Dr Smith</span>
+<span class="bog"><span>Your biopsy results</span></span><span class="y2"> - Hi Tim, your results</span>
+<div class="a3s aiL"><div dir="ltr">Hi Tim, your results are positive. Your account number is 12345678.</div></div>
+<span class="aV3">results-2026-11-14.pdf</span>
+<a href="https://clinic.example/portal/patient/12345678?token=abc#results">Open the portal</a>
+<a href="mailto:doctor@clinic.example">doctor@clinic.example</a>
+<a href="/mail/u/0/#inbox/FMfcgzQbXyZ123456789">Older thread</a>
+<div data-thread-perm-id="thread-f:1784123456789012345" jslog="20277; u014N:cOuCgd,Kr2w4b; 4:W251bGwsbnVsbCxudWxsLG51bGwsInRocmVhZC1mOjE3ODQxMjM0NTY3ODkwMTIzNDUiXQ.." style="background-image:url(data:image/png;base64,iVBORw0KGgo=)"></div>
+<input name="to" value="doctor@clinic.example"><input name="subjectbox" value="Re: Your biopsy results">
+<!-- user tim@example.org -->
+</body></html>`;
+
+const SECRETS = [
+  "tim@example.org",
+  "Tim",
+  "Cheung",
+  "doctor@clinic",
+  "Dr Smith",
+  "Smith",
+  "Therapy",
+  "biopsy",
+  "positive",
+  "12345678",
+  "results-2026",
+  "ACg8oc",
+  "secretAvatarPath",
+  "googleusercontent",
+  "clinic.example",
+  "portal",
+  "token=abc",
+  "18c0ffee",
+  "FMfcgzQbXyZ123456789",
+  "thread-f:",
+  "1784123456789012345",
+  "u014N",
+  "W251bGws",
+  "jslog",
+  "GM_ID_KEY",
+  "AF6bupN",
+  "r4nd0m",
+  "iVBORw0KGgo",
+  "Inbox (3)",
+  "SignOutOptions",
+  "continue=",
+];
 
 describe(scrubHtml, () => {
-  it("replaces an email address in text, in an attribute, in a mailto link and in a label", () => {
-    expect(
-      scrubHtml(
-        '<div aria-label="Mail from jane.doe+tag@example.co.uk" data-hovercard-id="jane.doe+tag@example.co.uk" title="jane.doe+tag@example.co.uk"><a href="mailto:jane.doe+tag@example.co.uk">jane.doe+tag@example.co.uk</a></div>'
-      )
-    ).toBe(
-      '<div aria-label="Mail from person@example.com" data-hovercard-id="person@example.com" title="person@example.com"><a href="mailto:person@example.com">person@example.com</a></div>'
+  it("lets no address, name, subject, snippet, body, label, attachment name or id through", () => {
+    const scrubbed = scrubHtml(PRIVATE_PAGE);
+    expect(SECRETS.filter((secret) => scrubbed.includes(secret))).toStrictEqual(
+      []
     );
   });
 
-  it("replaces a sender's name, as the text of the element carrying the address and as its name attribute", () => {
-    expect(
-      scrubHtml('<span email="tom@example.com" name="Tom O\'Brien">Tom</span>')
-    ).toBe('<span email="person@example.com" name="Sender">Sender</span>');
+  it("keeps the markup a fixture's selectors read: tags, roles, ARIA states, Gmail's classes and ids, its controls' names and icon paths", () => {
+    const html =
+      '<div class="AO" role="main" id=":1a"><table role="grid"><tr class="zA zE" role="row" aria-selected="false"><td><div aria-label="Archive" data-tooltip="Archive" role="button" aria-labelledby=":2b" tabindex="0"><svg viewBox="0 0 24 24"><path d="M6 4h12v2H6z"></path></svg></div></td></tr></table><a href="#inbox" role="link">Inbox</a></div>';
+    expect(scrubHtml(html)).toBe(html);
   });
 
-  it("replaces a name beside a hovercard id and leaves a form field's name, which a fixture is selected by", () => {
+  it("turns every text into a placeholder of its length, whitespace kept, but Gmail's own control words", () => {
     expect(
       scrubHtml(
-        '<span data-hovercard-id="tom@example.com" name="Tom">Tom</span><input name="to"><input name="subjectbox">'
+        '<span class="bog">Lunch on Friday?</span><div role="button">Compose</div>'
       )
     ).toBe(
-      '<span data-hovercard-id="person@example.com" name="Sender">Tom</span><input name="to"><input name="subjectbox">'
+      '<span class="bog">xxxxx xx xxxxxxx</span><div role="button">Compose</div>'
     );
   });
 
-  it("replaces a subject and a snippet of the list by their classes, through the spans nested in them", () => {
-    expect(
-      scrubHtml(
-        '<span class="bog"><span>Quarterly numbers</span></span><span class="y2"> - Here are the numbers you asked for</span><span class="bqe">Another subject</span>'
-      )
-    ).toBe(
-      '<span class="bog"><span>Subject</span></span><span class="y2">Snippet</span><span class="bqe">Subject</span>'
-    );
-  });
-
-  it("replaces a thread's subject heading, keeping the attribute's name", () => {
-    expect(
-      scrubHtml('<h2 data-legacy-thread-id="FMfcgzQbXyZ123456789">Lunch?</h2>')
-    ).toBe('<h2 data-legacy-thread-id="thread-1">Subject</h2>');
-  });
-
-  it("replaces the document's title, which carries the subject and the address", () => {
-    expect(
-      scrubHtml("<title>Inbox (3) - jane@example.com - Gmail</title>")
-    ).toBe("<title>Subject</title>");
-  });
-
-  it("gives equal ids one placeholder and unequal ids another, across attributes and the address's fragment", () => {
+  it("gives equal ids one counter and unequal ids another, across attributes and fragments", () => {
     expect(
       scrubHtml(
         '<a href="#inbox/FMfcgzQbXyZ123456789"></a><div data-legacy-thread-id="FMfcgzQbXyZ123456789" data-thread-id="thread-f:1790000000000000001"><div data-legacy-message-id="18c1a2b3c4d5e6f7" data-legacy-last-message-id="18c1a2b3c4d5e6f7"></div></div>'
@@ -67,53 +98,45 @@ describe(scrubHtml, () => {
     expect(scrubHtml(html)).toBe('<div data-thread-id="thread-1"></div>');
   });
 
-  it("replaces an id in a label's and a starred fragment, by the view it sits under", () => {
+  it("drops comments and the contents of every script and style, keeping their tags", () => {
     expect(
       scrubHtml(
-        '<a href="#label/Work/FMfcgzQbXyZ123456789"></a><a href="#all/QgrcJHsBmTZtXpWjLkQ"></a>'
+        '<!-- me@example.org --><script nonce="a">var x = 1;</script><style>.a { color: red }</style>'
       )
-    ).toBe('<a href="#label/Work/thread-1"></a><a href="#all/thread-2"></a>');
+    ).toBe("<script></script><style></style>");
   });
 
-  it("drops every script's contents and keeps its tags", () => {
+  it("keeps the doctype", () => {
+    expect(scrubHtml("<!doctype html><p>Hi</p>")).toBe(
+      "<!doctype html>\n<p>xx</p>"
+    );
+  });
+});
+
+describe(addressShape, () => {
+  it("keeps Google's origin and the plain words of the path, and drops the query", () => {
     expect(
-      scrubHtml(
-        '<script nonce="r4nd0m">var GM_ID_KEY = "secret";</script><script type="text/javascript">window.GLOBALS=[1,"at-token"];</script>'
-      )
-    ).toBe(
-      '<script nonce=""></script><script type="text/javascript"></script>'
-    );
+      addressShape("https://mail.google.com/mail/u/0/?ik=abc&at=AF6bupN#inbox")
+    ).toBe("https://mail.google.com/mail/u/0/#inbox");
   });
 
-  it("drops a query string from an absolute and a relative address, and a bare session token", () => {
+  it("makes another origin a placeholder and every segment of its path an x", () => {
     expect(
-      scrubHtml(
-        '<a href="https://mail.google.com/mail/u/0?ik=abc123&at=AF6bupN#inbox">x</a><a href="/mail/u/0/?compose=new">y</a><a href="https://mail.google.com/mail/u/0/h/?at=AF6bupN">z</a>'
-      )
-    ).toBe(
-      '<a href="https://mail.google.com/mail/u/0?[scrubbed]#inbox">x</a><a href="/mail/u/0/?[scrubbed]">y</a><a href="https://mail.google.com/mail/u/0/h/?[scrubbed]">z</a>'
-    );
+      addressShape("https://clinic.example/portal/Patient-12345678/a.pdf")
+    ).toBe("https://example.com/x/x/x");
   });
 
-  it("replaces an inline data URL, an avatar's among them", () => {
-    expect(
-      scrubHtml(
-        '<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="><div style="background-image:url(data:image/gif;base64,R0lGOD)"></div>'
-      )
-    ).toBe(
-      '<img src="data:,"><div style="background-image:url(data:,)"></div>'
+  it("numbers a label's name and a thread's id in a fragment, relative or bare", () => {
+    expect(addressShape("/mail/u/0/#label/Work/FMfcgzQbXyZ123456789")).toBe(
+      "/mail/u/0/#label/label-1/thread-1"
     );
+    expect(addressShape("#search/biopsy")).toBe("#search/search-1");
+    expect(addressShape("#secret-place")).toBe("#x");
   });
 
-  it("empties a nonce and keeps the attribute", () => {
-    expect(scrubHtml('<style nonce="r4nd0m-value"></style>')).toBe(
-      '<style nonce=""></style>'
+  it("makes a mailto link the placeholder address", () => {
+    expect(addressShape("mailto:tim@example.org?subject=Hi")).toBe(
+      "mailto:person@example.com"
     );
-  });
-
-  it("keeps the markup a fixture's selectors read: tags, roles, aria, tooltips, classes, icon paths and a bare fragment", () => {
-    const html =
-      '<div class="AO" role="main"><table role="grid"><tr class="zA zE" role="row"><td><div aria-label="Archive" data-tooltip="Archive" role="button"><svg><path d="M6 4h12v2H6z"></path></svg></div></td></tr></table><a href="#inbox" role="link">Inbox</a></div>';
-    expect(scrubHtml(html)).toBe(html);
   });
 });
