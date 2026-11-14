@@ -320,17 +320,9 @@ export class Downloads {
     );
   }
 
-  #decide(start: DownloadStart): DownloadTarget {
-    const { clock, downloads, pendingDirectory, platform, settings } =
-      this.#options;
-    if (start.contentsId !== null && !start.committed) {
-      const { contentsId } = start;
-      // Closing the page from inside its own will-download would destroy what Chromium is still handing over.
-      clock.schedule(0, () => {
-        this.#options.closeTab(contentsId);
-      });
-    }
-    const directory = this.#directory();
+  /** `name` in `directory`, made unique against the files there and the downloads under way headed there. */
+  #freePath(directory: string, name: string): string {
+    const { downloads, platform } = this.#options;
     // Chromium creates a download's file only moments after it starts, so until then the disk says a held name is free.
     const held = takenAmong(
       [...this.#active.values()].flatMap(({ destination }) => {
@@ -339,12 +331,28 @@ export class Downloads {
       }),
       platform
     );
-    const target = path.join(
+    return path.join(
       directory,
       uniqueName(
-        withPreferredExtension(start.suggestedName, start.mimeType),
-        (name) => held(name) || downloads.occupied(path.join(directory, name))
+        name,
+        (candidate) =>
+          held(candidate) || downloads.occupied(path.join(directory, candidate))
       )
+    );
+  }
+
+  #decide(start: DownloadStart): DownloadTarget {
+    const { clock, pendingDirectory, settings } = this.#options;
+    if (start.contentsId !== null && !start.committed) {
+      const { contentsId } = start;
+      // Closing the page from inside its own will-download would destroy what Chromium is still handing over.
+      clock.schedule(0, () => {
+        this.#options.closeTab(contentsId);
+      });
+    }
+    const target = this.#freePath(
+      this.#directory(),
+      withPreferredExtension(start.suggestedName, start.mimeType)
     );
     const ask = this.#takeSaveAs(start.url) || settings.get("downloads.saveAs");
     const written = ask ? path.join(pendingDirectory, start.id) : target;
@@ -513,7 +521,7 @@ export class Downloads {
     await this.#delete(active.written);
   }
 
-  /** Moves a whole download where it was saved, holding it among those under way until the move has settled, so the pending folder's sweep leaves its file alone; a move the disk refuses leaves the file where it was written, recorded there and said so. */
+  /** Moves a whole download where it was saved, holding it among those under way until the move has settled, so the pending folder's sweep leaves its file alone; a move the disk refuses puts the file in the download folder instead, recorded there and said so. */
   async #complete(active: Active) {
     const { downloads, log, settings, shell } = this.#options;
     const target = pathOf(active.destination);
@@ -526,7 +534,7 @@ export class Downloads {
       log.error("A download could not be moved where it was saved", {
         error,
       });
-      saved = active.written;
+      saved = await this.#rescue(active, path.basename(target));
     } finally {
       this.#active.delete(active.id);
     }
@@ -538,7 +546,7 @@ export class Downloads {
     }
     this.#record(active, "done", saved);
     if (saved !== target) {
-      this.#announceUnmoved(active.id, path.basename(target));
+      this.#announceUnmoved(active.id, path.basename(target), saved);
       return;
     }
     if (settings.get("downloads.openFolderWhenDone")) {
@@ -547,7 +555,22 @@ export class Downloads {
     this.#announce(active.id, path.basename(target));
   }
 
-  #announceUnmoved(id: string, name: string) {
+  /** Moves a download the disk would not put where it was saved into the download folder under the name chosen, since the pending folder is emptied of whatever the history does not list and would lose it once the list is cleared; answers where it is, the pending folder when the disk refuses that too. */
+  async #rescue(active: Active, name: string): Promise<string> {
+    const { downloads, log } = this.#options;
+    const fallback = this.#freePath(this.#directory(), name);
+    try {
+      await downloads.move(active.written, fallback);
+      return fallback;
+    } catch (error) {
+      log.error("A download could not be moved into the download folder", {
+        error,
+      });
+      return active.written;
+    }
+  }
+
+  #announceUnmoved(id: string, name: string, saved: string) {
     const { notifications, platform, settings } = this.#options;
     const reveal = () => {
       this.showInFolder(id);
@@ -555,7 +578,7 @@ export class Downloads {
     notifications.show(
       {
         actions: [revealLabel(platform)],
-        body: msg`${name} could not be saved where you chose, so it stays in the folder it was downloaded to.`,
+        body: msg`${name} could not be saved where you chose, so it was kept in ${path.dirname(saved)}.`,
         silent: !settings.get("notifications.playSound"),
         title: msg`Download not moved`,
       },

@@ -146,6 +146,53 @@ test("records a download the network cuts as failed and deletes what it wrote, w
   }
 });
 
+test("keeps a Save As download the disk will not move where it was saved in the Downloads folder, where clearing the list and a relaunch leave it", async ({
+  launch,
+  userData,
+}) => {
+  const attachments = await startAttachments();
+  // A folder where the file should go, which a rename refuses to replace.
+  const chosen = path.join(userData, "Chosen", "report.pdf");
+  await mkdir(chosen, { recursive: true });
+  const kept = path.join(userData, "Downloads", "report.pdf");
+  try {
+    const first = await launch({
+      settings: { global: { "downloads.saveAs": true }, profiles: {} },
+    });
+    await first.app.evaluate(({ dialog }, target) => {
+      Object.defineProperty(dialog, "showSaveDialog", {
+        configurable: true,
+        value: async () => {
+          await Promise.resolve();
+          return { canceled: false, filePath: target };
+        },
+      });
+    }, chosen);
+    await download(first.app, attachments.url("attachment"));
+    await expect
+      .poll(async () => {
+        const { notifications } = await inspect(first.app);
+        return notifications.map(({ title }) => title);
+      })
+      .toStrictEqual(["Download not moved"]);
+    await sendIn(first.chrome, downloads.open, {});
+    const overlay = await pageOf(first.app, "kind=downloads");
+    const answer = await invokeIn(overlay, downloads.snapshot, {});
+    expect(answer.ok ? answer.value.items : answer).toMatchObject([
+      { exists: true, fileName: "report.pdf", filePath: kept, state: "done" },
+    ]);
+    await invokeIn(overlay, downloads.clear, {});
+    await first.close();
+
+    await launch();
+    const pending = path.join(userData, "Downloads in progress");
+    await expect.poll(async () => await readdir(pending)).toStrictEqual([]);
+    expect(await readFile(kept, "utf-8")).toBe(CONTENT);
+  } finally {
+    await attachments.stop();
+  }
+});
+
 test("empties the pending folder of what an earlier run left in it", async ({
   launch,
   userData,

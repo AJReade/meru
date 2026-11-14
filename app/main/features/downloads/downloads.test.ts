@@ -218,7 +218,45 @@ describe(Downloads, () => {
     ]);
   });
 
-  it("leaves a saved download the disk will not move where it was written, records it there under the name chosen and says so, and keeps it through the next sweep", async () => {
+  it("puts a saved download the disk will not move where it was saved into the download folder under the name chosen, records it there and says so, where it outlives a cleared list and a relaunch", async () => {
+    const fs = new FakeFs();
+    const port = new FakeDownloads();
+    port.files.add(at("a.zip"));
+    const { dialogs, feature, notifications, registrar, settings, window } =
+      await setup({ fs, port });
+    settings.set("downloads.saveAs", true);
+    const { id } = port.start({ suggestedName: "a.zip" });
+    port.complete(id);
+    const chosen = path.join(path.sep, "Volumes", "Gone", "a.zip");
+    port.stuck.add(chosen);
+    await settle();
+    dialogs.answer(chosen);
+    await settle();
+
+    expect(feature.snapshot().items).toMatchObject([
+      { exists: true, fileName: "a.zip", filePath: at("a (1).zip") },
+    ]);
+    expect(
+      notifications.shown.map(({ spec }) => [spec.title, spec.body])
+    ).toStrictEqual([
+      [
+        "Download not moved",
+        `a.zip could not be saved where you chose, so it was kept in ${DOWNLOADS}.`,
+      ],
+    ]);
+    registrar.assign(window.contentsId + 1000, {
+      pushes: [],
+      requests: [{ clear: channels.clear }],
+    });
+    registrar.dispatch(window.contentsId + 1000, wireName(channels.clear), {});
+    await feature.flush();
+    feature.dispose();
+    await setup({ fs, port });
+    await settle();
+    expect(port.files.has(at("a (1).zip"))).toBeTruthy();
+  });
+
+  it("leaves a saved download the disk will move neither where it was saved nor into the download folder where it was written, recorded there, through the next sweep", async () => {
     const { dialogs, feature, notifications, port, settings } = await setup();
     settings.set("downloads.saveAs", true);
     const { id, path: started } = port.start({ suggestedName: "a.zip" });
@@ -226,6 +264,7 @@ describe(Downloads, () => {
     port.complete(id);
     const chosen = path.join(path.sep, "Volumes", "Gone", "a.zip");
     port.stuck.add(chosen);
+    port.stuck.add(at("a.zip"));
     await settle();
     dialogs.answer(chosen);
     await settle();

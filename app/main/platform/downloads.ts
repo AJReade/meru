@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
-import { access, copyFile, readdir, rename, rm } from "node:fs/promises";
+import { access, copyFile, mkdir, readdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -40,6 +40,8 @@ const quarantine = async (file: string) => {
 };
 
 const moveFile = async (from: string, to: string) => {
+  // Chromium makes the download folder when it saves into one that is missing, so a move into it does too.
+  await mkdir(path.dirname(to), { recursive: true });
   try {
     await rename(from, to);
   } catch (error) {
