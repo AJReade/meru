@@ -24,6 +24,8 @@ interface Registration {
   readonly handled: WeakSet<HTMLElement>;
   readonly since: number;
   reported: boolean;
+  /** Whether an entry with no handler has found its marker, after which it has nothing left to tell this page load. */
+  settled: boolean;
   /** Whether a check is due once the grace is out, which a page that stopped changing needs to have its miss told. */
   rechecks: boolean;
 }
@@ -81,6 +83,7 @@ export class DomScheduler {
       handled: new WeakSet(),
       rechecks: false,
       reported: false,
+      settled: false,
       since: this.#now(),
     };
     this.#registrations.add(registration);
@@ -115,7 +118,9 @@ export class DomScheduler {
     // What piled up while the frame was pending is already covered by the queries below, and left in the queue it would ask for another frame for nothing.
     this.#observer.takeRecords();
     for (const registration of this.#registrations) {
-      this.#runOne(registration);
+      if (!registration.settled) {
+        this.#runOne(registration);
+      }
     }
   }
 
@@ -148,6 +153,7 @@ export class DomScheduler {
     }
     const { handle } = registration;
     if (handle === undefined) {
+      registration.settled = found.length > 0;
       return;
     }
     for (const element of found) {

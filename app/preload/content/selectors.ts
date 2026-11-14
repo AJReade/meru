@@ -37,18 +37,14 @@ const matching = (
   if (hop === undefined) {
     return found;
   }
-  const hopped: HTMLElement[] = [];
+  const hopped = new Set<HTMLElement>();
   for (const element of found) {
     const ancestor = element.closest(hop);
-    if (
-      ancestor !== null &&
-      isHtmlElement(ancestor) &&
-      !hopped.includes(ancestor)
-    ) {
-      hopped.push(ancestor);
+    if (ancestor !== null && isHtmlElement(ancestor)) {
+      hopped.add(ancestor);
     }
   }
-  return hopped;
+  return [...hopped];
 };
 
 /** What the entry finds, the remembered classes first and the anchor when those find nothing. */

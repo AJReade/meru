@@ -150,6 +150,33 @@ describe(DomScheduler, () => {
     scheduler.dispose();
   });
 
+  it("stops querying an entry with no handler once it has found its marker", async () => {
+    document.body.innerHTML = `<div role="main">${row("a")}</div>`;
+    const paint = frames();
+    const reported: string[] = [];
+    let now = 0;
+    const scheduler = new DomScheduler({
+      document,
+      grace: 1000,
+      now: () => now,
+      report: (id) => {
+        reported.push(id);
+      },
+      requestFrame: paint.requestFrame,
+    });
+    scheduler.register({ ...entry, context: 'div[role="main"]' });
+    scheduler.start();
+    paint.run();
+
+    now = 5000;
+    document.body.innerHTML = '<div role="main"></div>';
+    await paint.settle();
+
+    expect(reported).toStrictEqual([]);
+
+    scheduler.dispose();
+  });
+
   it("runs over the page's own observer and animation frames", async () => {
     document.body.innerHTML = "";
     const seen: string[] = [];

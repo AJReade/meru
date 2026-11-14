@@ -36,16 +36,17 @@ describe(reverseConversation.id, () => {
     page.app.dispose();
   });
 
-  it("reports the message header's class once it stops matching", async () => {
+  it("reports a page whose message headers no longer carry their class", async () => {
     let now = 0;
     const page = mount(() => now);
+    for (const header of document.querySelectorAll(".Bk")) {
+      header.remove();
+    }
     page.run();
     expect(page.bridge.sentOn(gmail.selectorMiss)).toStrictEqual([]);
 
     now = 5000;
-    for (const header of document.querySelectorAll(".Bk")) {
-      header.remove();
-    }
+    document.body.append(document.createElement("p"));
     await page.settle();
 
     expect(page.bridge.sentOn(gmail.selectorMiss)).toStrictEqual([
