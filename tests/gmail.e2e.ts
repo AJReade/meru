@@ -110,6 +110,13 @@ test("acts on a message from a notification's button through the Gmail page, whi
       key: "notifications.actions",
       value: true,
     });
+    // A feed's first read only remembers what it lists, so the mail must arrive after it, or a slow launch reads it first and never calls it new.
+    await expect
+      .poll(async () => {
+        const { profiles } = await profilesOf(chrome);
+        return profiles[0]?.status;
+      })
+      .toStrictEqual({ kind: "ok", unreadCount: 0 });
 
     stub.answer(issuedNow(ONE_UNREAD));
     await wake(app);
