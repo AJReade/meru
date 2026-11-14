@@ -70,7 +70,7 @@ const closeSignIn = async (app: ElectronApplication) => {
   });
 };
 
-// Electron 45 opens `window.open("about:blank")` as a window of its own before the page points it anywhere, which is how Google's sign-in opens; these reproduce what the stage's popup handling answers.
+// A page's `window.open("about:blank")`, as Google's sign-in opens, reaches the stage as a window before the page points it anywhere; its first navigation decides it: shown for Google's sign-in, sent to the browser and destroyed for anything else, destroyed when it never navigates.
 test("shows a blank popup once it heads for Google's sign-in, sends any other to the browser, and closes one that never navigates", async ({
   launch,
 }) => {
@@ -110,7 +110,7 @@ test("shows a blank popup once it heads for Google's sign-in, sends any other to
     .toStrictEqual([]);
 });
 
-// Were Electron to show a blank popup itself, the app could no longer keep one that goes elsewhere off the screen; this fails the day it does.
+// Each blank popup reaches the stage hidden, two at once are decided apart, and one that navigates just inside the timeout is still shown. Hidden at creation is the app's own `show: false`, so this says nothing of what Electron would show without it.
 test("makes every blank popup hidden, and shows only one that heads for sign-in, two at once or one that waits almost to the timeout", async ({
   launch,
 }) => {
