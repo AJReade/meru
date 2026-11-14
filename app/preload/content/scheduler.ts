@@ -44,6 +44,7 @@ export class DomScheduler {
   readonly #requestFrame: (task: () => void) => void;
   readonly #later: (delay: number, task: () => void) => void;
   readonly #registrations = new Set<Registration>();
+  readonly #batchTasks = new Set<() => void>();
   readonly #classes: ClassCache = new Map();
   readonly #observer: MutationObserver;
   #framed = false;
@@ -101,8 +102,18 @@ export class DomScheduler {
     };
   }
 
+  /** Runs `task` after every batch, for a feature that watches something go as well as come. */
+  everyBatch(task: () => void): Unsubscribe {
+    this.#batchTasks.add(task);
+    this.#schedule();
+    return () => {
+      this.#batchTasks.delete(task);
+    };
+  }
+
   dispose(): void {
     this.#disposed = true;
+    this.#batchTasks.clear();
     this.#observer.disconnect();
     this.#registrations.clear();
     this.#classes.clear();
@@ -128,6 +139,13 @@ export class DomScheduler {
     for (const registration of this.#registrations) {
       if (!registration.settled) {
         this.#runOne(registration);
+      }
+    }
+    for (const task of this.#batchTasks) {
+      try {
+        task();
+      } catch (error) {
+        this.#fail("batch", error);
       }
     }
   }

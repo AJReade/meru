@@ -14,9 +14,20 @@ import { launch } from "../lib/app.ts";
 const root = path.join(import.meta.dirname, "..", "..");
 const FIXTURES = path.join(root, "app/preload/gmail/features/fixtures");
 
-// Each hand-made fixture a capture replaces in place, by the document it is taken from. labels.html stays hand-made: the scrub takes out every label's name, which is what its test colours by.
-const FROM_INBOX = ["header.html", "promo-banner.html", "upgrade-button.html"];
-const FROM_THREAD = ["conversation.html", "links.html", "trimmed-content.html"];
+// Each hand-made fixture a capture replaces in place, by the document it is taken from. labels.html stays hand-made: the scrub takes out every label's name, which is what its test colours by; so do clipped.html, out-of-office.html and message-sent.html, whose states a page at rest does not hold. attachments.html needs the opened conversation to carry an attachment.
+const FROM_INBOX = [
+  "header.html",
+  "inbox-rows.html",
+  "promo-banner.html",
+  "upgrade-button.html",
+];
+const FROM_THREAD = [
+  "attachments.html",
+  "compose.html",
+  "conversation.html",
+  "links.html",
+  "trimmed-content.html",
+];
 
 /** How long a document of the real Gmail is given to render. */
 const READY = 120_000;

@@ -44,6 +44,7 @@ export const profileOf = (
   id,
   label: id,
   order: 0,
+  outOfOffice: false,
   status: { kind: "ok" },
   ...more,
 });

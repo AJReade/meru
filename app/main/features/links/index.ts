@@ -1,7 +1,11 @@
-import { isSignIn, resolveLinkTarget } from "../../../core/engines/links.ts";
+import {
+  isGmailPopOut,
+  isSignIn,
+  resolveLinkTarget,
+} from "../../../core/engines/links.ts";
 import { besideTab, groupOf } from "../../../core/engines/ordering.ts";
 import type { LogPort } from "../../../core/log.ts";
-import type { ShellPort } from "../../../core/ports.ts";
+import type { PopOut, PopOutWindow, ShellPort } from "../../../core/ports.ts";
 import type { Disposition } from "../../../core/records/link.ts";
 import { apps } from "../../../shared/apps.ts";
 import type { Profiles } from "../profiles/index.ts";
@@ -15,7 +19,15 @@ interface LinksOptions {
   readonly shell: Pick<ShellPort, "openExternal">;
   /** Loads the address in the tab's view, wherever a stage keeps one. */
   readonly stages: Pick<Stages, "load">;
+  /** Where Gmail's pop-outs come from, and who takes each one's window. */
+  readonly popOuts?: {
+    readonly mailbox: string;
+    readonly opened: (window: PopOutWindow, profileId: string) => void;
+  };
 }
+
+/** The size 3.x opens a Gmail pop-out at. */
+export const POP_OUT_SIZE = { height: 600, width: 800 } as const;
 
 /** Carries out where resolveLinkTarget sends a link a pane's page opens. */
 export class Links {
@@ -87,6 +99,25 @@ export class Links {
   }
 
   /** Decides a blank popup at its first address: shown when it heads for Google's sign-in, which needs the opener, and otherwise sent to the browser and closed. */
+  /** Keeps a window a Gmail tab's page opens under the mailbox, a compose or a message, as a pop-out window of the tab's profile, as 3.x does; any other window is a link. */
+  popOut(tabId: string, url: string, disposition: Disposition): PopOut | null {
+    const { popOuts, profiles } = this.#options;
+    const from = profiles.tab(tabId);
+    if (
+      popOuts === undefined ||
+      from?.appId !== "gmail" ||
+      !isGmailPopOut(url, popOuts.mailbox, disposition)
+    ) {
+      return null;
+    }
+    return {
+      ...POP_OUT_SIZE,
+      opened: (window) => {
+        popOuts.opened(window, from.profileId);
+      },
+    };
+  }
+
   popup(url: string): boolean {
     const shows = isSignIn(url);
     if (!shows) {

@@ -137,6 +137,7 @@ export const testStages = (
     }),
     log: strictLog,
     onOpen: () => false,
+    onPopOut: () => null,
     onPopup: () => false,
     onSplitRequested: noop,
     overlayPreload: undefined,

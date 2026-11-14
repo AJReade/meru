@@ -44,6 +44,7 @@ const setup = async (platform: Platform = "darwin") => {
   registrar.assign(-1, chromeSurface);
   const requested: number[] = [];
   const { open, stages } = testStages(app, {
+    onPopOut: () => null,
     onPopup: () => true,
     onSplitRequested: (windowId) => {
       requested.push(windowId);

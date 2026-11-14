@@ -8,6 +8,8 @@ import type {
 
 import type {
   OpenListener,
+  PopOut,
+  PopOutListener,
   ViewFactoryPort,
   ViewPort,
   ViewSpec,
@@ -39,6 +41,55 @@ const dispositionOf = (
     return "window";
   }
   return disposition === "background-tab" ? "background" : "default";
+};
+
+// The options carry the web contents Chromium already made for the window, with the opener's session, so the window wraps it rather than loading the address again.
+// Chromium hands the window the opener's session but not its preload or its arguments, which name the page's surface, so they are given again.
+const openPopOut = (
+  options: BrowserWindowConstructorOptions,
+  popOut: PopOut,
+  opener: ViewSpec
+): WebContents => {
+  const window = new BrowserWindow({
+    ...options,
+    webPreferences: {
+      ...options.webPreferences,
+      additionalArguments: [...(opener.arguments ?? [])],
+      preload: opener.preload,
+    },
+    height: popOut.height,
+    width: popOut.width,
+  });
+  const live = (act: () => void) => {
+    if (!window.isDestroyed()) {
+      act();
+    }
+  };
+  popOut.opened({
+    close: () => {
+      live(() => {
+        window.close();
+      });
+    },
+    contentsId: window.webContents.id,
+    hide: () => {
+      live(() => {
+        window.hide();
+      });
+    },
+    onClosed: (listener) => {
+      window.on("closed", listener);
+      return () => {
+        window.off("closed", listener);
+      };
+    },
+    show: () => {
+      live(() => {
+        window.show();
+      });
+    },
+  });
+  return window.webContents;
 };
 
 const createView = (spec: ViewSpec): ViewPort => {
@@ -83,10 +134,27 @@ const createView = (spec: ViewSpec): ViewPort => {
     });
     return popup.webContents;
   };
+  const popOutListeners = new Set<PopOutListener>();
+  const popOutOf = (url: string, disposition: Disposition): PopOut | null => {
+    for (const listener of popOutListeners) {
+      const popOut = listener(url, disposition);
+      if (popOut !== null) {
+        return popOut;
+      }
+    }
+    return null;
+  };
   // Electron keeps one window-open handler per web contents, so the view installs it once and fans each link out to its listeners.
   contents.setWindowOpenHandler(({ url, disposition }) => {
     if (url === "about:blank") {
       return { action: "allow", createWindow: openBlank };
+    }
+    const popOut = popOutOf(url, dispositionOf(disposition));
+    if (popOut !== null) {
+      return {
+        action: "allow",
+        createWindow: (options) => openPopOut(options, popOut, spec),
+      };
     }
     return taken(url, dispositionOf(disposition))
       ? { action: "deny" }
@@ -174,6 +242,12 @@ const createView = (spec: ViewSpec): ViewPort => {
       return () => {
         contents.off("enter-html-full-screen", entered);
         contents.off("leave-html-full-screen", left);
+      };
+    },
+    onPopOut: (listener) => {
+      popOutListeners.add(listener);
+      return () => {
+        popOutListeners.delete(listener);
       };
     },
     onPopup: (listener) => {

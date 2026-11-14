@@ -19,10 +19,19 @@ const setup = async () => {
   const shell = new FakeShell();
   const { open, stages, views } = testStages(app, {
     onOpen: (tabId, url, disposition) => links.open(tabId, url, disposition),
+    onPopOut: (tabId, url, disposition) =>
+      links.popOut(tabId, url, disposition),
     onPopup: (url) => links.popup(url),
   });
+  const poppedOut: { contentsId: number; profileId: string }[] = [];
   const links = new Links({
     log: strictLog,
+    popOuts: {
+      mailbox: "https://mail.google.com/mail/u/0",
+      opened: (popOut, profileId) => {
+        poppedOut.push({ contentsId: popOut.contentsId, profileId });
+      },
+    },
     profiles,
     settings,
     shell,
@@ -33,7 +42,7 @@ const setup = async () => {
     transport.sent
       .filter((pushed) => pushed.channel === wireName(stagePushes.changed))
       .map((pushed) => stageSnapshotSchema.parse(pushed.payload));
-  return { changes, profiles, settings, shell, views, window };
+  return { changes, poppedOut, profiles, settings, shell, views, window };
 };
 
 const CALENDAR = "https://calendar.google.com/calendar/r/week";
@@ -42,6 +51,30 @@ const tabsOf = (profiles: Profiles, appId: string) =>
   profiles.state.tabs.filter((tab) => tab.appId === appId);
 
 describe(Links, () => {
+  it("keeps a window Gmail opens under its mailbox as an 800 by 600 pop-out of the tab's profile, and nothing else", async () => {
+    const { poppedOut, profiles, shell, views } = await setup();
+    const [gmail] = views.created;
+    const compose = "https://mail.google.com/mail/u/0/?view=cm&fs=1&tf=1";
+    const popOut = gmail?.popOut(compose);
+    expect([popOut?.spec.width, popOut?.spec.height, poppedOut]).toStrictEqual([
+      800,
+      600,
+      [
+        {
+          contentsId: popOut?.window.contentsId,
+          profileId: profiles.selected().id,
+        },
+      ],
+    ]);
+    expect([
+      gmail?.popOut(compose, "background"),
+      gmail?.popOut("https://mail.google.com/mail/u/0/"),
+      gmail?.popOut(CALENDAR),
+      gmail?.popOut("https://example.com/"),
+      shell.opened,
+    ]).toStrictEqual([null, null, null, null, []]);
+  });
+
   it("leaves a page navigating itself and a window onto Google's sign-in to Chromium", async () => {
     const { views, shell } = await setup();
     const [gmail] = views.created;

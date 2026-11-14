@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+  BriefcaseIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
@@ -8,6 +9,7 @@ import { useEffect, useState } from "react";
 
 import { TITLEBAR_HEIGHT } from "../../../core/engines/chrome.ts";
 import { orderedProfiles } from "../../../core/engines/ordering.ts";
+import { commands } from "../../../shared/channels/commands.ts";
 import { profiles as profileChannels } from "../../../shared/channels/profiles.ts";
 import { msg } from "../../../shared/msg.ts";
 import { useClient } from "../../client-context.tsx";
@@ -99,6 +101,40 @@ const useRowScroll = (
   return { ...scroll, scrollBy };
 };
 
+const titleOf = (profile: ShownProfile): string | undefined => {
+  if (profile.status.kind === "needsSignIn") {
+    return msg`${profile.label} needs you to sign in`;
+  }
+  return profile.outOfOffice
+    ? msg`${profile.label} is out of office`
+    : undefined;
+};
+
+// With one profile there is no button to mark, and with the banner hidden nothing else says the reply is on, so the bar keeps 3.x's way to its settings.
+const OutOfOffice = ({
+  profile,
+}: {
+  readonly profile: ShownProfile | undefined;
+}) => {
+  const client = useClient();
+  const bannerHidden = useSetting("gmail.hideOutOfOfficeBanner");
+  if (profile?.outOfOffice !== true || !bannerHidden) {
+    return null;
+  }
+  return (
+    <TitlebarIconButton
+      className="text-muted-foreground"
+      data-out-of-office=""
+      onClick={() => {
+        void client.invoke(commands.run, { id: "gmail.outOfOfficeSettings" });
+      }}
+      title={msg`Out of office`}
+    >
+      <BriefcaseIcon />
+    </TitlebarIconButton>
+  );
+};
+
 const ProfileButton = ({
   profile,
   selected,
@@ -122,9 +158,7 @@ const ProfileButton = ({
       }}
       size="sm"
       tabIndex={-1}
-      title={
-        needsSignIn ? msg`${profile.label} needs you to sign in` : undefined
-      }
+      title={titleOf(profile)}
       variant={selected ? "secondary" : "ghost"}
     >
       {profile.color === undefined ? undefined : (
@@ -134,6 +168,9 @@ const ProfileButton = ({
         />
       )}
       {profile.label}
+      {profile.outOfOffice ? (
+        <BriefcaseIcon data-out-of-office="" />
+      ) : undefined}
       {needsSignIn ? (
         <CircleAlertIcon className="text-yellow-400" />
       ) : undefined}
@@ -155,7 +192,7 @@ export const ProfileRow = () => {
     (profile) => !profile.deactivated
   );
   if (shown.length <= 1) {
-    return null;
+    return <OutOfOffice profile={shown[0]} />;
   }
   const arrow =
     "absolute top-0 flex items-center bg-chrome duration-150 motion-safe:transition-opacity";

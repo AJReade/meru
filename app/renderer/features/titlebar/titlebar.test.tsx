@@ -119,6 +119,51 @@ describe(Titlebar, () => {
     ]);
   });
 
+  it("marks a profile out of office with a briefcase, as 3.x does", () => {
+    const { buttons } = mount([
+      profilesAnswer([
+        profileOf("personal", { order: 0 }),
+        profileOf("work", { order: 1, outOfOffice: true }),
+      ]),
+    ]);
+    expect(
+      buttons().map((button) => [
+        button.querySelector("[data-out-of-office]") !== null,
+        button.title,
+      ])
+    ).toStrictEqual([
+      [false, ""],
+      [true, "work is out of office"],
+    ]);
+  });
+
+  it("gives a lone profile out of office a way to its settings while the banner is hidden", () => {
+    const outOfOffice = profilesAnswer([
+      profileOf("personal", { outOfOffice: true }),
+    ]);
+    const banner = mount([outOfOffice]);
+    const { container, sentOn } = mount([
+      outOfOffice,
+      answer(commands.run, null),
+      answer(settings.snapshot, {
+        layers: {
+          global: { "gmail.hideOutOfOfficeBanner": true },
+          profiles: {},
+        },
+        locked: {},
+      }),
+    ]);
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>("button[data-out-of-office]")
+        ?.click();
+    });
+    expect([
+      banner.container.querySelector("[data-out-of-office]"),
+      sentOn(commands.run),
+    ]).toStrictEqual([null, [{ id: "gmail.outOfOfficeSettings" }]]);
+  });
+
   it("runs back and reload as commands, titled with their shortcuts, and stops the focused pane while it loads", () => {
     const { container, sentOn, push } = mount([
       profilesAnswer([profileOf("personal")]),

@@ -90,6 +90,7 @@ export const startGmail = (options: GmailAppOptions): GmailApp => {
           bridge,
           document,
           location,
+          http: options.http,
           rpc,
           once: (key) => {
             const asking = !asked.has(key);

@@ -135,3 +135,13 @@ export const resolveLinkTarget = (
     ? { action: "newTab", appId: app.id, background }
     : { action: "newTab", appId: app.id, background, tabId: existing.id };
 };
+
+/** Whether a window a Gmail page opens is one of Gmail's own pop-outs, a compose or a message under the mailbox, which is kept as a window beside the pane rather than routed as a link; the mailbox itself, and a background tab, stay links. */
+export const isGmailPopOut = (
+  url: string,
+  mailbox: string,
+  disposition: Disposition
+): boolean =>
+  (disposition === "window" || disposition === "default") &&
+  (url.startsWith(`${mailbox}/`) || url.startsWith(`${mailbox}?`)) &&
+  url !== `${mailbox}/`;

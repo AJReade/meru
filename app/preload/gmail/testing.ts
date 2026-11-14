@@ -4,6 +4,7 @@ import { gmail, gmailPushes } from "../../shared/channels/gmail.ts";
 import type {
   GmailPageSettings,
   GmailStyles,
+  GmailSwitches,
 } from "../../shared/channels/gmail.ts";
 import { gmailSurface } from "../../shared/channels/surfaces.ts";
 import { FakeContentBridge } from "../content/fake-bridge.ts";
@@ -17,18 +18,39 @@ import type { GmailFeature } from "./feature.ts";
 export const MAILBOX = "https://mail.google.com/mail/u/0";
 
 export const testSettings: GmailPageSettings = {
+  favicons: "https://www.google.com/s2/favicons",
   labelColors: [],
   mailbox: MAILBOX,
   signIn: "https://accounts.google.com",
   styles: {
     hideGmailLogo: false,
+    hideOutOfOfficeBanner: false,
     hidePromoBanner: false,
     hideUpgradeButton: false,
     reverseConversation: false,
     showTrimmedContent: false,
   },
+  switches: {
+    closeComposeWindowAfterSend: false,
+    loadClippedMessages: false,
+    moveAttachmentsToTop: false,
+    openComposeInNewWindow: false,
+    replyForwardInPopOut: false,
+    showSenderIcons: false,
+  },
   userStyles: "",
   version: 1,
+};
+
+/** The `switches` settings with only the named ones on. */
+export const switchesWith = (
+  ...on: readonly (keyof GmailSwitches)[]
+): GmailSwitches => {
+  const off = { ...testSettings.switches };
+  for (const name of on) {
+    off[name] = true;
+  }
+  return off;
 };
 
 /** The `styles` settings with only the named ones on. */

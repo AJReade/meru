@@ -30,6 +30,7 @@ import type { Spotlight } from "../../../core/engines/spotlight.ts";
 import { stackOf, stackPlan } from "../../../core/engines/stack.ts";
 import type { LogPort } from "../../../core/log.ts";
 import type {
+  PopOut,
   Unsubscribe,
   ViewFactoryPort,
   ViewPort,
@@ -124,6 +125,12 @@ interface StageOptions {
   ) => boolean;
   /** A blank popup a pane's page opened navigated to `url`; true shows it. */
   readonly onPopup: (url: string) => boolean;
+  /** A window a pane's page opens that is kept as a pop-out, or null to treat it as a link. */
+  readonly onPopOut: (
+    tabId: string,
+    url: string,
+    disposition: Disposition
+  ) => PopOut | null;
   /** An overlay's page came, on the surface its channels are allowed from, or went, with null. */
   readonly onOverlay: (contentsId: number, surface: Surface | null) => void;
   readonly log: LogPort;
@@ -163,6 +170,7 @@ export class Stage {
         }
       },
       onOpen: options.onOpen,
+      onPopOut: options.onPopOut,
       onPopup: options.onPopup,
       radius: () => STYLE_METRICS[options.style()].radius,
       ...(options.content === undefined ? {} : { content: options.content }),

@@ -40,6 +40,37 @@ const strictReport = (id: string): never => {
 };
 
 describe(DomScheduler, () => {
+  it("runs a batch task after every batch until it is taken away, and reports one that throws", async () => {
+    document.body.innerHTML = row("a");
+    const paint = frames();
+    const failed: string[] = [];
+    let runs = 0;
+    const scheduler = new DomScheduler({
+      document,
+      fail: (id) => {
+        failed.push(id);
+      },
+      report: strictReport,
+      requestFrame: paint.requestFrame,
+    });
+    scheduler.start();
+    const stop = scheduler.everyBatch(() => {
+      runs += 1;
+    });
+    scheduler.everyBatch(() => {
+      throw new Error("broken");
+    });
+    paint.run();
+    document.body.append(document.createElement("p"));
+    await paint.settle();
+    stop();
+    document.body.append(document.createElement("p"));
+    await paint.settle();
+
+    expect([runs, failed]).toStrictEqual([2, ["batch", "batch", "batch"]]);
+    scheduler.dispose();
+  });
+
   it("hands every element to its feature once, however often the page changes", async () => {
     document.body.innerHTML = row("a");
     const paint = frames();

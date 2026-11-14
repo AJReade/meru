@@ -15,10 +15,15 @@ import {
   sync,
 } from "./define.ts";
 
-/** What a page is told about profiles: the state, with each profile marked deactivated when the entitlement does not allow it, each tab whether it may close, and why the entitlement refuses another profile, null while it allows one. */
+/** What a page is told about profiles: the state, with each profile marked deactivated when the entitlement does not allow it and out of office while its Gmail says so, each tab whether it may close, and why the entitlement refuses another profile, null while it allows one. */
 export const profilesSnapshotSchema = profilesStateSchema.extend({
   newProfileRefusal: gateRefusalSchema.nullable(),
-  profiles: z.array(profileSchema.extend({ deactivated: z.boolean() })),
+  profiles: z.array(
+    profileSchema.extend({
+      deactivated: z.boolean(),
+      outOfOffice: z.boolean(),
+    })
+  ),
   tabs: z.array(
     tabSchema.extend({ asleep: z.boolean(), closeable: z.boolean() })
   ),

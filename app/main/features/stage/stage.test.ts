@@ -39,6 +39,7 @@ const setup = async (style: Style = "modern") => {
   const { stages, views } = testStages(app, {
     dragPreload: "/dist/preload/drag.cjs",
     insets: () => insets,
+    onPopOut: () => null,
     onPopup: () => true,
     onSplitRequested: (windowId, orientation) => {
       requested.push([windowId, orientation]);

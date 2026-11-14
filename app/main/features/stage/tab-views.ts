@@ -1,5 +1,10 @@
 import type { LogPort } from "../../../core/log.ts";
-import type { Unsubscribe, ViewPort, ViewSpec } from "../../../core/ports.ts";
+import type {
+  PopOut,
+  Unsubscribe,
+  ViewPort,
+  ViewSpec,
+} from "../../../core/ports.ts";
 import type { Disposition } from "../../../core/records/link.ts";
 import type { PageHistory } from "../../../core/records/navigation.ts";
 import { partitionOf } from "../../../core/records/profile.ts";
@@ -33,6 +38,12 @@ interface TabViewsOptions {
   readonly onNavigation: (tabId: string) => void;
   /** A blank popup the tab's page opened navigated to `url`; true shows it. */
   readonly onPopup: (url: string) => boolean;
+  /** A window the tab's page opens that is kept as a pop-out, or null to treat it as a link. */
+  readonly onPopOut: (
+    tabId: string,
+    url: string,
+    disposition: Disposition
+  ) => PopOut | null;
   /** The tab's page asked for fullscreen, with true, or left it. */
   readonly onFullscreen: (tabId: string, entered: boolean) => void;
   /** Some tab's page started or stopped playing sound. */
@@ -124,6 +135,9 @@ export class TabViews {
       }),
       view.onOpen((url, disposition) => onOpen(tabId, url, disposition)),
       view.onPopup(this.#options.onPopup),
+      view.onPopOut((url, disposition) =>
+        this.#options.onPopOut(tabId, url, disposition)
+      ),
       view.onFullscreen((entered) => {
         onFullscreen(tabId, entered);
       }),

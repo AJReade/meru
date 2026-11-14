@@ -1,5 +1,7 @@
 import type {
   OpenListener,
+  PopOut,
+  PopOutListener,
   Unsubscribe,
   ViewPort,
   ViewSpec,
@@ -12,6 +14,7 @@ import type {
 } from "../../core/records/navigation.ts";
 import type { Rect } from "../../core/records/rect.ts";
 import { FakeKeys } from "./keys.ts";
+import { FakePopOutWindow } from "./pop-out-window.ts";
 
 let nextContentsId = 1000;
 
@@ -120,6 +123,31 @@ export class FakeView implements ViewPort {
     disposition: Disposition = "inPlace"
   ): boolean =>
     [...this.#openListeners].some((listener) => listener(url, disposition));
+
+  readonly #popOutListeners = new Set<PopOutListener>();
+
+  readonly onPopOut = (listener: PopOutListener): Unsubscribe => {
+    this.#popOutListeners.add(listener);
+    return () => {
+      this.#popOutListeners.delete(listener);
+    };
+  };
+
+  /** Opens a window as the page would: the pop-out a listener answered, already told of its window, or null when the window goes on to `onOpen`. */
+  readonly popOut = (
+    url: string,
+    disposition: Disposition = "window"
+  ): { readonly spec: PopOut; readonly window: FakePopOutWindow } | null => {
+    for (const listener of this.#popOutListeners) {
+      const spec = listener(url, disposition);
+      if (spec !== null) {
+        const window = new FakePopOutWindow();
+        spec.opened(window);
+        return { spec, window };
+      }
+    }
+    return null;
+  };
 
   readonly #popupListeners = new Set<(url: string) => boolean>();
 

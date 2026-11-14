@@ -3,6 +3,7 @@ import type { ChromeInsets } from "../../../core/engines/chrome.ts";
 import type { AppEvents } from "../../../core/events.ts";
 import type { LogPort } from "../../../core/log.ts";
 import type {
+  PopOut,
   Unsubscribe,
   ViewFactoryPort,
   ViewPort,
@@ -67,6 +68,12 @@ export interface StagesOptions {
   ) => boolean;
   /** A blank popup a pane's page opened navigated to `url`; true shows it. */
   readonly onPopup: (url: string) => boolean;
+  /** A window a pane's page opens that is kept as a pop-out, or null to treat it as a link. */
+  readonly onPopOut: (
+    tabId: string,
+    url: string,
+    disposition: Disposition
+  ) => PopOut | null;
   /** Where the tab's page stood when it went to sleep, which its next view starts at. */
   readonly historyOf?: (tabId: string) => PageHistory | undefined;
   /** A split command ran in the window whose chrome page is `windowId`, which splits nothing until an app for the new pane is picked. */
@@ -218,6 +225,7 @@ export class Stages {
         this.#options.events.emit("tab.audible", null);
       },
       onOpen: this.#options.onOpen,
+      onPopOut: this.#options.onPopOut,
       onPopup: this.#options.onPopup,
       onOverlay: (contentsId, surface) => {
         if (surface === null) {

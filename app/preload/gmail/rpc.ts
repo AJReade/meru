@@ -10,6 +10,8 @@ import type {
 export interface HttpAnswer {
   readonly status: number;
   readonly text: string;
+  /** The address the answer came from, after any redirect. */
+  readonly url: string;
 }
 
 /** The two requests Gmail's own endpoints take, as the page's `fetch` makes them, with the page's cookies. */

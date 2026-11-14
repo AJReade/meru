@@ -15,6 +15,7 @@ import {
 /** The Gmail page's style sheets the settings turn on and off, one per feature, by its setting's name under `gmail.`. */
 export const gmailStylesSchema = z.object({
   hideGmailLogo: z.boolean(),
+  hideOutOfOfficeBanner: z.boolean(),
   hidePromoBanner: z.boolean(),
   hideUpgradeButton: z.boolean(),
   reverseConversation: z.boolean(),
@@ -22,6 +23,18 @@ export const gmailStylesSchema = z.object({
 });
 
 export type GmailStyles = z.infer<typeof gmailStylesSchema>;
+
+/** The Gmail page's features that change its markup or how it behaves, each by its setting's name under `gmail.`. */
+export const gmailSwitchesSchema = z.object({
+  closeComposeWindowAfterSend: z.boolean(),
+  loadClippedMessages: z.boolean(),
+  moveAttachmentsToTop: z.boolean(),
+  openComposeInNewWindow: z.boolean(),
+  replyForwardInPopOut: z.boolean(),
+  showSenderIcons: z.boolean(),
+});
+
+export type GmailSwitches = z.infer<typeof gmailSwitchesSchema>;
 
 /** What the Gmail pane's preload applies, whole, each time it changes. */
 export const gmailPageSettingsSchema = z.object({
@@ -32,6 +45,9 @@ export const gmailPageSettingsSchema = z.object({
   /** The address Google's sign-in starts with, where the pane lands once its session is signed out. */
   signIn: z.string(),
   styles: gmailStylesSchema,
+  switches: gmailSwitchesSchema,
+  /** Where a sender's icon is asked for by its domain: Google's favicon service, or the stand-in mailbox's in a run against one. */
+  favicons: z.string(),
   labelColors: z.array(labelColorSchema),
   /** The user's own style sheet, empty while there is none or Pro does not allow it. */
   userStyles: z.string(),
@@ -67,6 +83,12 @@ export const gmail = defineChannels("gmail", {
   selectorMiss: event(z.object({ selector: z.string().min(1).max(100) })),
   /** The preload failed at something of its own, which main logs. */
   failed: event(contentFailureSchema),
+  /** Whether Gmail shows the out-of-office banner, sent when that changes. */
+  outOfOffice: event(z.object({ on: z.boolean() })),
+  /** Gmail said "Message sent" in this page, which counts only from a pop-out window. */
+  messageSent: event(noPayload),
+  /** The Undo of the message-sent toast of this id was clicked. */
+  undoSend: event(z.object({ id: z.number().int().min(0) })),
   /** Whether the page took the address of the `navigate` push of this id, which it does only while it shows the mailbox. */
   navigated: event(
     z.object({ id: z.number().int().min(0), navigated: z.boolean() })
@@ -81,6 +103,12 @@ export const gmail = defineChannels("gmail", {
 
 export const gmailPushes = definePushes("gmail", {
   settingsChanged: push(gmailPageSettingsSchema),
+  /** Shows the message-sent toast of this id, whose Undo answers `undoSend` with it. */
+  showSentToast: push(z.object({ id: z.number().int().min(0) })),
+  /** Takes the message-sent toast of this id down. */
+  dismissSentToast: push(z.object({ id: z.number().int().min(0) })),
+  /** Clicks Gmail's own Undo of the message last sent in this page. */
+  undoSend: push(noPayload),
   /** Takes the page to a place in the mailbox, such as a message, by its address's fragment; the page answers `navigated` with the id. */
   navigate: push(
     z.object({

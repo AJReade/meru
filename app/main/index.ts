@@ -16,7 +16,11 @@ import { Appearance } from "./features/appearance/index.ts";
 import { Badge } from "./features/badge/index.ts";
 import { Downloads } from "./features/downloads/index.ts";
 import { Entitlement } from "./features/entitlement/index.ts";
-import { Gmail, USER_STYLES_FILE } from "./features/gmail/index.ts";
+import {
+  GOOGLE_FAVICONS,
+  Gmail,
+  USER_STYLES_FILE,
+} from "./features/gmail/index.ts";
 import { Google } from "./features/google/index.ts";
 import { Inbox } from "./features/inbox/index.ts";
 import { Launcher } from "./features/launcher/index.ts";
@@ -66,6 +70,20 @@ const signInOf = (gmailOverride: string | undefined): string =>
   gmailOverride === undefined
     ? GOOGLE_SIGN_IN
     : new URL("/signin", gmailOverride).href;
+
+// The stand-in mailbox serves the senders' icons too, since a test cannot reach Google's.
+const faviconsOf = (gmailOverride: string | undefined): string =>
+  gmailOverride === undefined
+    ? GOOGLE_FAVICONS
+    : new URL("/favicons", gmailOverride).href;
+
+const gmailTabOf = (
+  profiles: Profiles,
+  profileId: string
+): string | undefined =>
+  profiles.state.tabs.find(
+    (tab) => tab.profileId === profileId && tab.appId === "gmail"
+  )?.id;
 
 // The suite's panes show the stand-ins they are given, the Gmail one its mailbox and every other Google app one page between them, and nothing without.
 const testPaneUrl =
@@ -243,10 +261,11 @@ const start = async () => {
   const gmailOverride = ports.lifecycle.packaged
     ? undefined
     : process.env.MERU_GMAIL_URL;
+  const mailbox = gmailOverride ?? GMAIL_URL;
   const inbox = new Inbox({
     clock: ports.clock,
     events,
-    gmailUrl: gmailOverride ?? GMAIL_URL,
+    gmailUrl: mailbox,
     log: log.scoped("inbox"),
     online: ports.online,
     power: ports.power,
@@ -258,14 +277,28 @@ const start = async () => {
   if (gmailOverride !== undefined || !(e2e || measure)) {
     inbox.start();
   }
+  // Gmail moves between its own views by the fragment, so the page takes an address under the mailbox without a reload when it can.
+  const openMessage = async (tabId: string, url: string) => {
+    if (!(await gmail.navigate(tabId, url))) {
+      stages.load(tabId, url);
+    }
+  };
   const gmail = new Gmail({
     clock: ports.clock,
     commands,
     entitlement: () => entitlement.current(),
     events,
     fs: ports.fs,
+    favicons: faviconsOf(gmailOverride),
     log: log.scoped("gmail"),
-    mailbox: gmailOverride ?? GMAIL_URL,
+    mailbox,
+    openMailbox: (profileId, hash) => {
+      const tab = gmailTabOf(profiles, profileId);
+      if (tab !== undefined) {
+        profiles.focusTab(tab);
+        void openMessage(tab, `${mailbox}/${hash}`);
+      }
+    },
     preload: path.join(dist, "preload", "gmail.cjs"),
     profiles,
     registrar: dispatcher,
@@ -306,6 +339,8 @@ const start = async () => {
       : {}),
     historyOf: (tabId) => sleep.historyOf(tabId),
     onOpen: (tabId, url, disposition) => links.open(tabId, url, disposition),
+    onPopOut: (tabId, url, disposition) =>
+      links.popOut(tabId, url, disposition),
     onPopup: (url) => links.popup(url),
     onSplitRequested: (windowId, orientation) => {
       launcher.open(windowId, orientation);
@@ -349,6 +384,12 @@ const start = async () => {
   sleep.start();
   const links = new Links({
     log: log.scoped("links"),
+    popOuts: {
+      mailbox,
+      opened: (window, profileId) => {
+        gmail.attachPopOut(window, profileId);
+      },
+    },
     profiles,
     settings,
     shell,
@@ -456,18 +497,13 @@ const start = async () => {
     windows: [window, settingsWindow],
   }).start();
   const { platform } = ports.lifecycle;
-  const openMessage = async (tabId: string, url: string) => {
-    if (!(await gmail.navigate(tabId, url))) {
-      stages.load(tabId, url);
-    }
-  };
   new Notifications({
     act: (tabId, messageId, action) => {
       void gmail.act(tabId, messageId, action);
     },
     events,
     inbox,
-    gmailUrl: gmailOverride ?? GMAIL_URL,
+    gmailUrl: mailbox,
     load: (tabId, url) => {
       void openMessage(tabId, url);
     },

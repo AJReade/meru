@@ -7,6 +7,7 @@ import type { LogPort } from "../../../core/log.ts";
 import type {
   Clock,
   FsPort,
+  PopOutWindow,
   ShellPort,
   Unsubscribe,
 } from "../../../core/ports.ts";
@@ -36,6 +37,9 @@ import type { SettingsStore } from "../settings/index.ts";
 import type { ContentPage } from "../stage/tab-views.ts";
 import { gmailCommands } from "./commands.ts";
 
+/** Google's favicon service, which answers a domain's icon. */
+export const GOOGLE_FAVICONS = "https://www.google.com/s2/favicons";
+
 /** The user's own style sheet for Gmail, a file in the user data directory, as 3.x kept it. */
 export const USER_STYLES_FILE = "gmail-user-styles.css";
 
@@ -50,6 +54,8 @@ export const ACT_TIMEOUT = 15_000;
 
 // How long the tab is given to get a page once it has been woken, after which the action is refused rather than left hanging.
 export const WAKE_TIMEOUT = 5000;
+/** How long a sent message's pop-out stays, hidden, for its Undo, as 3.x keeps it; Gmail's own longest undo period is 30 seconds. */
+export const SENT_UNDO_WINDOW = 30_000;
 
 // An editor saves in several writes, each of which the watch may report, so a read waits for the writes to stop.
 export const USER_STYLES_SETTLE = 200;
@@ -68,7 +74,11 @@ export interface GmailOptions {
       profileId: string,
       status: ProfileStatus
     ) => Result<undefined, string>;
+    readonly setOutOfOffice: (profileId: string, on: boolean) => void;
+    readonly selected: () => { readonly id: string };
   };
+  /** Shows the profile's Gmail tab at the mailbox's fragment `hash`. */
+  readonly openMailbox: (profileId: string, hash: string) => void;
   readonly registrar: IpcRegistrar;
   readonly commands: CommandRegistrar;
   /** The built Gmail preload. */
@@ -79,6 +89,8 @@ export interface GmailOptions {
   readonly signIn: string;
   /** Points the tab at the mailbox, so a tab with no page acts once it has one. */
   readonly wake: (tabId: string) => void;
+  /** Where a sender's icon is asked for by its domain. */
+  readonly favicons: string;
   readonly log: LogPort;
 }
 
@@ -90,7 +102,25 @@ export class Gmail {
   readonly #options: GmailOptions;
   readonly #disposables = new DisposableStore();
   /** Each Gmail tab's page, by tab id. */
-  readonly #pages = new Map<string, number>();
+  readonly #pages = new Map<
+    string,
+    { readonly contentsId: number; readonly profileId: string }
+  >();
+  /** Each pop-out window a Gmail page opened, by its page. */
+  readonly #popOuts = new Map<
+    number,
+    { readonly window: PopOutWindow; readonly profileId: string }
+  >();
+  /** Each sent message whose pop-out waits, hidden, for its Undo, by the id of its toast. */
+  readonly #sent = new Map<
+    number,
+    {
+      readonly window: PopOutWindow;
+      readonly pane: number | undefined;
+      readonly close: Unsubscribe;
+    }
+  >();
+  #nextSent = 0;
   /** Each navigation a page has yet to answer, by its id. */
   readonly #navigations = new Map<
     number,
@@ -156,6 +186,24 @@ export class Gmail {
           });
           return ok(undefined);
         },
+        messageSent: (_payload, { contentsId }) => {
+          this.#hideSent(contentsId);
+          return ok(undefined);
+        },
+        // A pop-out shows no banner, so only a tab's page says whether the profile is out of office.
+        outOfOffice: ({ on }, { contentsId, profileId }) => {
+          if (profileId === undefined) {
+            return err("noProfile");
+          }
+          if (!this.#popOuts.has(contentsId)) {
+            this.#options.profiles.setOutOfOffice(profileId, on);
+          }
+          return ok(undefined);
+        },
+        undoSend: ({ id }) => {
+          this.#undoSend(id);
+          return ok(undefined);
+        },
         navigated: ({ id, navigated }, { contentsId }) => {
           const waiting = this.#navigations.get(id);
           if (waiting?.contentsId === contentsId) {
@@ -183,6 +231,13 @@ export class Gmail {
         snapshot: () => ok(this.#stylesState),
       }),
       commands.register(gmailCommands, {
+        outOfOfficeSettings: () => {
+          this.#options.openMailbox(
+            this.#options.profiles.selected().id,
+            "#settings/general"
+          );
+          return ok(undefined);
+        },
         editUserStyles: {
           run: () => {
             void this.#openUserStyles();
@@ -215,6 +270,9 @@ export class Gmail {
       }),
       () => {
         this.#settle?.();
+        for (const { close } of this.#sent.values()) {
+          close();
+        }
       }
     );
     await this.#readUserStyles();
@@ -229,7 +287,7 @@ export class Gmail {
     return {
       arguments: [contentSurfaceArgument("gmail")],
       attach: (contentsId): Unsubscribe => {
-        this.#pages.set(tab.id, contentsId);
+        this.#pages.set(tab.id, { contentsId, profileId: tab.profileId });
         for (const waiting of this.#waking.get(tab.id) ?? []) {
           waiting(contentsId);
         }
@@ -241,7 +299,7 @@ export class Gmail {
         );
         return () => {
           unassign();
-          if (this.#pages.get(tab.id) === contentsId) {
+          if (this.#pages.get(tab.id)?.contentsId === contentsId) {
             this.#pages.delete(tab.id);
           }
         };
@@ -256,7 +314,8 @@ export class Gmail {
     messageId: string,
     action: MailAction
   ): Promise<Result<undefined, GmailActError>> {
-    const contentsId = this.#pages.get(tabId) ?? (await this.#woken(tabId));
+    const contentsId =
+      this.#pages.get(tabId)?.contentsId ?? (await this.#woken(tabId));
     if (contentsId === undefined) {
       return this.#notActed("noPage", tabId);
     }
@@ -316,7 +375,7 @@ export class Gmail {
 
   /** Takes the tab's page to `url` by its fragment, as Gmail moves between its own views, when the tab has a page on the mailbox and the address is the mailbox's; false, once the page says it is elsewhere or does not answer in time, leaves it to the caller to load. */
   async navigate(tabId: string, url: string): Promise<boolean> {
-    const contentsId = this.#pages.get(tabId);
+    const contentsId = this.#pages.get(tabId)?.contentsId;
     const at = url.indexOf("#");
     if (
       contentsId === undefined ||
@@ -347,18 +406,107 @@ export class Gmail {
     return await promise;
   }
 
+  /** Gives a pop-out window a Gmail page opened the Gmail page's surface, under the profile of the tab that opened it. */
+  attachPopOut(window: PopOutWindow, profileId: string): void {
+    const unassign = this.#options.registrar.assign(
+      window.contentsId,
+      gmailSurface,
+      profileId
+    );
+    this.#popOuts.set(window.contentsId, { profileId, window });
+    const unfollow = window.onClosed(() => {
+      unfollow();
+      unassign();
+      this.#popOuts.delete(window.contentsId);
+      for (const [id, sent] of this.#sent) {
+        if (sent.window === window) {
+          this.#forget(id);
+        }
+      }
+    });
+  }
+
+  // Gmail keeps the message unsent for its undo period, so the pop-out is hidden rather than closed and the toast's Undo can still reach its page.
+  #hideSent(contentsId: number): void {
+    const popOut = this.#popOuts.get(contentsId);
+    if (
+      popOut === undefined ||
+      !this.#options.settings.get("gmail.closeComposeWindowAfterSend")
+    ) {
+      return;
+    }
+    const { window } = popOut;
+    window.hide();
+    const id = this.#nextSent;
+    this.#nextSent += 1;
+    const pane = [...this.#pages.values()].find(
+      (page) => page.profileId === popOut.profileId
+    )?.contentsId;
+    this.#sent.set(id, {
+      close: this.#options.clock.schedule(SENT_UNDO_WINDOW, () => {
+        window.close();
+      }),
+      pane,
+      window,
+    });
+    if (pane !== undefined) {
+      this.#options.registrar.push(pane, gmailPushes.showSentToast, { id });
+    }
+  }
+
+  #undoSend(id: number): void {
+    const sent = this.#sent.get(id);
+    if (sent === undefined) {
+      return;
+    }
+    this.#forget(id);
+    const { pane, window } = sent;
+    if (this.#popOuts.has(window.contentsId)) {
+      window.show();
+      this.#options.registrar.push(window.contentsId, gmailPushes.undoSend, {});
+    } else if (pane !== undefined) {
+      this.#options.registrar.push(pane, gmailPushes.undoSend, {});
+    }
+  }
+
+  #forget(id: number): void {
+    const sent = this.#sent.get(id);
+    if (sent === undefined) {
+      return;
+    }
+    sent.close();
+    this.#sent.delete(id);
+    if (sent.pane !== undefined) {
+      this.#options.registrar.push(sent.pane, gmailPushes.dismissSentToast, {
+        id,
+      });
+    }
+  }
+
   #compute(): Omit<GmailPageSettings, "version"> {
     const { settings } = this.#options;
     return {
+      favicons: this.#options.favicons,
       labelColors: settings.get("gmail.labelColors"),
       mailbox: this.#options.mailbox,
       signIn: this.#options.signIn,
       styles: {
         hideGmailLogo: settings.get("gmail.hideGmailLogo"),
+        hideOutOfOfficeBanner: settings.get("gmail.hideOutOfOfficeBanner"),
         hidePromoBanner: settings.get("gmail.hidePromoBanner"),
         hideUpgradeButton: settings.get("gmail.hideUpgradeButton"),
         reverseConversation: settings.get("gmail.reverseConversation"),
         showTrimmedContent: settings.get("gmail.showTrimmedContent"),
+      },
+      switches: {
+        closeComposeWindowAfterSend: settings.get(
+          "gmail.closeComposeWindowAfterSend"
+        ),
+        loadClippedMessages: settings.get("gmail.loadClippedMessages"),
+        moveAttachmentsToTop: settings.get("gmail.moveAttachmentsToTop"),
+        openComposeInNewWindow: settings.get("gmail.openComposeInNewWindow"),
+        replyForwardInPopOut: settings.get("gmail.replyForwardInPopOut"),
+        showSenderIcons: settings.get("gmail.showSenderIcons"),
       },
       userStyles: this.#proAllowed() ? this.#userStyles : "",
     };

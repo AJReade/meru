@@ -44,6 +44,7 @@ describe("the command registry", () => {
     expectTypeOf<CommandId>().toEqualTypeOf<
       | "downloads.open"
       | "gmail.editUserStyles"
+      | "gmail.outOfOfficeSettings"
       | "gmail.revealUserStyles"
       | "google.toggleMeetCamera"
       | "google.toggleMeetMicrophone"

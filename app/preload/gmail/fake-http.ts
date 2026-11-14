@@ -1,16 +1,18 @@
 import type { GmailHttp, HttpAnswer } from "./rpc.ts";
 
-const MISSING: HttpAnswer = { status: 404, text: "" };
+type GivenAnswer = Omit<HttpAnswer, "url"> & { readonly url?: string };
+
+const MISSING: GivenAnswer = { status: 404, text: "" };
 
 /** Gmail's endpoints as a test answers them: each request is kept, with the posted `s_jr` field, and each answer is the one it was given, or 404 with no body. */
 export class FakeGmailHttp implements GmailHttp {
   readonly asked: string[] = [];
   readonly posted: { url: string; field: string }[] = [];
-  readonly #answers = new Map<string, HttpAnswer>();
+  readonly #answers = new Map<string, GivenAnswer>();
   #thrown: Error | undefined;
 
-  /** Answers every request whose address starts with `prefix`, the longest prefix given winning. */
-  answer(prefix: string, answer: HttpAnswer): void {
+  /** Answers every request whose address starts with `prefix`, the longest prefix given winning, from the address asked for unless the answer names where a redirect ended. */
+  answer(prefix: string, answer: GivenAnswer): void {
     this.#answers.set(prefix, answer);
   }
 
@@ -38,9 +40,9 @@ export class FakeGmailHttp implements GmailHttp {
       .filter((prefix) => url.startsWith(prefix))
       .toSorted((left, right) => right.length - left.length)
       .at(0);
-    return (
+    const given =
       (matched === undefined ? undefined : this.#answers.get(matched)) ??
-      MISSING
-    );
+      MISSING;
+    return { ...given, url: given.url ?? url };
   }
 }

@@ -124,6 +124,7 @@ interface ProfilesOptions {
 export class Profiles {
   readonly #options: ProfilesOptions;
   readonly #store: SnapshotStore<ProfilesState, string>;
+  readonly #outOfOffice = new Set<string>();
   readonly #disposables = new DisposableStore();
   #state: ProfilesState | undefined;
 
@@ -258,6 +259,7 @@ export class Profiles {
       profiles: this.state.profiles.map((profile) => ({
         ...profile,
         deactivated: deactivated.has(profile.id),
+        outOfOffice: this.#outOfOffice.has(profile.id),
       })),
       tabs: this.state.tabs.map((tab) => ({
         ...tab,
@@ -355,6 +357,19 @@ export class Profiles {
     return this.#commit(
       letSleep(this.state, tabId, sleeps, isSingleInstanceId)
     );
+  }
+
+  /** Marks whether the profile's Gmail has its out-of-office reply on, which only its page knows and nothing stores. */
+  setOutOfOffice(profileId: string, on: boolean): void {
+    if (this.#outOfOffice.has(profileId) === on) {
+      return;
+    }
+    if (on) {
+      this.#outOfOffice.add(profileId);
+    } else {
+      this.#outOfOffice.delete(profileId);
+    }
+    this.#publish();
   }
 
   /** Tells every page that which tabs are asleep changed. */

@@ -13,6 +13,7 @@ import {
   settingsSurface,
 } from "../../../shared/channels/surfaces.ts";
 import { FakeLog } from "../../../test/fakes/log.ts";
+import { FakePopOutWindow } from "../../../test/fakes/pop-out-window.ts";
 import { FakeShell } from "../../../test/fakes/shell.ts";
 import { unwrap } from "../../../test/result.ts";
 import { PRO, testApp } from "../../testing.ts";
@@ -20,6 +21,7 @@ import {
   ACT_TIMEOUT,
   Gmail,
   NAVIGATE_TIMEOUT,
+  SENT_UNDO_WINDOW,
   USER_STYLES_FILE,
   USER_STYLES_LIMIT,
   USER_STYLES_SETTLE,
@@ -36,14 +38,19 @@ const setup = async (given: Entitlement = PRO) => {
   const log = new FakeLog();
   const shell = new FakeShell();
   const woken: string[] = [];
+  const opened: { profileId: string; hash: string }[] = [];
   const feature = new Gmail({
     clock: app.clock,
     commands: app.commands,
     entitlement: () => entitlement,
     events: app.events,
     fs: app.fs,
+    favicons: "https://www.google.com/s2/favicons",
     log: log.scoped("gmail"),
     mailbox: MAILBOX,
+    openMailbox: (profileId, hash) => {
+      opened.push({ hash, profileId });
+    },
     preload: "/dist/preload/gmail.cjs",
     profiles: app.profiles,
     registrar: app.registrar,
@@ -77,6 +84,7 @@ const setup = async (given: Entitlement = PRO) => {
     entitle,
     feature,
     log,
+    opened,
     pushed,
     request,
     shell,
@@ -327,5 +335,97 @@ describe(Gmail, () => {
     await expect.poll(() => shell.revealed).toHaveLength(1);
     entitle(FREE);
     expect(app.commands.enabled("gmail.editUserStyles")).toBeFalsy();
+  });
+
+  it("asks the selected profile's Gmail to show its out-of-office settings", async () => {
+    const { app, opened } = await setup();
+    unwrap(app.commands.run("gmail.outOfOfficeSettings", { windowId: 1 }));
+    expect(opened).toStrictEqual([
+      { hash: "#settings/general", profileId: app.profiles.selected().id },
+    ]);
+  });
+
+  it("marks the profile out of office as its tab's page says, and not as a pop-out's does", async () => {
+    const { app, feature, request, tab } = await setup();
+    const popOut = new FakePopOutWindow();
+    feature.attachPopOut(popOut, tab.profileId);
+    const shown = () =>
+      app.profiles.snapshot().profiles.map((profile) => profile.outOfOffice);
+
+    unwrap(request(gmail.outOfOffice, { on: true }));
+    expect(shown()).toStrictEqual([true]);
+
+    unwrap(
+      app.registrar.dispatch(popOut.contentsId, wireName(gmail.outOfOffice), {
+        on: false,
+      })
+    );
+    expect(shown()).toStrictEqual([true]);
+
+    unwrap(request(gmail.outOfOffice, { on: false }));
+    expect(shown()).toStrictEqual([false]);
+  });
+});
+
+const sent = async (closes = true) => {
+  const context = await setup();
+  const { app, feature, tab } = context;
+  app.settings.set("gmail.closeComposeWindowAfterSend", closes);
+  const popOut = new FakePopOutWindow();
+  feature.attachPopOut(popOut, tab.profileId);
+  unwrap(
+    app.registrar.dispatch(popOut.contentsId, wireName(gmail.messageSent), {})
+  );
+  const sentTo = (channel: Parameters<typeof wireName>[0]) =>
+    app.transport.sent
+      .filter((one) => one.channel === wireName(channel))
+      .map((one) => ({ contentsId: one.contentsId, payload: one.payload }));
+  return { ...context, popOut, sentTo };
+};
+
+describe("a pop-out that sent a message", () => {
+  it("hides, shows the toast in the profile's Gmail pane, and closes once the undo period is over", async () => {
+    const { app, popOut, sentTo } = await sent();
+
+    expect(popOut.visible).toBeFalsy();
+    expect(sentTo(gmailPushes.showSentToast)).toStrictEqual([
+      { contentsId: PAGE, payload: { id: 0 } },
+    ]);
+
+    app.clock.advance(SENT_UNDO_WINDOW);
+
+    expect(popOut.closed).toBeTruthy();
+    expect(sentTo(gmailPushes.dismissSentToast)).toStrictEqual([
+      { contentsId: PAGE, payload: { id: 0 } },
+    ]);
+  });
+
+  it("comes back with Gmail's Undo clicked when the toast's Undo is, and stays", async () => {
+    const { app, popOut, request, sentTo } = await sent();
+
+    unwrap(request(gmail.undoSend, { id: 0 }));
+    app.clock.advance(SENT_UNDO_WINDOW);
+
+    expect(popOut.visible).toBeTruthy();
+    expect(popOut.closed).toBeFalsy();
+    expect(sentTo(gmailPushes.undoSend)).toStrictEqual([
+      { contentsId: popOut.contentsId, payload: {} },
+    ]);
+    expect(sentTo(gmailPushes.dismissSentToast)).toHaveLength(1);
+  });
+
+  it("stays as it was while the setting is off", async () => {
+    const { popOut, sentTo } = await sent(false);
+    expect(popOut.visible).toBeTruthy();
+    expect(sentTo(gmailPushes.showSentToast)).toStrictEqual([]);
+  });
+
+  it("refuses its requests once closed", async () => {
+    const { app, popOut } = await sent();
+    popOut.close();
+    expect(
+      app.registrar.dispatch(popOut.contentsId, wireName(gmail.messageSent), {})
+        .ok
+    ).toBeFalsy();
   });
 });

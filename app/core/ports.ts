@@ -88,6 +88,27 @@ export type KeyListener = (input: KeyInput) => boolean;
 /** Hears a link the page opens, in a new tab or window or in place; a listener answering true takes it, so the page neither opens a window nor navigates. */
 export type OpenListener = (url: string, disposition: Disposition) => boolean;
 
+/** A window a pane's page opened that is kept as a window of its own, such as Gmail's compose pop-out. */
+export interface PopOutWindow {
+  readonly contentsId: number;
+  readonly show: () => void;
+  readonly hide: () => void;
+  readonly close: () => void;
+  readonly onClosed: (listener: () => void) => Unsubscribe;
+}
+
+/** How a window the page opens is kept: its size, and who is told once it exists. */
+export interface PopOut {
+  readonly width: number;
+  readonly height: number;
+  readonly opened: (window: PopOutWindow) => void;
+}
+
+export type PopOutListener = (
+  url: string,
+  disposition: Disposition
+) => PopOut | null;
+
 export interface ViewPort {
   readonly contentsId: number;
   readonly onKey: (listener: KeyListener) => Unsubscribe;
@@ -109,6 +130,8 @@ export interface ViewPort {
   readonly onOpen: (listener: OpenListener) => Unsubscribe;
   /** Calls `listener` with the first address a blank popup the page opened navigates to, as Google's sign-in does with `window.open("about:blank")`; the popup shows when a listener answers true, or when there is none, and closes otherwise. */
   readonly onPopup: (listener: (url: string) => boolean) => Unsubscribe;
+  /** Asks `listener` about each window the page opens, before `onOpen`'s listeners; the first that answers a pop-out has the window opened at its size around the web contents Chromium made for it, which keeps the opener's session and preload. */
+  readonly onPopOut: (listener: PopOutListener) => Unsubscribe;
   /** Calls `listener` with true when the page asks for fullscreen, such as a video's fullscreen button, and with false when it leaves it. */
   readonly onFullscreen: (listener: (entered: boolean) => void) => Unsubscribe;
   readonly setBorderRadius: (radius: number) => void;

@@ -7,15 +7,25 @@ import { FakeContentBridge } from "./fake-bridge.ts";
 import { contentAllowlist } from "./surface-allowlist.ts";
 
 const settings = {
+  favicons: "https://www.google.com/s2/favicons",
   labelColors: [],
   mailbox: "https://mail.google.com/mail/u/0",
   signIn: "https://accounts.google.com",
   styles: {
     hideGmailLogo: false,
+    hideOutOfOfficeBanner: false,
     hidePromoBanner: false,
     hideUpgradeButton: false,
     reverseConversation: false,
     showTrimmedContent: false,
+  },
+  switches: {
+    closeComposeWindowAfterSend: false,
+    loadClippedMessages: false,
+    moveAttachmentsToTop: false,
+    openComposeInNewWindow: false,
+    replyForwardInPopOut: false,
+    showSenderIcons: false,
   },
   userStyles: "",
   version: 1,
