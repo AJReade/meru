@@ -122,11 +122,56 @@ describe(Downloads, () => {
     ]).toStrictEqual([true, [{ id: "a" }], [{ id: "b" }]]);
   });
 
+  it("keeps the keyboard on the list after a Delete, on the row that moved into the removed one's place", async () => {
+    const { push, sentOn } = mount([item("a"), item("b"), item("c")]);
+    // The dialog moves the focus to its first row a moment after it opens.
+    await settle();
+    act(() => {
+      rowButton("a")?.focus();
+    });
+    press("ArrowDown");
+    press("Delete");
+    await settle();
+    push(downloadsPushes.changed, { items: [item("a"), item("c")] });
+    const afterFirst = document.activeElement === rowButton("c");
+    press("Delete");
+    await settle();
+    push(downloadsPushes.changed, { items: [item("a")] });
+    const afterLast = document.activeElement === rowButton("a");
+    press("Delete");
+    await settle();
+    expect([afterFirst, afterLast, sentOn(downloads.remove)]).toStrictEqual([
+      true,
+      true,
+      [{ id: "b" }, { id: "c" }, { id: "a" }],
+    ]);
+  });
+
   it("follows the history main pushes, and says so when it is empty", () => {
     const { push } = mount([]);
     const empty = document.body.textContent.includes("No downloads yet");
     push(downloadsPushes.changed, { items: [item("new")] });
     expect([empty, row("new") === null]).toStrictEqual([true, false]);
+  });
+
+  it("closes on a click on the backdrop", async () => {
+    const { sentOn } = mount([item("report")]);
+    const backdrop = document.querySelector<HTMLElement>(
+      "[data-slot=dialog-overlay]"
+    );
+    act(() => {
+      for (const name of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
+        backdrop?.dispatchEvent(
+          new PointerEvent(name, { bubbles: true, button: 0 })
+        );
+      }
+      backdrop?.click();
+    });
+    await settle();
+    expect([backdrop !== null, sentOn(downloads.close)]).toStrictEqual([
+      true,
+      [{}],
+    ]);
   });
 
   it("closes on Escape and when the window loses focus", () => {

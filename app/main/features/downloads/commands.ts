@@ -1,7 +1,6 @@
 import { defineCommands } from "../../../shared/commands/define.ts";
 import { msg } from "../../../shared/msg.ts";
 
-// 3.x's key for its download history.
 export const downloadsCommands = defineCommands(
   "downloads",
   {

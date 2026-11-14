@@ -35,14 +35,14 @@ const Row = ({
   focusable,
   rowRef,
   onFocus,
-  onKeyDown,
+  onRemove,
 }: {
   readonly item: Download;
   readonly now: number;
   readonly focusable: boolean;
   readonly rowRef: (button: HTMLButtonElement | null) => void;
   readonly onFocus: () => void;
-  readonly onKeyDown: (event: KeyboardEvent) => void;
+  readonly onRemove: () => void;
 }) => {
   const client = useDownloadsClient();
   const status = statusOf(item);
@@ -61,7 +61,6 @@ const Row = ({
           }
         }}
         onFocus={onFocus}
-        onKeyDown={onKeyDown}
         ref={rowRef}
         tabIndex={focusable ? 0 : -1}
         type="button"
@@ -101,9 +100,7 @@ const Row = ({
       )}
       <Button
         aria-label={msg`Remove from history`}
-        onClick={() => {
-          void client.invoke(downloads.remove, { id: item.id });
-        }}
+        onClick={onRemove}
         size="icon-sm"
         tabIndex={-1}
         title={msg`Remove from history`}
@@ -115,12 +112,15 @@ const Row = ({
   );
 };
 
-const STEPS: Readonly<Record<string, (at: number, last: number) => number>> = {
-  ArrowDown: (at, last) => Math.min(at + 1, last),
-  ArrowUp: (at) => Math.max(at - 1, 0),
-  End: (_at, last) => last,
+const STEPS = {
+  ArrowDown: (at: number, last: number) => Math.min(at + 1, last),
+  ArrowUp: (at: number) => Math.max(at - 1, 0),
+  End: (_at: number, last: number) => last,
   Home: () => 0,
-};
+} as const;
+
+const isStep = (key: string): key is keyof typeof STEPS =>
+  Object.hasOwn(STEPS, key);
 
 /** The download history over the panes: the newest downloads with how long ago each started, a click opening the file, each row showing it in its folder or taking it off the list, a file that has gone struck through, and Clear all. The arrows and Home and End move through the rows, Enter opens one and Delete takes it off; Escape, a click outside and the window losing focus close it. */
 export const Downloads = () => {
@@ -134,20 +134,36 @@ export const Downloads = () => {
   const close = () => {
     client.send(downloads.close, {});
   };
+  // The row goes with the focus it holds, so the focus moves first to the row that takes its place, or the one before the last.
+  const remove = (index: number) => {
+    const item = shown[index];
+    if (item === undefined) {
+      return;
+    }
+    const next = index < shown.length - 1 ? index + 1 : index - 1;
+    rows.current[next]?.focus();
+    setActive(Math.min(index, next));
+    void client.invoke(downloads.remove, { id: item.id });
+  };
 
   useEffect(() => {
-    window.addEventListener("blur", close);
-    return () => {
-      window.removeEventListener("blur", close);
+    const onBlur = () => {
+      client.send(downloads.close, {});
     };
-  });
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [client]);
 
   const keyDown = (event: KeyboardEvent) => {
+    if (!rows.current.some((row) => row !== null && row === event.target)) {
+      return;
+    }
     const last = shown.length - 1;
-    const step = STEPS[event.key];
-    if (step !== undefined && last >= 0) {
+    if (isStep(event.key) && last >= 0) {
       event.preventDefault();
-      const next = step(at, last);
+      const next = STEPS[event.key](at, last);
       setActive(next);
       rows.current[next]?.focus();
       return;
@@ -158,7 +174,7 @@ export const Downloads = () => {
     }
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
-      void client.invoke(downloads.remove, { id: item.id });
+      remove(at);
     } else if (event.key === "Enter") {
       event.preventDefault();
       if (opens(item)) {
@@ -179,6 +195,7 @@ export const Downloads = () => {
       <DialogContent
         className="top-[14%] w-[28rem] translate-y-0 gap-0 p-0 sm:max-w-[28rem]"
         initialFocus={() => rows.current[at] ?? true}
+        onKeyDown={keyDown}
         showCloseButton={false}
       >
         <div className="flex items-center justify-between gap-2 border-b px-4 py-2">
@@ -212,9 +229,11 @@ export const Downloads = () => {
                 item={item}
                 key={item.id}
                 now={now}
-                onKeyDown={keyDown}
                 onFocus={() => {
                   setActive(index);
+                }}
+                onRemove={() => {
+                  remove(index);
                 }}
                 rowRef={(button) => {
                   rows.current[index] = button;
