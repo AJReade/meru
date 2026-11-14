@@ -5,10 +5,10 @@ import { mountGmail, reached, stylesWith } from "../testing.ts";
 import outOfOfficeBanner from "./fixtures/out-of-office.html?raw";
 import { hideOutOfOfficeBannerRules, outOfOffice } from "./out-of-office.ts";
 
-describe(outOfOffice.id, () => {
+describe(outOfOffice, () => {
   it("says the profile is out of office while the banner shows, and only when that changes", async () => {
     const page = mountGmail({
-      features: [outOfOffice],
+      features: [outOfOffice()],
       html: outOfOfficeBanner,
     });
     page.run();
@@ -27,20 +27,22 @@ describe(outOfOffice.id, () => {
     page.app.dispose();
   });
 
-  it("finds the banner by its link to the settings once Gmail renumbers its ids", () => {
+  it("takes no other alert linking to the general settings for the banner", () => {
     const page = mountGmail({
-      features: [outOfOffice],
-      html: outOfOfficeBanner.replaceAll(":7", ":9").replaceAll(":k", ":m"),
+      features: [outOfOffice()],
+      html: `<div role="alert">Enable desktop notifications for Gmail. <a href="https://mail.google.com/mail/u/0/#settings/general">OK</a></div><div role="main"></div>`,
     });
     page.run();
 
-    expect(page.bridge.sentOn(gmail.outOfOffice)).toStrictEqual([{ on: true }]);
+    expect(page.bridge.sentOn(gmail.outOfOffice)).toStrictEqual([
+      { on: false },
+    ]);
     page.app.dispose();
   });
 
   it("hides the banner under gmail.hideOutOfOfficeBanner and still sees it", () => {
     const page = mountGmail({
-      features: [outOfOffice],
+      features: [outOfOffice()],
       html: outOfOfficeBanner,
       settings: { styles: stylesWith("hideOutOfOfficeBanner") },
     });
@@ -56,7 +58,7 @@ describe(outOfOffice.id, () => {
 
   it("says once that a page without the banner is not out of office", () => {
     const page = mountGmail({
-      features: [outOfOffice],
+      features: [outOfOffice()],
       html: "<div role=main></div>",
     });
     page.run();

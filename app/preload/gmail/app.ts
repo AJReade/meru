@@ -32,7 +32,7 @@ export interface GmailApp {
 /** The Gmail preload: it reads the settings main holds before the page paints, applies each feature the address allows, and applies them again whenever main says they changed. */
 export const startGmail = (options: GmailAppOptions): GmailApp => {
   const { bridge, document, location } = options;
-  const features = options.features ?? gmailFeatures;
+  const features = options.features ?? gmailFeatures();
   const styles = new StyleLayers(document);
   const fail = failureReporter((failure) => {
     bridge.send(gmail.failed, failure);

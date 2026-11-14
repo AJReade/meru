@@ -18,7 +18,8 @@ import { showTrimmedContent } from "./show-trimmed-content.ts";
 import { urlPreview } from "./url-preview.ts";
 import { userStyles } from "./user-styles.ts";
 
-export const gmailFeatures: readonly GmailFeature[] = [
+/** Every feature, made anew for each page load, since a feature may hold what it last told main. */
+export const gmailFeatures = (): readonly GmailFeature[] => [
   attachmentsToTop,
   clippedMessages,
   closeAfterSend,
@@ -29,7 +30,7 @@ export const gmailFeatures: readonly GmailFeature[] = [
   mailAction,
   navigate,
   needsSignIn,
-  outOfOffice,
+  outOfOffice(),
   popOuts,
   reverseConversation,
   senderIcons,
