@@ -34,15 +34,12 @@ const PROFILES = {
 };
 
 const mount = (answers: Answers = []) => {
-  const page = mountChrome(
-    <Sidebar launcher={() => <i data-launcher="" />} />,
-    [
-      answer(profiles.snapshot, PROFILES),
-      answer(sidebar.snapshot, { kind: "shown", size: "narrow", width: 64 }),
-      answer(stage.snapshot, stageOf({ focusedPaneId: "pane-drive" })),
-      ...answers,
-    ]
-  );
+  const page = mountChrome(<Sidebar foot={() => <i data-launcher="" />} />, [
+    answer(profiles.snapshot, PROFILES),
+    answer(sidebar.snapshot, { kind: "shown", size: "narrow", width: 64 }),
+    answer(stage.snapshot, stageOf({ focusedPaneId: "pane-drive" })),
+    ...answers,
+  ]);
   const rows = () =>
     [...page.container.querySelectorAll<HTMLElement>("[data-tab-id]")].map(
       (row) => ({

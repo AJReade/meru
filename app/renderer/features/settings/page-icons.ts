@@ -1,5 +1,6 @@
 import {
   Columns2Icon,
+  DownloadIcon,
   InboxIcon,
   KeyboardIcon,
   MailIcon,
@@ -17,6 +18,7 @@ import type { SettingsPageIcon } from "../../../shared/settings/registry.ts";
 /** The component of each icon a settings page names. */
 export const pageIcons: Readonly<Record<SettingsPageIcon, LucideIcon>> = {
   "columns-2": Columns2Icon,
+  download: DownloadIcon,
   inbox: InboxIcon,
   keyboard: KeyboardIcon,
   mail: MailIcon,

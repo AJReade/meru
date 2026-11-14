@@ -5,6 +5,12 @@ import { overlayKindSchema, overlays } from "../../shared/channels/surfaces.ts";
 import type { OverlayKind } from "../../shared/channels/surfaces.ts";
 import { createClient } from "../client.ts";
 import type { Client } from "../client.ts";
+import { Downloads } from "../features/downloads/downloads.tsx";
+import {
+  createDownloadsStore,
+  DownloadsClientProvider,
+  DownloadsContext,
+} from "../features/downloads/use-downloads.ts";
 import { Launcher } from "../features/launcher/launcher.tsx";
 import { LauncherClientProvider } from "../features/launcher/use-launcher-client.ts";
 import {
@@ -27,6 +33,13 @@ const shows: {
     query: URLSearchParams
   ) => ReactNode;
 } = {
+  downloads: (client) => (
+    <DownloadsClientProvider client={client}>
+      <DownloadsContext value={createDownloadsStore(client)}>
+        <Downloads />
+      </DownloadsContext>
+    </DownloadsClientProvider>
+  ),
   launcher: (client, query) => (
     <LauncherClientProvider client={client}>
       <SettingsContext value={createSettingsStore(client)}>

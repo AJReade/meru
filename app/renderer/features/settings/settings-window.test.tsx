@@ -106,6 +106,7 @@ describe(SettingsWindow, () => {
         "Inbox",
         "Gmail",
         "Appearance",
+        "Downloads",
         "Panes",
         "Sleep",
         "Shortcuts",

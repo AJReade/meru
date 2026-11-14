@@ -1,9 +1,11 @@
 import { z } from "zod";
 
+import type { DownloadProgress } from "../../core/engines/downloads.ts";
 import type {
   BadgePort,
   NotificationPort,
   NotificationSpec,
+  ProgressPort,
   SessionPort,
   ShellPort,
   TrayPort,
@@ -30,6 +32,16 @@ export const E2E_CLICK_NOTIFICATION = "meruE2eClickNotification";
 export const e2eSnapshotSchema = z.object({
   /** Every address a link sent to the browser, in order. */
   external: z.array(z.string()),
+  /** Every file opened in its application, in order. */
+  files: z.array(z.string()),
+  /** Every file shown in its folder, in order. */
+  revealed: z.array(z.string()),
+  /** What the app's icon shows of the downloads under way. */
+  progress: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("none") }),
+    z.object({ kind: z.literal("indeterminate") }),
+    z.object({ kind: z.literal("fraction"), value: z.number() }),
+  ]),
   /** The entitlement main derived, which no page reads. */
   entitlement: entitlementSchema,
   /** The updater's state, which only the settings window reads. */
@@ -39,6 +51,7 @@ export const e2eSnapshotSchema = z.object({
   /** Every notification shown, in order. */
   notifications: z.array(
     z.object({
+      action: z.string().optional(),
       body: z.string().optional(),
       silent: z.boolean(),
       subtitle: z.string().optional(),
@@ -85,12 +98,14 @@ interface RecordingDesktop {
   readonly badge: BadgePort;
   readonly notifications: NotificationPort;
   readonly tray: TrayPort;
+  readonly progress: ProgressPort;
   /** Clicks the notification shown `index`th, as the notification centre would. */
   readonly click: (index: number) => void;
   readonly read: () => {
     readonly badge: number;
     readonly notifications: readonly NotificationSpec[];
     readonly tray: TraySpec | undefined;
+    readonly progress: DownloadProgress;
   };
 }
 
@@ -98,6 +113,7 @@ export const recordingDesktop = (): RecordingDesktop => {
   let badge = 0;
   const notifications: { spec: NotificationSpec; click: () => void }[] = [];
   let tray: TraySpec | undefined;
+  let progress: DownloadProgress = { kind: "none" };
   return {
     badge: {
       set: (total) => {
@@ -112,9 +128,15 @@ export const recordingDesktop = (): RecordingDesktop => {
         notifications.push({ click, spec });
       },
     },
+    progress: {
+      set: (shown) => {
+        progress = shown;
+      },
+    },
     read: () => ({
       badge,
       notifications: notifications.map(({ spec }) => spec),
+      progress,
       tray,
     }),
     tray: {
@@ -145,6 +167,9 @@ export const exposeE2e = (options: {
       badge: desktop.badge,
       entitlement: options.entitlement.current(),
       external: [...options.external.opened],
+      files: [...options.external.files],
+      revealed: [...options.external.revealed],
+      progress: desktop.progress,
       notifications: [...desktop.notifications],
       tray:
         desktop.tray?.menu.map((item) =>

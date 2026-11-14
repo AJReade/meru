@@ -13,6 +13,10 @@ import {
   appearanceSettings,
 } from "../../main/features/appearance/settings.ts";
 import {
+  downloadsPage,
+  downloadsSettings,
+} from "../../main/features/downloads/settings.ts";
+import {
   gmailPage,
   gmailSettings,
 } from "../../main/features/gmail/settings.ts";
@@ -53,6 +57,7 @@ import type { Setting } from "./define.ts";
 
 const pages = [
   appearancePage,
+  downloadsPage,
   gmailPage,
   inboxPage,
   panesPage,
@@ -77,6 +82,8 @@ export const registry = [
   ...launcherSettings,
   ...linksSettings,
   ...notificationsSettings,
+  // After the mail notifications, so a download's two follow them in their card.
+  ...downloadsSettings,
   ...profilesSettings,
   ...shortcutsSettings,
   ...sidebarSettings,

@@ -7,6 +7,7 @@ import { ENTITLEMENT_URL } from "../core/entitlement/api.ts";
 import { acceptedKeys, importKeys } from "../core/entitlement/keys.ts";
 import { AppEvents } from "../core/events.ts";
 import { themeOf } from "../core/ports.ts";
+import type { DownloadPort } from "../core/ports.ts";
 import type { Tab } from "../core/records/tab.ts";
 import { allowlist } from "../shared/channels/define.ts";
 import { surfaces } from "../shared/channels/surfaces.ts";
@@ -14,6 +15,7 @@ import type { OverlayKind } from "../shared/channels/surfaces.ts";
 import { commands as allCommands } from "../shared/commands/registry.ts";
 import { Appearance } from "./features/appearance/index.ts";
 import { Badge } from "./features/badge/index.ts";
+import { Downloads } from "./features/downloads/index.ts";
 import { Entitlement } from "./features/entitlement/index.ts";
 import { Gmail, USER_STYLES_FILE } from "./features/gmail/index.ts";
 import { Google } from "./features/google/index.ts";
@@ -69,6 +71,25 @@ const testPaneUrl =
     tab.appId === "gmail" && gmailOverride !== undefined
       ? `${gmailOverride}/`
       : "about:blank";
+
+// The suite finds a download in its own user data rather than in the Downloads folder of whoever runs it.
+const downloadsDirectory = (
+  e2e: boolean,
+  port: Pick<DownloadPort, "defaultDirectory">
+): string =>
+  e2e ? path.join(userDataDir(), "Downloads") : port.defaultDirectory;
+
+/** Closes the tab whose view shows the page `contentsId`. */
+const closeTabOf =
+  (stages: Pick<Stages, "all">, profiles: Pick<Profiles, "closeTab">) =>
+  (contentsId: number): void => {
+    const tab = stages.all
+      .flatMap((stage) => stage.kept())
+      .find(({ view }) => view.contentsId === contentsId)?.tab;
+    if (tab !== undefined) {
+      profiles.closeTab(tab.id);
+    }
+  };
 
 const start = async () => {
   const dist = path.join(import.meta.dirname, "..");
@@ -326,6 +347,28 @@ const start = async () => {
     stages,
   });
   launcher.start();
+  const downloads = new Downloads({
+    clock: ports.clock,
+    closeTab: closeTabOf(stages, profiles),
+    commands,
+    defaultDirectory: downloadsDirectory(e2e, ports.downloads),
+    dialogs: ports.dialogs,
+    downloads: ports.downloads,
+    fs: ports.fs,
+    lifecycle: ports.lifecycle,
+    log: log.scoped("downloads"),
+    notifications: desktop.notifications,
+    overlayUrl,
+    pendingDirectory: path.join(userDataDir(), "Downloads in progress"),
+    platform: ports.lifecycle.platform,
+    progress: desktop.progress,
+    registrar: dispatcher,
+    settings,
+    shell,
+    stages,
+  });
+  await downloads.open();
+  downloads.start();
 
   const updater = new Updater({
     lifecycle: ports.lifecycle,

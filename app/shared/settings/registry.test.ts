@@ -27,6 +27,9 @@ describe("the settings registry", () => {
     >();
     expectTypeOf<SettingKey>().toEqualTypeOf<
       | "appearance.style"
+      | "downloads.location"
+      | "downloads.openFolderWhenDone"
+      | "downloads.saveAs"
       | "gmail.hideGmailLogo"
       | "gmail.hidePromoBanner"
       | "gmail.hideUpgradeButton"
@@ -38,8 +41,10 @@ describe("the settings registry", () => {
       | "launcher.apps"
       | "links.excludedApps"
       | "links.openInApp"
+      | "notifications.downloadCompleted"
       | "notifications.enabled"
       | "notifications.newEmails"
+      | "notifications.onClickDownloadCompleted"
       | "notifications.playSound"
       | "notifications.showSender"
       | "notifications.showSubject"

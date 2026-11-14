@@ -1,6 +1,7 @@
 import { sortBy } from "es-toolkit";
 import { z } from "zod";
 
+import { downloadsCommands } from "../../main/features/downloads/commands.ts";
 import { gmailCommands } from "../../main/features/gmail/commands.ts";
 import { googleCommands } from "../../main/features/google/commands.ts";
 import { launcherCommands } from "../../main/features/launcher/commands.ts";
@@ -14,6 +15,7 @@ import { commandsOf } from "./define.ts";
 import type { Command, CommandSection } from "./define.ts";
 
 const groups = [
+  downloadsCommands,
   gmailCommands,
   googleCommands,
   launcherCommands,
@@ -26,6 +28,7 @@ const groups = [
 ] as const;
 
 export const commands = [
+  ...commandsOf(downloadsCommands),
   ...commandsOf(gmailCommands),
   ...commandsOf(googleCommands),
   ...commandsOf(launcherCommands),

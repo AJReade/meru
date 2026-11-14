@@ -153,6 +153,9 @@ export const uniqueName = (
 export const HISTORY_DAYS = 30;
 export const HISTORY_LIMIT = 200;
 
+/** How many of the newest downloads the overlay lists, and so how many it looks for on disk when it opens. */
+export const SHOWN_DOWNLOADS = 50;
+
 const DAY = 86_400_000;
 
 /** The history as it is kept at `now`, newest first: nothing older than `HISTORY_DAYS` and no more than `HISTORY_LIMIT`. */

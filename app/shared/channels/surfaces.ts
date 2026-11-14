@@ -3,6 +3,7 @@ import { z } from "zod";
 import { commands } from "./commands.ts";
 import { defineSurface } from "./define.ts";
 import type { Surface } from "./define.ts";
+import { downloads, downloadsPushes } from "./downloads.ts";
 import { dragPushes } from "./drag.ts";
 import { gmail, gmailPushes, userStyles, userStylesPushes } from "./gmail.ts";
 import { google, googlePushes } from "./google.ts";
@@ -23,7 +24,16 @@ export const chromeSurface = defineSurface({
     sidebarPushes,
     themePushes,
   ],
-  requests: [stage, settings, commands, profiles, tabs, sidebar, launcher],
+  requests: [
+    stage,
+    settings,
+    commands,
+    profiles,
+    tabs,
+    sidebar,
+    launcher,
+    { openDownloads: downloads.open },
+  ],
 });
 
 export type ChromeSurface = typeof chromeSurface;
@@ -52,7 +62,24 @@ export const launcherSurface = defineSurface({
 
 export type LauncherSurface = typeof launcherSurface;
 
-/** The settings window's page: it reads and writes the settings and the profiles, reads the update state and checks for one, reads what stands in the way of the user styles, runs commands such as restarting to update, and says while it records a shortcut. */
+/** The download history's page over the panes: it reads the history, opens a file or its folder by its id, takes items off and closes itself. */
+export const downloadsSurface = defineSurface({
+  pushes: [downloadsPushes, themePushes],
+  requests: [
+    {
+      clear: downloads.clear,
+      close: downloads.close,
+      openFile: downloads.openFile,
+      remove: downloads.remove,
+      showInFolder: downloads.showInFolder,
+      snapshot: downloads.snapshot,
+    },
+  ],
+});
+
+export type DownloadsSurface = typeof downloadsSurface;
+
+/** The settings window's page: it reads and writes the settings and the profiles, reads the update state and checks for one, reads what stands in the way of the user styles, picks the downloads folder, runs commands such as restarting to update, and says while it records a shortcut. */
 export const settingsSurface = defineSurface({
   pushes: [
     settingsPushes,
@@ -61,7 +88,18 @@ export const settingsSurface = defineSurface({
     themePushes,
     userStylesPushes,
   ],
-  requests: [settings, profiles, commands, updater, shortcuts, userStyles],
+  requests: [
+    settings,
+    profiles,
+    commands,
+    updater,
+    shortcuts,
+    userStyles,
+    {
+      chooseFolder: downloads.chooseFolder,
+      defaultFolder: downloads.defaultFolder,
+    },
+  ],
 });
 
 export type SettingsSurface = typeof settingsSurface;
@@ -81,11 +119,12 @@ export const tabDragSurface = defineSurface({
 export type TabDragSurface = typeof tabDragSurface;
 
 /** What the overlay page can show over the panes, by the `kind` its address names, each on its own surface. */
-export const overlayKindSchema = z.enum(["launcher", "tabDrag"]);
+export const overlayKindSchema = z.enum(["launcher", "downloads", "tabDrag"]);
 
 export type OverlayKind = z.infer<typeof overlayKindSchema>;
 
 export const overlays = {
+  downloads: downloadsSurface,
   launcher: launcherSurface,
   tabDrag: tabDragSurface,
 } satisfies Record<OverlayKind, Surface>;
@@ -160,6 +199,7 @@ export const namesContentSurface = (
 
 export const surfaces: readonly Surface[] = [
   chromeSurface,
+  downloadsSurface,
   dragSurface,
   gmailSurface,
   googleSurface,

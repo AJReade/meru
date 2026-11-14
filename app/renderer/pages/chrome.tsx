@@ -1,5 +1,6 @@
 import { chromeSurface } from "../../shared/channels/surfaces.ts";
 import { createClient } from "../client.ts";
+import { DownloadsButton } from "../features/downloads/downloads-button.tsx";
 import { LauncherButton } from "../features/launcher/launcher-button.tsx";
 import { Sidebar } from "../features/sidebar/sidebar.tsx";
 import { Dividers } from "../features/stage/dividers.tsx";
@@ -16,9 +17,23 @@ mountPage(
     client,
     <>
       <div className="bg-chrome text-chrome-foreground flex h-full flex-col">
-        <Titlebar trailing={<LauncherButton place="titlebar" />} />
+        <Titlebar
+          trailing={
+            <>
+              <DownloadsButton place="titlebar" />
+              <LauncherButton place="titlebar" />
+            </>
+          }
+        />
         <div className="flex min-h-0 flex-1">
-          <Sidebar launcher={(size) => <LauncherButton place={size} />} />
+          <Sidebar
+            foot={(size) => (
+              <>
+                <LauncherButton place={size} />
+                <DownloadsButton place={size} />
+              </>
+            )}
+          />
         </div>
       </div>
       <Dividers />

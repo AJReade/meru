@@ -72,11 +72,11 @@ const EndOnCancel = () => {
   return null;
 };
 
-/** The sidebar, the selected profile's tabs down the left of the window, shown while it has more than one; `launcher` goes at its foot. */
+/** The sidebar, the selected profile's tabs down the left of the window, shown while it has more than one; `foot`, the buttons for the launcher and the downloads, goes at its foot. */
 export const Sidebar = ({
-  launcher,
+  foot,
 }: {
-  readonly launcher?: (size: SidebarSize) => ReactNode;
+  readonly foot?: (size: SidebarSize) => ReactNode;
 }) => {
   const sidebar = useSidebar();
   const snapshot = useProfiles();
@@ -182,7 +182,7 @@ export const Sidebar = ({
           wide ? "gap-1" : "items-center gap-2"
         )}
       >
-        {launcher?.(size)}
+        {foot?.(size)}
         {showWidthToggle ? <WidthToggle size={size} /> : null}
       </div>
     </nav>

@@ -18,11 +18,17 @@ import type { ProfilesSnapshot } from "../shared/channels/profiles.ts";
 import type { StageSnapshot } from "../shared/channels/stage.ts";
 import {
   chromeSurface,
+  downloadsSurface,
   launcherSurface,
   settingsSurface,
 } from "../shared/channels/surfaces.ts";
 import { FakeBridge } from "../test/fakes/bridge.ts";
 import { createClient } from "./client.ts";
+import {
+  createDownloadsStore,
+  DownloadsClientProvider,
+  DownloadsContext,
+} from "./features/downloads/use-downloads.ts";
 import { LauncherClientProvider } from "./features/launcher/use-launcher-client.ts";
 import type { ShownProfile } from "./features/profiles/use-profiles.ts";
 import { chromeStores, settingsStores } from "./page.tsx";
@@ -200,6 +206,27 @@ export const mountChrome = (
         <LauncherClientProvider client={launcherClient}>
           {node}
         </LauncherClientProvider>
+      );
+    },
+    answers,
+    platform
+  );
+
+/** Renders under the downloads overlay's providers, as the overlay page gives them, whose client talks to a fake bridge seeded with `answers`; it unmounts when the test finishes. */
+export const mountOverlay = (
+  node: ReactNode,
+  answers: Answers,
+  platform: Platform = "darwin"
+) =>
+  mount(
+    (bridge) => {
+      const client = createClient({ meru: bridge }, downloadsSurface);
+      return (
+        <DownloadsClientProvider client={client}>
+          <DownloadsContext value={createDownloadsStore(client)}>
+            {node}
+          </DownloadsContext>
+        </DownloadsClientProvider>
       );
     },
     answers,

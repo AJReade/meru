@@ -32,6 +32,10 @@ describe(fieldKindOf, () => {
       registry
         .filter((setting) => fieldKindOf(setting.schema).kind === "bespoke")
         .map((setting) => setting.key)
-    ).toStrictEqual(["gmail.labelColors", "shortcuts.bindings"]);
+    ).toStrictEqual([
+      "gmail.labelColors",
+      "downloads.location",
+      "shortcuts.bindings",
+    ]);
   });
 });

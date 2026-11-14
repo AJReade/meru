@@ -42,6 +42,7 @@ describe(defineCommands, () => {
 describe("the command registry", () => {
   it("holds every feature's commands, each once", () => {
     expectTypeOf<CommandId>().toEqualTypeOf<
+      | "downloads.open"
       | "gmail.editUserStyles"
       | "gmail.revealUserStyles"
       | "google.toggleMeetCamera"
