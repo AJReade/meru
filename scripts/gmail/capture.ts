@@ -1,7 +1,7 @@
 // Writes the Gmail fixtures the preload's tests read, from a signed-in profile, each document scrubbed of everything personal:
 // MERU_TEST_PROFILE_DIR=<a user data directory signed in to Gmail> node scripts/gmail/capture.ts, after pnpm build.
 import { existsSync } from "node:fs";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -12,7 +12,11 @@ import { scrubHtml } from "../../app/core/engines/scrub.ts";
 import { launch } from "../lib/app.ts";
 
 const root = path.join(import.meta.dirname, "..", "..");
-const FIXTURES = path.join(root, "app/preload/gmail/fixtures/captured");
+const FIXTURES = path.join(root, "app/preload/gmail/features/fixtures");
+
+// Each hand-made fixture a capture replaces in place, by the document it is taken from. labels.html stays hand-made: the scrub takes out every label's name, which is what its test colours by.
+const FROM_INBOX = ["header.html", "promo-banner.html", "upgrade-button.html"];
+const FROM_THREAD = ["conversation.html", "links.html", "trimmed-content.html"];
 
 /** How long a document of the real Gmail is given to render. */
 const READY = 120_000;
@@ -110,26 +114,18 @@ const firstThread = async (app: ElectronApplication, contentsId: number) => {
   return id;
 };
 
+const writeAll = async (names: readonly string[], html: string) =>
+  await Promise.all(names.map(async (name) => await write(name, html)));
+
 const capture = async (app: ElectronApplication) => {
   const pane = await gmailPane(app);
   await waitFor(app, pane, '[role="main"]', "Gmail's inbox");
-  const written = [await write("inbox.html", await documentOf(app, pane))];
+  const inbox = await writeAll(FROM_INBOX, await documentOf(app, pane));
 
   await goTo(app, pane, `inbox/${await firstThread(app, pane)}`);
   await waitFor(app, pane, "h2[data-legacy-thread-id]", "The thread");
-  written.push(await write("thread.html", await documentOf(app, pane)));
-
-  await goTo(app, pane, "inbox");
-  await waitFor(app, pane, '[role="main"]', "Gmail's inbox");
-  await goTo(app, pane, "inbox?compose=new");
-  await waitFor(
-    app,
-    pane,
-    '[role="dialog"] [role="textbox"], [role="dialog"] textarea[name="to"], [role="dialog"] input[name="subjectbox"]',
-    "The compose box"
-  );
-  written.push(await write("compose.html", await documentOf(app, pane)));
-  return written;
+  const thread = await writeAll(FROM_THREAD, await documentOf(app, pane));
+  return [...inbox, ...thread];
 };
 
 const run = async () => {
@@ -144,7 +140,6 @@ const run = async () => {
       "Nothing to capture from in app/dist/; run pnpm build first"
     );
   }
-  await mkdir(FIXTURES, { recursive: true });
   // The app is launched on a copy, so a capture never writes to the signed-in profile it reads.
   const userData = await mkdtemp(path.join(tmpdir(), "meru-capture-"));
   await cp(profile, userData, { recursive: true });
