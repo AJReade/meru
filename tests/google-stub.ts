@@ -7,7 +7,7 @@ export interface GoogleStub {
   readonly stop: () => Promise<void>;
 }
 
-// A page the preload's patch reaches as Calendar's own would: one notification raised through the constructor and one through a service worker's registration, which is why the worker is served beside it. Loopback is a secure context, so Chromium registers it.
+// A page the preload's patch reaches as Calendar's own would: one notification raised through the constructor and one through the page's handle on a service worker's registration, which is why the worker is served beside it. A notification the worker shows from its own scope has no preload to reach it and is not forwarded. Loopback is a secure context, so Chromium registers it.
 const PAGE = `<!doctype html>
 <title>Calendar</title>
 <script>

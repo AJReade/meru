@@ -11,7 +11,7 @@ import {
 } from "./app.ts";
 import { startGoogleStub } from "./google-stub.ts";
 
-test("shows what a Google app's page raises as a notification, composed by main, and loads without a failure of the preload's", async ({
+test("shows what a Google app's page raises through Notification and its registration's showNotification, composed by main, and loads without a failure of the preload's", async ({
   launch,
   stub,
   userData,
