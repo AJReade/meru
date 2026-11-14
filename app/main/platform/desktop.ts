@@ -59,11 +59,14 @@ export const createBadge = (platform: Platform): BadgePort => ({
 export const createNotifications = (): NotificationPort => {
   const shown = new Set<Notification>();
   return {
-    show: (spec, onClick) => {
+    show: ({ action, ...spec }, onClick, onAction) => {
       if (!Notification.isSupported()) {
         return;
       }
-      const notification = new Notification(spec);
+      const notification = new Notification({
+        ...spec,
+        actions: action === undefined ? [] : [{ text: action, type: "button" }],
+      });
       const release = () => {
         shown.delete(notification);
       };
@@ -73,6 +76,10 @@ export const createNotifications = (): NotificationPort => {
       notification.once("click", () => {
         release();
         onClick();
+      });
+      notification.once("action", () => {
+        release();
+        onAction?.();
       });
       notification.show();
     },

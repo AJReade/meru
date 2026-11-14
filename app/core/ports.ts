@@ -1,3 +1,4 @@
+import type { DownloadProgress } from "./engines/downloads.ts";
 import type { KeyInput } from "./engines/shortcuts.ts";
 import type { Disposition } from "./records/link.ts";
 import type {
@@ -318,12 +319,18 @@ export interface NotificationSpec {
   readonly subtitle?: string;
   readonly body?: string;
   readonly silent: boolean;
+  /** The label of the one button the notification offers. */
+  readonly action?: string;
 }
 
 /** The operating system's notifications. */
 export interface NotificationPort {
-  /** Shows a notification, calling `onClick` when it is clicked; does nothing where the system has none. */
-  readonly show: (spec: NotificationSpec, onClick: () => void) => void;
+  /** Shows a notification, calling `onClick` when it is clicked and `onAction` when its button is; does nothing where the system has none. */
+  readonly show: (
+    spec: NotificationSpec,
+    onClick: () => void,
+    onAction?: () => void
+  ) => void;
 }
 
 /** The icon in the menu bar or tray: macOS's template, drawn in the menu bar's own colour, or a coloured one in a shade that reads on the tray. */
@@ -354,6 +361,72 @@ export interface TrayPort {
   readonly hide: () => void;
 }
 
+/** A download as the session hands it over: what the server suggests calling it, its type and size, the address asked for before any redirect, and the page it started from, with whether that page had committed an address, which a tab opened only for the download never has. */
+export interface DownloadStart {
+  readonly id: string;
+  readonly suggestedName: string;
+  readonly mimeType: string;
+  /** Zero while the server has not said. */
+  readonly totalBytes: number;
+  readonly url: string;
+  readonly contentsId: number | null;
+  readonly committed: boolean;
+}
+
+/** Where a download goes: saved to an absolute path, or nowhere. */
+export type DownloadTarget =
+  | { readonly kind: "save"; readonly path: string }
+  | { readonly kind: "cancel" };
+
+/** What happens to a download once it has a path: bytes arrive, it completes, the network or the disk stops it, or it is called off. */
+export type DownloadEvent =
+  | {
+      readonly kind: "progress";
+      readonly id: string;
+      readonly received: number;
+      readonly total: number;
+    }
+  | { readonly kind: "done"; readonly id: string; readonly received: number }
+  | { readonly kind: "interrupted"; readonly id: string }
+  | { readonly kind: "cancelled"; readonly id: string };
+
+/** Every session's downloads, and the files they leave. */
+export interface DownloadPort {
+  /** The folder the system keeps downloads in. */
+  readonly defaultDirectory: string;
+  /** Takes the decision on each download as it starts, which has to be made before `decide` returns: Chromium asks for the path there and then, and shows a save dialog of its own when given none. */
+  readonly handle: (
+    decide: (start: DownloadStart) => DownloadTarget
+  ) => Unsubscribe;
+  readonly onEvent: (listener: (event: DownloadEvent) => void) => Unsubscribe;
+  /** Calls off a download under way, taking its partial file with it. */
+  readonly cancel: (id: string) => void;
+  /** Downloads `url` in the session of the page `contentsId`, as a link to it would. */
+  readonly download: (contentsId: number, url: string) => void;
+  /** The names in the folder, read at once since a download's path is decided before `handle`'s callback returns; none when it cannot be read. */
+  readonly namesIn: (directory: string) => readonly string[];
+  readonly exists: (path: string) => Promise<boolean>;
+  /** Deletes the file, doing nothing when it is already gone. */
+  readonly remove: (path: string) => Promise<void>;
+  /** Moves the file, across disks too, replacing what is there. */
+  readonly move: (from: string, to: string) => Promise<void>;
+  /** Marks a finished file as a browser's download: quarantined for Gatekeeper and bounced on the Dock's stack on macOS. */
+  readonly finished: (path: string) => Promise<void>;
+}
+
+/** The Dock's or the taskbar's progress bar on the app's icon. */
+export interface ProgressPort {
+  readonly set: (progress: DownloadProgress) => void;
+}
+
+/** The system's file dialogs, over the focused window. */
+export interface DialogPort {
+  /** Asks where to save a file, starting at `defaultPath`; null when the user cancels. */
+  readonly save: (defaultPath: string) => Promise<string | null>;
+  /** Asks for a folder, starting at `defaultPath`; null when the user cancels. */
+  readonly chooseFolder: (defaultPath: string) => Promise<string | null>;
+}
+
 export interface Ports {
   readonly lifecycle: LifecyclePort;
   readonly clock: Clock;
@@ -367,6 +440,9 @@ export interface Ports {
   readonly badge: BadgePort;
   readonly notifications: NotificationPort;
   readonly tray: TrayPort;
+  readonly progress: ProgressPort;
+  readonly downloads: DownloadPort;
+  readonly dialogs: DialogPort;
   readonly shell: ShellPort;
   readonly theme: ThemePort;
   readonly views: ViewFactoryPort;

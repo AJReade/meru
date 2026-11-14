@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -19,6 +20,7 @@ import type {
 } from "../../core/ports.ts";
 import { platformOf } from "../../core/records/platform.ts";
 import { createBadge, createNotifications, createTray } from "./desktop.ts";
+import { createDownloads, dialogs, progressBar } from "./downloads.ts";
 import { createEntitlementApi } from "./entitlement-api.ts";
 import { createFailureWatch } from "./failures.ts";
 import { createFs } from "./fs.ts";
@@ -217,6 +219,12 @@ export const createElectronPorts = (): Ports => ({
   badge: createBadge(platformOf(process.platform)),
   notifications: createNotifications(),
   tray: createTray(),
+  progress: progressBar,
+  downloads: createDownloads({
+    defaultDirectory: app.getPath("downloads"),
+    platform: platformOf(process.platform),
+  }),
+  dialogs,
   sessions: createSessions(),
   shell: {
     openExternal: async (url) => {
@@ -229,8 +237,13 @@ export const createElectronPorts = (): Ports => ({
         throw new Error(failed);
       }
     },
+    // macOS lets only the active app bring another forward, so from a notification's button, with Meru behind, Electron's call opens a Finder window without making Finder active; Launch Services' `open -R` does.
     showItemInFolder: (path) => {
-      shell.showItemInFolder(path);
+      if (process.platform === "darwin") {
+        spawn("/usr/bin/open", ["-R", path], { stdio: "ignore" }).unref();
+      } else {
+        shell.showItemInFolder(path);
+      }
     },
   },
   theme: {

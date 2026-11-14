@@ -1,0 +1,133 @@
+import type {
+  DownloadEvent,
+  DownloadPort,
+  DownloadStart,
+  DownloadTarget,
+} from "../../core/ports.ts";
+
+const parentOf = (path: string) => path.slice(0, path.lastIndexOf("/"));
+const nameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+
+/** Downloads over a folder tree held in memory, with POSIX paths; a test starts each download and moves it along as the network would. */
+export class FakeDownloads implements DownloadPort {
+  readonly defaultDirectory: string;
+  /** Every file on the fake disk, by absolute path. */
+  readonly files = new Set<string>();
+  /** Each download under way, by id, with where it is being written. */
+  readonly active = new Map<string, string>();
+  /** Every address a page was asked to download, in order. */
+  readonly requested: { contentsId: number; url: string }[] = [];
+  /** Each file marked as a finished download, in order. */
+  readonly marked: string[] = [];
+  #decide: ((start: DownloadStart) => DownloadTarget) | undefined;
+  readonly #listeners = new Set<(event: DownloadEvent) => void>();
+  #count = 0;
+
+  constructor(defaultDirectory = "/Users/me/Downloads") {
+    this.defaultDirectory = defaultDirectory;
+  }
+
+  readonly handle = (decide: (start: DownloadStart) => DownloadTarget) => {
+    this.#decide = decide;
+    return () => {
+      this.#decide = undefined;
+    };
+  };
+
+  readonly onEvent = (listener: (event: DownloadEvent) => void) => {
+    this.#listeners.add(listener);
+    return () => {
+      this.#listeners.delete(listener);
+    };
+  };
+
+  /** Starts a download as a session would, answering its id and where it went, null when it was called off or nothing decided. */
+  start(start: Partial<DownloadStart> & { readonly suggestedName: string }): {
+    readonly id: string;
+    readonly path: string | null;
+  } {
+    this.#count += 1;
+    const id = start.id ?? `download-${this.#count}`;
+    const target = this.#decide?.({
+      committed: true,
+      contentsId: 1,
+      mimeType: "application/octet-stream",
+      totalBytes: 100,
+      url: `https://mail.google.com/attachment/${this.#count}`,
+      ...start,
+      id,
+    });
+    if (target?.kind === "save") {
+      this.active.set(id, target.path);
+      this.files.add(target.path);
+    }
+    return { id, path: target?.kind === "save" ? target.path : null };
+  }
+
+  progress(id: string, received: number, total = 100) {
+    if (this.active.has(id)) {
+      this.#emit({ id, kind: "progress", received, total });
+    }
+  }
+
+  complete(id: string, received = 100) {
+    if (this.active.delete(id)) {
+      this.#emit({ id, kind: "done", received });
+    }
+  }
+
+  /** The network stops the download; its partial file stays until it is cancelled or removed. */
+  interrupt(id: string) {
+    if (this.active.has(id)) {
+      this.#emit({ id, kind: "interrupted" });
+    }
+  }
+
+  readonly cancel = (id: string) => {
+    const path = this.active.get(id);
+    if (path === undefined) {
+      return;
+    }
+    this.active.delete(id);
+    this.files.delete(path);
+    this.#emit({ id, kind: "cancelled" });
+  };
+
+  readonly download = (contentsId: number, url: string) => {
+    this.requested.push({ contentsId, url });
+  };
+
+  readonly namesIn = (directory: string) =>
+    [...this.files]
+      .filter((path) => parentOf(path) === directory)
+      .map((path) => nameOf(path));
+
+  readonly exists = async (path: string) => {
+    await Promise.resolve();
+    return this.files.has(path);
+  };
+
+  readonly remove = async (path: string) => {
+    await Promise.resolve();
+    this.files.delete(path);
+  };
+
+  readonly move = async (from: string, to: string) => {
+    await Promise.resolve();
+    if (!this.files.delete(from)) {
+      throw new Error(`ENOENT: ${from}`);
+    }
+    this.files.add(to);
+  };
+
+  readonly finished = async (path: string) => {
+    await Promise.resolve();
+    this.marked.push(path);
+  };
+
+  #emit(event: DownloadEvent) {
+    for (const listener of this.#listeners) {
+      listener(event);
+    }
+  }
+}
