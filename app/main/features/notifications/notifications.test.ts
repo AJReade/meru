@@ -24,7 +24,11 @@ const setup = async () => {
   const loaded: string[] = [];
   let shown = 0;
   const important = new Set([newest?.id ?? ""]);
+  const acted: { tabId: string; messageId: string; action: string }[] = [];
   const notifications = new Notifications({
+    act: (tabId, messageId, action) => {
+      acted.push({ action, messageId, tabId });
+    },
     events,
     inbox: { important: async () => await Promise.resolve(important) },
     gmailUrl: GMAIL_URL,
@@ -46,6 +50,7 @@ const setup = async () => {
     await setImmediate();
   };
   return {
+    acted,
     arrive,
     first,
     loaded,
@@ -103,6 +108,30 @@ describe(Notifications, () => {
       loaded: [`https://mail.google.com/mail/u/0/#inbox/${older?.messageId}`],
       shown: 1,
       url: gmail.url,
+    });
+  });
+
+  it("offers no buttons until the actions are turned on, and leaves the window where it is when one is pressed", async () => {
+    const { acted, arrive, port, profiles, settings, shown } = await setup();
+    await arrive();
+    expect([port.shown[0]?.spec.actions, port.shown[0]?.act]).toStrictEqual([
+      undefined,
+      undefined,
+    ]);
+
+    settings.set("notifications.actions", true);
+    await arrive();
+    const first = port.shown.at(2);
+    expect(first?.spec.actions).toStrictEqual(["Archive", "Mark as read"]);
+    first?.act?.(1);
+    // A press on a button the notification does not have acts on nothing.
+    first?.act?.(2);
+    const tab = profiles.state.tabs.find((found) => found.appId === gmail.id);
+    expect({ acted, shown: shown() }).toStrictEqual({
+      acted: [
+        { action: "markRead", messageId: older?.messageId, tabId: tab?.id },
+      ],
+      shown: 0,
     });
   });
 

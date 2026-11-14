@@ -452,6 +452,9 @@ const start = async () => {
     }
   };
   new Notifications({
+    act: (tabId, messageId, action) => {
+      void gmail.act(tabId, messageId, action);
+    },
     events,
     inbox,
     gmailUrl: gmailOverride ?? GMAIL_URL,

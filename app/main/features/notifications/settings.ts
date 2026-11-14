@@ -27,6 +27,17 @@ export const notificationsSettings = [
     scope: "profile",
     tier: "pro",
   }),
+  defineSetting("notifications.actions", {
+    default: false,
+    description: msg`Offer Archive and Mark as read on a new email's notification. Off until the buttons have been proven against a signed-in Gmail session.`,
+    label: msg`Show actions`,
+    page: "inbox",
+    section: msg`Notifications`,
+    restart: false,
+    schema: z.boolean(),
+    scope: "global",
+    tier: "free",
+  }),
   defineSetting("notifications.showSender", {
     default: true,
     label: msg`Show sender`,

@@ -10,10 +10,17 @@ import type { NotificationPort } from "../../../core/ports.ts";
 import type { FeedEntry } from "../../../core/records/feed.ts";
 import type { Platform } from "../../../core/records/platform.ts";
 import { gmail } from "../../../shared/apps.ts";
+import type { MailAction } from "../../../shared/channels/gmail.ts";
 import { msg } from "../../../shared/msg.ts";
 import type { Inbox } from "../inbox/index.ts";
 import type { Profiles } from "../profiles/index.ts";
 import type { SettingsStore } from "../settings/index.ts";
+
+/** The buttons a new email's notification offers, in the order they are drawn, as 3.x worded and ordered them, less the two that cannot be undone. */
+const MAIL_ACTIONS = [
+  { action: "archive", label: msg`Archive` },
+  { action: "markRead", label: msg`Mark as read` },
+] as const satisfies readonly { action: MailAction; label: string }[];
 
 interface NotificationsOptions {
   readonly notifications: NotificationPort;
@@ -26,6 +33,8 @@ interface NotificationsOptions {
   readonly showWindow: () => void;
   /** Loads an address into the tab's pane, or the view it is next given. */
   readonly load: (tabId: string, url: string) => void;
+  /** Acts on a message through the tab's Gmail page, which is the only place Gmail's action endpoint can be reached from. */
+  readonly act: (tabId: string, messageId: string, action: MailAction) => void;
   /** The mailbox a message opens in, which a run from the repository may point at a stand-in. */
   readonly gmailUrl: string;
 }
@@ -91,25 +100,60 @@ export class Notifications {
       );
       return;
     }
+    // A feed entry Gmail gave no message id can be neither opened nor acted on.
+    const offered = settings.get("notifications.actions")
+      ? MAIL_ACTIONS
+      : undefined;
     for (const entry of notified) {
-      notifications.show({ ...mailNotice(entry, options), silent }, () => {
-        this.#open(
-          profileId,
-          entry.messageId === ""
-            ? undefined
-            : messageUrl(gmailUrl, entry.messageId)
-        );
-      });
+      const actions =
+        entry.messageId === "" || offered === undefined ? undefined : offered;
+      notifications.show(
+        {
+          ...mailNotice(entry, options),
+          silent,
+          ...(actions === undefined
+            ? {}
+            : { actions: actions.map(({ label }) => label) }),
+        },
+        () => {
+          this.#open(
+            profileId,
+            entry.messageId === ""
+              ? undefined
+              : messageUrl(gmailUrl, entry.messageId)
+          );
+        },
+        actions === undefined
+          ? undefined
+          : (index) => {
+              const pressed = actions[index];
+              if (pressed !== undefined) {
+                this.#act(profileId, entry.messageId, pressed.action);
+              }
+            }
+      );
     }
+  }
+
+  /** Acts on the message through the profile's Gmail page, which stays where it is: the window is not revealed, since a button press leaves the user in the app they were in. */
+  #act(profileId: string, messageId: string, action: MailAction): void {
+    const tab = this.#gmailTab(profileId);
+    if (tab !== undefined) {
+      this.#options.act(tab.id, messageId, action);
+    }
+  }
+
+  #gmailTab(profileId: string) {
+    return this.#options.profiles.state.tabs.find(
+      (found) => found.profileId === profileId && found.appId === gmail.id
+    );
   }
 
   /** Brings the profile's Gmail tab to the front, at `url` when given. */
   #open(profileId: string, url?: string): void {
     const { load, profiles, showWindow } = this.#options;
     showWindow();
-    const tab = profiles.state.tabs.find(
-      (found) => found.profileId === profileId && found.appId === gmail.id
-    );
+    const tab = this.#gmailTab(profileId);
     if (tab === undefined) {
       return;
     }

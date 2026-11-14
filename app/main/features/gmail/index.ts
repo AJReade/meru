@@ -258,7 +258,7 @@ export class Gmail {
   ): Promise<Result<undefined, GmailActError>> {
     const contentsId = this.#pages.get(tabId) ?? (await this.#woken(tabId));
     if (contentsId === undefined) {
-      return err("noPage");
+      return this.#notActed("noPage", tabId);
     }
     const id = this.#nextAction;
     this.#nextAction += 1;
@@ -281,10 +281,21 @@ export class Gmail {
       messageId,
     });
     const acted = await promise;
-    if (acted === undefined) {
-      return err("silent");
+    if (acted === true) {
+      return ok(undefined);
     }
-    return acted ? ok(undefined) : err("refused");
+    return this.#notActed(acted === undefined ? "silent" : "refused", tabId);
+  }
+
+  #notActed(
+    reason: GmailActError,
+    tabId: string
+  ): Result<undefined, GmailActError> {
+    this.#options.log.warn("A message action did not reach Gmail", {
+      reason,
+      tabId,
+    });
+    return err(reason);
   }
 
   /** The page the tab gets once it has been pointed at the mailbox, or nothing while it got none in time: no stage makes a view of a tab out of sight, so an action on a tab whose group no window shows waits in vain. */
