@@ -1,12 +1,28 @@
 import type { ElectronApplication } from "@playwright/test";
 
+import { ONE_UNREAD } from "../app/core/fixtures/gmail-feeds.ts";
+import { E2E_ACT_NOTIFICATION } from "../app/main/shell/e2e.ts";
 import { settings } from "../app/shared/channels/settings.ts";
 import { invokeIn } from "../scripts/lib/app.ts";
-import { expect, panesOf, profilesOf, test } from "./app.ts";
-import { startGmailStub } from "./gmail-stub.ts";
+import {
+  callExposed,
+  expect,
+  inspect,
+  issuedNow,
+  panesOf,
+  profilesOf,
+  test,
+  wake,
+} from "./app.ts";
+import { ACTION_TOKEN, startGmailStub } from "./gmail-stub.ts";
 
 const HEADER = `<!doctype html><title>Gmail</title>
 <header role="banner"><div><div><a href="#inbox" aria-label="Gmail"><img alt="Gmail" /></a></div></div></header>`;
+
+/** The mailbox as Gmail serves it: the marker its action endpoint takes, written into the page. */
+const MAILBOX = `<!doctype html><title>Gmail</title>
+<script>var GM_ID_KEY = 'abc123def';</script>
+<div role="main"></div>`;
 
 // A header Gmail has changed under the logo's selector entry, so the entry misses.
 const CHANGED_HEADER = `<!doctype html><title>Gmail</title>
@@ -79,6 +95,38 @@ test("writes a warning when a selector entry finds nothing on Gmail's page", asy
     await expect
       .poll(() => written, { timeout: 25_000 })
       .toContain("A Gmail selector found nothing");
+  } finally {
+    await stub.stop();
+  }
+});
+
+test("acts on a message from a notification's button through the Gmail page, which holds the marker and the token the action endpoint asks for", async ({
+  launch,
+}) => {
+  const stub = await startGmailStub(MAILBOX);
+  try {
+    const { app, chrome } = await launch({ env: { MERU_GMAIL_URL: stub.url } });
+    await invokeIn(chrome, settings.set, {
+      key: "notifications.actions",
+      value: true,
+    });
+
+    stub.answer(issuedNow(ONE_UNREAD));
+    await wake(app);
+    await expect
+      .poll(async () => {
+        const { notifications } = await inspect(app);
+        return notifications.at(0)?.actions;
+      })
+      .toStrictEqual(["Archive", "Mark as read"]);
+
+    await callExposed(app, E2E_ACT_NOTIFICATION, [0, 0]);
+    await expect.poll(() => stub.actions).toHaveLength(1);
+    const [posted] = stub.actions;
+    // Gmail's own form, as 3.x sent it: the archive code and the message, named twice, beside the marker the page carries and the token its cookies do.
+    expect(posted?.body).toContain(',1,"18c1a2b3c4d5e6f9","18c1a2b3c4d5e6f9"');
+    expect(posted?.body).toContain("abc123def");
+    expect(posted?.at).toBe(ACTION_TOKEN);
   } finally {
     await stub.stop();
   }

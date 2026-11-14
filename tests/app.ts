@@ -78,6 +78,38 @@ export const test = base.extend<{
   },
 });
 
+/** The feed's text with every entry dated now, since the inbox calls mail new only if it was issued shortly before the last read. */
+export const issuedNow = (text: string): string =>
+  text.replaceAll(
+    /<issued>[^<]*<\/issued>/gu,
+    `<issued>${new Date().toISOString()}</issued>`
+  );
+
+/** Wakes the machine, which reads every feed at once rather than waiting out the thirty seconds between reads. */
+export const wake = async (app: ElectronApplication) => {
+  await app.evaluate(({ powerMonitor }) => {
+    powerMonitor.emit("resume");
+  });
+};
+
+/** What main left under `name` for the suite to call, as the notification centre would. */
+export const callExposed = async (
+  app: ElectronApplication,
+  name: string,
+  args: readonly number[]
+) => {
+  await app.evaluate(
+    (_electron, [exposed, passed]) => {
+      const call: unknown = Reflect.get(globalThis, exposed);
+      if (typeof call !== "function") {
+        throw new TypeError(`Main exposes nothing under ${exposed}`);
+      }
+      Reflect.apply(call, undefined, passed);
+    },
+    [name, [...args]] as const
+  );
+};
+
 /** The value, or a failure naming what is missing, so an assertion never runs on a stand-in. */
 export const must = <T>(value: T | null | undefined, what: string): T => {
   if (value === null || value === undefined) {

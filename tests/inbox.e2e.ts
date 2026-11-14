@@ -2,14 +2,16 @@ import type { ElectronApplication, Page } from "@playwright/test";
 
 import { ONE_UNREAD, TWO_UNREAD } from "../app/core/fixtures/gmail-feeds.ts";
 import { E2E_CLICK_NOTIFICATION } from "../app/main/shell/e2e.ts";
-import { expect, inspect, panesOf, profilesOf, test } from "./app.ts";
-
-// The inbox calls mail new only if it was issued shortly before the last read, so the fixture's entries are dated now.
-const issuedNow = (text: string) =>
-  text.replaceAll(
-    /<issued>[^<]*<\/issued>/gu,
-    `<issued>${new Date().toISOString()}</issued>`
-  );
+import {
+  callExposed,
+  expect,
+  inspect,
+  issuedNow,
+  panesOf,
+  profilesOf,
+  test,
+  wake,
+} from "./app.ts";
 
 const badgeOf = async (app: ElectronApplication) => {
   const { badge } = await inspect(app);
@@ -27,16 +29,7 @@ const statusOf = async (chrome: Page) => {
 };
 
 const clickNotification = async (app: ElectronApplication, index: number) => {
-  await app.evaluate(
-    (_electron, [name, at]) => {
-      const click: unknown = Reflect.get(globalThis, name);
-      if (typeof click !== "function") {
-        throw new TypeError(`Main exposes nothing under ${name}`);
-      }
-      Reflect.apply(click, undefined, [at]);
-    },
-    [E2E_CLICK_NOTIFICATION, index] as const
-  );
+  await callExposed(app, E2E_CLICK_NOTIFICATION, [index]);
 };
 
 const paneUrlsOf = async (app: ElectronApplication) => {
@@ -56,13 +49,6 @@ const inPane = async (app: ElectronApplication, code: string) => {
     },
     [pane?.contentsId ?? -1, code] as const
   );
-};
-
-// Waking the machine reads every feed at once, rather than waiting out the 30 seconds between reads.
-const wake = async (app: ElectronApplication) => {
-  await app.evaluate(({ powerMonitor }) => {
-    powerMonitor.emit("resume");
-  });
 };
 
 test("shows the feed's unread count, notifies about mail that arrives, opens a message from its notification whether or not the pane is on the mailbox, and marks a signed-out session without following its redirect", async ({

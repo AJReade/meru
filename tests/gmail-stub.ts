@@ -8,21 +8,50 @@ export interface GmailStub {
   readonly url: string;
   /** The stand-in sign-in page, where the app takes a page that lands to be signed out. */
   readonly signIn: string;
+  /** Each action posted to the endpoint, in order: the token it named and the body it sent. */
+  readonly actions: { at: string | null; body: string }[];
+  /** Answers the inbox feed with this text from now on. */
+  readonly answer: (text: string) => void;
   readonly stop: () => Promise<void>;
 }
 
 const MAILBOX_PATH = "/mail/u/0";
 
-/** A loopback stand-in for Gmail: the mailbox page, which is `page`, its feed with nothing unread, and the sign-in page beside it. */
+/** The token Gmail's action endpoint takes, which its page reads out of its own cookies. */
+export const ACTION_TOKEN = "at-token";
+
+/** A loopback stand-in for Gmail: the mailbox page, which is `page`, its action endpoint and the cookie that endpoint asks for, its feed, and the sign-in page beside it. */
 export const startGmailStub = async (page: string): Promise<GmailStub> => {
+  const actions: { at: string | null; body: string }[] = [];
+  let feed = NONE_UNREAD;
   const server = createServer((request, response) => {
-    const { pathname } = new URL(request.url ?? "/", "http://stub");
+    const { pathname, searchParams } = new URL(
+      request.url ?? "/",
+      "http://stub"
+    );
     if (pathname === `${MAILBOX_PATH}/`) {
-      response.writeHead(200, { "content-type": "text/html" }).end(page);
+      response
+        .writeHead(200, {
+          "content-type": "text/html",
+          "set-cookie": `GMAIL_AT=${ACTION_TOKEN}; Path=/`,
+        })
+        .end(page);
+    } else if (pathname === `${MAILBOX_PATH}/s/`) {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+      request.on("end", () => {
+        actions.push({
+          at: searchParams.get("at"),
+          body: Buffer.concat(chunks).toString(),
+        });
+        response.writeHead(200, { "content-type": "text/plain" }).end(")]}'\n");
+      });
     } else if (pathname === `${MAILBOX_PATH}/feed/atom`) {
       response
         .writeHead(200, { "content-type": "application/atom+xml" })
-        .end(NONE_UNREAD);
+        .end(feed);
     } else if (pathname === "/signin") {
       response
         .writeHead(200, { "content-type": "text/html" })
@@ -39,6 +68,10 @@ export const startGmailStub = async (page: string): Promise<GmailStub> => {
   }
   const origin = `http://127.0.0.1:${address.port}`;
   return {
+    actions,
+    answer: (text) => {
+      feed = text;
+    },
     signIn: `${origin}/signin`,
     stop: async () => {
       server.closeAllConnections();
