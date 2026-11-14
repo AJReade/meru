@@ -10,9 +10,17 @@ export interface GmailStub {
   readonly signIn: string;
   /** Each action posted to the endpoint, in order: the token it named and the body it sent. */
   readonly actions: { at: string | null; body: string }[];
+  /** The domains the senders' icons were asked for, in order. */
+  readonly favicons: readonly string[];
   /** Answers the inbox feed with this text from now on. */
   readonly answer: (text: string) => void;
   readonly stop: () => Promise<void>;
+}
+
+/** What the mailbox answers besides its page: the print view of a message, `?view=lg`, and a pop-out, any other `?view=`. */
+export interface GmailStubPages {
+  readonly printView?: string;
+  readonly popOut?: string;
 }
 
 const MAILBOX_PATH = "/mail/u/0";
@@ -20,22 +28,35 @@ const MAILBOX_PATH = "/mail/u/0";
 /** The token Gmail's action endpoint takes, which its page reads out of its own cookies. */
 export const ACTION_TOKEN = "at-token";
 
-/** A loopback stand-in for Gmail: the mailbox page, which is `page`, its action endpoint and the cookie that endpoint asks for, its feed, and the sign-in page beside it. */
-export const startGmailStub = async (page: string): Promise<GmailStub> => {
+// The smallest PNG, one transparent pixel, which is all an icon request needs.
+const PIXEL = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  "base64"
+);
+
+/** A loopback stand-in for Gmail: the mailbox page, which is `page`, its print view and pop-out when given, its action endpoint and the cookie that endpoint asks for, its feed, the senders' icons, and the sign-in page beside it. */
+export const startGmailStub = async (
+  page: string,
+  pages: GmailStubPages = {}
+): Promise<GmailStub> => {
   const actions: { at: string | null; body: string }[] = [];
+  const favicons: string[] = [];
   let feed = NONE_UNREAD;
   const server = createServer((request, response) => {
     const { pathname, searchParams } = new URL(
       request.url ?? "/",
       "http://stub"
     );
-    if (pathname === `${MAILBOX_PATH}/`) {
+    const view = searchParams.get("view");
+    const other = view === "lg" ? pages.printView : pages.popOut;
+    const shown = view === null ? page : other;
+    if (pathname === `${MAILBOX_PATH}/` && shown !== undefined) {
       response
         .writeHead(200, {
           "content-type": "text/html",
           "set-cookie": `GMAIL_AT=${ACTION_TOKEN}; Path=/`,
         })
-        .end(page);
+        .end(shown);
     } else if (pathname === `${MAILBOX_PATH}/s/`) {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => {
@@ -48,6 +69,9 @@ export const startGmailStub = async (page: string): Promise<GmailStub> => {
         });
         response.writeHead(200, { "content-type": "text/plain" }).end(")]}'\n");
       });
+    } else if (pathname === "/favicons") {
+      favicons.push(searchParams.get("domain") ?? "");
+      response.writeHead(200, { "content-type": "image/png" }).end(PIXEL);
     } else if (pathname === `${MAILBOX_PATH}/feed/atom`) {
       response
         .writeHead(200, { "content-type": "application/atom+xml" })
@@ -72,6 +96,7 @@ export const startGmailStub = async (page: string): Promise<GmailStub> => {
     answer: (text) => {
       feed = text;
     },
+    favicons,
     signIn: `${origin}/signin`,
     stop: async () => {
       server.closeAllConnections();
