@@ -1,10 +1,10 @@
 import { namesContentSurface } from "../../shared/channels/surfaces.ts";
+import { contentBridge } from "../content/bridge.ts";
 import { startGmail } from "./app.ts";
-import { gmailBridge } from "./bridge.ts";
 
 if (namesContentSurface(process.argv, "gmail")) {
   startGmail({
-    bridge: gmailBridge,
+    bridge: contentBridge("gmail"),
     document,
     location: {
       href: () => window.location.href,
