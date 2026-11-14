@@ -128,6 +128,8 @@ export class Toaster {
     toast.append(text, act, close);
     this.#columnOf(labels.toasts).append(toast);
     this.#toasts.set(id, toast);
+    // Captured, since Gmail stops some keys it handles itself from reaching the document.
+    this.#document.addEventListener("keydown", this.#escape, true);
     // Two frames: one to lay the toast out at no opacity, one for the change to be a transition rather than where it starts.
     this.#requestFrame(() => {
       this.#requestFrame(() => {
@@ -142,6 +144,9 @@ export class Toaster {
       return;
     }
     this.#toasts.delete(id);
+    if (this.#toasts.size === 0) {
+      this.#document.removeEventListener("keydown", this.#escape, true);
+    }
     toast.classList.add("toast-hidden");
     // A timer rather than `transitionend`, which never fires while the pane is hidden and would leave the toast behind.
     this.#later(FADE_MS, () => {
@@ -150,11 +155,20 @@ export class Toaster {
   }
 
   dispose(): void {
+    this.#document.removeEventListener("keydown", this.#escape, true);
     this.#host?.remove();
     this.#host = undefined;
     this.#column = undefined;
     this.#toasts.clear();
   }
+
+  /** Escape takes the newest toast down, and goes on to Gmail. */
+  readonly #escape = (event: KeyboardEvent): void => {
+    const newest = [...this.#toasts.keys()].at(-1);
+    if (event.key === "Escape" && newest !== undefined) {
+      this.dismiss(newest);
+    }
+  };
 
   #columnOf(label: string): HTMLElement {
     if (this.#column !== undefined) {

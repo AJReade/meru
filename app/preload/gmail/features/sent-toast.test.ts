@@ -6,9 +6,9 @@ import { sentToast } from "./sent-toast.ts";
 
 const toaster = () => document.querySelector("#meru-toaster")?.shadowRoot;
 
-describe(sentToast.id, () => {
+describe(sentToast, () => {
   it("shows the toast main asks for in a shadow root, as a status, whose Undo answers with its id and takes it down", async () => {
-    const page = mountGmail({ features: [sentToast] });
+    const page = mountGmail({ features: [sentToast()] });
 
     expect(toaster()).toBeUndefined();
 
@@ -31,7 +31,7 @@ describe(sentToast.id, () => {
   });
 
   it("takes the toast down when main says so, and keeps one of each id", async () => {
-    const page = mountGmail({ features: [sentToast] });
+    const page = mountGmail({ features: [sentToast()] });
     for (const id of [1, 1]) {
       page.bridge.push(gmailPushes.showSentToast, { id });
     }
@@ -44,6 +44,28 @@ describe(sentToast.id, () => {
       expect(toaster()?.querySelectorAll(".toast")).toHaveLength(0);
     });
     expect(page.bridge.sentOn(gmail.undoSend)).toStrictEqual([]);
+    page.app.dispose();
+  });
+
+  it("takes the newest toast down on Escape, wherever the focus is, and keeps it through a change of settings", async () => {
+    const page = mountGmail({ features: [sentToast()] });
+    for (const id of [1, 2]) {
+      page.bridge.push(gmailPushes.showSentToast, { id });
+    }
+    page.change({});
+    expect(toaster()?.querySelectorAll(".toast")).toHaveLength(2);
+
+    document.body.dispatchEvent(
+      new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })
+    );
+
+    await vi.waitFor(() => {
+      expect(
+        [...(toaster()?.querySelectorAll<HTMLElement>(".toast") ?? [])].map(
+          (toast) => toast.dataset.toastId
+        )
+      ).toStrictEqual(["1"]);
+    });
     page.app.dispose();
   });
 });
