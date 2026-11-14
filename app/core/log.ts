@@ -38,16 +38,13 @@ export const LINE_CAP = 16 * 1024;
 export const TEXT_CAP = 4 * 1024;
 
 const REDACTIONS: readonly (readonly [RegExp, string])[] = [
-  // A query string carries tokens, search terms and message ids.
+  // A query string carries tokens, search terms and message ids, after an absolute address or a path.
   [
-    /(?<address>\b[a-z][\w+.-]*:\/\/[^\s?#"'<>]*)\?[^\s#"'<>]*/giu,
+    /(?<address>(?:\b[a-z][\w+.-]*:\/\/|(?<![^\s"'(=])\/)[^\s?#"'<>]*)\?[^\s#"'<>]*/giu,
     "$<address>?[redacted]",
   ],
-  // Gmail's fragment names the open thread or message, such as #inbox/FMfcg…
-  [
-    /(?<address>\b[a-z][\w+.-]*:\/\/[^\s#"'<>]*)#[^\s"'<>]+/giu,
-    "$<address>#[redacted]",
-  ],
+  // Gmail's fragment names the open thread or message, such as #inbox/FMfcg…, after an absolute address, a path or on its own.
+  [/#(?!\[redacted\])[^\s"'<>]+/gu, "#[redacted]"],
   [
     /\b(?<header>(?:proxy-)?authorization)(?<separator>\s*[:=]\s*)[^\n]*/giu,
     "$<header>$<separator>[redacted]",

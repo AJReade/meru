@@ -97,6 +97,16 @@ describe(logLine, () => {
 });
 
 describe(redact, () => {
+  it("takes out the fragment and the query of a relative address and a bare fragment", () => {
+    expect(
+      redact(
+        "loaded /mail/u/0/#inbox/FMfcgzQXJWDsKmn, then #label/Therapy/FMfcgzQXJWDsKmo from /mail/u/0/?search=biopsy"
+      )
+    ).toBe(
+      "loaded /mail/u/0/#[redacted] then #[redacted] from /mail/u/0/?[redacted]"
+    );
+  });
+
   it("takes out query strings and fragments, credentials and cookie values and email addresses, and keeps the rest", () => {
     expect([
       redact(
