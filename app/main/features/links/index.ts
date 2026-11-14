@@ -152,7 +152,7 @@ export class Links {
   #external(url: string): void {
     if (!opensOutside(url)) {
       this.#options.log.warn("A link was not opened outside the app", {
-        scheme: url.slice(0, url.indexOf(":") + 1).slice(0, 32),
+        scheme: url.split(":", 1)[0]?.slice(0, 32),
       });
       return;
     }
