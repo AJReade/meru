@@ -468,14 +468,14 @@ export class Gmail {
     if (sent === undefined) {
       return;
     }
+    // A pop-out that closes forgets what it sent, so one still remembered is open.
     this.#forget(id);
-    const { pane, window } = sent;
-    if (this.#popOuts.has(window.contentsId)) {
-      window.show();
-      this.#options.registrar.push(window.contentsId, gmailPushes.undoSend, {});
-    } else if (pane !== undefined) {
-      this.#options.registrar.push(pane, gmailPushes.undoSend, {});
-    }
+    sent.window.show();
+    this.#options.registrar.push(
+      sent.window.contentsId,
+      gmailPushes.undoSend,
+      {}
+    );
   }
 
   #forget(id: number): void {
