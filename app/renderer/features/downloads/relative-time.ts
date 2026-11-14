@@ -1,16 +1,46 @@
 import { useEffect, useState } from "react";
 
 const UNITS: readonly (readonly [Intl.RelativeTimeFormatUnit, number])[] = [
-  ["day", 86_400_000],
   ["hour", 3_600_000],
   ["minute", 60_000],
 ];
 
+const DAY = 86_400_000;
+
 const format = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 
-/** How long before `now` `then` was, in the largest unit it fills, and "now" under a minute. */
-export const relativeTime = (then: number, now: number): string => {
-  const elapsed = Math.max(0, now - then);
+const calendars = new Map<string, Intl.DateTimeFormat>();
+
+/** The calendar day `time` falls on in the zone, counted from the epoch, so that a day of 23 or 25 hours still counts as one. */
+const dayOf = (time: number, timeZone: string | undefined): number => {
+  const key = timeZone ?? "";
+  const calendar =
+    calendars.get(key) ??
+    new Intl.DateTimeFormat("en-US", {
+      day: "numeric",
+      month: "numeric",
+      timeZone,
+      year: "numeric",
+    });
+  calendars.set(key, calendar);
+  const parts = calendar.formatToParts(time);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((each) => each.type === type)?.value);
+  return Date.UTC(part("year"), part("month") - 1, part("day")) / DAY;
+};
+
+/** How long before `now` `then` was: in calendar days in the zone, the system's unless one is named, once it was another day, and otherwise in the largest unit it fills, "now" under a minute or for a time after `now`. */
+export const relativeTime = (
+  then: number,
+  now: number,
+  timeZone?: string
+): string => {
+  const at = Math.min(then, now);
+  const days = dayOf(now, timeZone) - dayOf(at, timeZone);
+  if (days > 0) {
+    return format.format(-days, "day");
+  }
+  const elapsed = now - at;
   for (const [unit, size] of UNITS) {
     if (elapsed >= size) {
       return format.format(-Math.floor(elapsed / size), unit);
