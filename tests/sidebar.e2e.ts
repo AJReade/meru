@@ -135,14 +135,21 @@ test("joins a row dragged out of the sidebar beside the pane it is let go on, af
     /Gmail/u
   );
   const { overlay, pointer, rect } = await dragRowOverPane(app, chrome);
-  // The overlay page hears the pointer only through main, after its page has loaded, so the pointer moves again once it is there.
-  await chrome.mouse.move(pointer.x + 1, pointer.y, { steps: 2 });
-  const drop = must(
-    await overlay.locator("[data-drop]").boundingBox(),
-    "The drop mark"
-  );
-  expect(drop.width).toBeCloseTo(rect.width / 2, 0);
-  expect(drop.x).toBeCloseTo(rect.x + rect.width / 2, 0);
+  // The overlay page hears the suite's pointer only through main, after its page has loaded, and its own pointermove reports where the system's cursor is, which under Xvfb rests wherever the screen left it and can land after the suite's, so the pointer moves again until the mark follows it.
+  let nudge = 0;
+  await expect
+    .poll(async () => {
+      nudge = 1 - nudge;
+      await chrome.mouse.move(pointer.x + nudge, pointer.y, { steps: 2 });
+      const drop = await overlay.locator("[data-drop]").boundingBox();
+      return drop === null
+        ? null
+        : {
+            halfWide: Math.abs(drop.width - rect.width / 2) < 1,
+            onRightHalf: Math.abs(drop.x - (rect.x + rect.width / 2)) < 1,
+          };
+    })
+    .toStrictEqual({ halfWide: true, onRightHalf: true });
   await chrome.mouse.up();
 
   await expect.poll(() => pagesOf(app, TAB_DRAG)).toHaveLength(0);
