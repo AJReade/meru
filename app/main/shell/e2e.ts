@@ -29,6 +29,9 @@ export const E2E_FETCH = "meruE2eFetch";
 /** The global under which the same run leaves a click on the notification at the index it is given, as the suite's stand-in for a click in the notification centre. */
 export const E2E_CLICK_NOTIFICATION = "meruE2eClickNotification";
 
+/** The global under which the same run leaves a press of a button on the notification at the index it is given, as the suite's stand-in for pressing one in the notification centre. */
+export const E2E_ACT_NOTIFICATION = "meruE2eActNotification";
+
 export const e2eSnapshotSchema = z.object({
   /** Every address a link sent to the browser, in order. */
   external: z.array(z.string()),
@@ -51,7 +54,7 @@ export const e2eSnapshotSchema = z.object({
   /** Every notification shown, in order. */
   notifications: z.array(
     z.object({
-      action: z.string().optional(),
+      actions: z.array(z.string()).optional(),
       body: z.string().optional(),
       silent: z.boolean(),
       subtitle: z.string().optional(),
@@ -101,6 +104,8 @@ interface RecordingDesktop {
   readonly progress: ProgressPort;
   /** Clicks the notification shown `index`th, as the notification centre would. */
   readonly click: (index: number) => void;
+  /** Presses the button at `action` on the notification shown `index`th. */
+  readonly act: (index: number, action: number) => void;
   readonly read: () => {
     readonly badge: number;
     readonly notifications: readonly NotificationSpec[];
@@ -111,10 +116,17 @@ interface RecordingDesktop {
 
 export const recordingDesktop = (): RecordingDesktop => {
   let badge = 0;
-  const notifications: { spec: NotificationSpec; click: () => void }[] = [];
+  const notifications: {
+    spec: NotificationSpec;
+    click: () => void;
+    act: ((action: number) => void) | undefined;
+  }[] = [];
   let tray: TraySpec | undefined;
   let progress: DownloadProgress = { kind: "none" };
   return {
+    act: (index, action) => {
+      notifications[index]?.act?.(action);
+    },
     badge: {
       set: (total) => {
         badge = total;
@@ -124,8 +136,8 @@ export const recordingDesktop = (): RecordingDesktop => {
       notifications[index]?.click();
     },
     notifications: {
-      show: (spec, click) => {
-        notifications.push({ click, spec });
+      show: (spec, click, act) => {
+        notifications.push({ act, click, spec });
       },
     },
     progress: {
@@ -170,7 +182,10 @@ export const exposeE2e = (options: {
       files: [...options.external.files],
       revealed: [...options.external.revealed],
       progress: desktop.progress,
-      notifications: [...desktop.notifications],
+      notifications: desktop.notifications.map(({ actions, ...shown }) => ({
+        ...shown,
+        ...(actions === undefined ? {} : { actions: [...actions] }),
+      })),
       tray:
         desktop.tray?.menu.map((item) =>
           item.kind === "separator" ? "-" : item.label
@@ -188,6 +203,7 @@ export const exposeE2e = (options: {
   };
   Reflect.set(globalThis, E2E_GLOBAL, () => JSON.stringify(snapshot()));
   Reflect.set(globalThis, E2E_CLICK_NOTIFICATION, options.desktop.click);
+  Reflect.set(globalThis, E2E_ACT_NOTIFICATION, options.desktop.act);
   Reflect.set(
     globalThis,
     E2E_FETCH,

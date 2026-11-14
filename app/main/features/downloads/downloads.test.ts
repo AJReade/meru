@@ -338,13 +338,13 @@ describe(Downloads, () => {
       await settle();
       const [shown] = notifications.shown;
       expect(shown?.spec).toMatchObject({
-        action,
+        actions: [action],
         title: "Downloaded a.pdf",
       });
       shown?.click();
       await settle();
       expect([shell.revealed, shell.files]).toStrictEqual([[], []]);
-      shown?.act?.();
+      shown?.act?.(0);
       await settle();
       expect([shell.revealed, shell.files]).toStrictEqual(
         revealed ? [[written], []] : [[], [written]]

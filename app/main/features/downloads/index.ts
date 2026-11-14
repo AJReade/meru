@@ -539,7 +539,7 @@ export class Downloads {
     // A click on the body brings Meru forward on macOS and Windows, which would put the file or its folder behind it; the button does not. Some Linux notification servers draw no buttons, so there the body acts too.
     notifications.show(
       {
-        action: opens ? msg`Open` : revealLabel(platform),
+        actions: [opens ? msg`Open` : revealLabel(platform)],
         silent: !settings.get("notifications.playSound"),
         title: msg`Downloaded ${name}`,
       },

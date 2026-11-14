@@ -319,17 +319,17 @@ export interface NotificationSpec {
   readonly subtitle?: string;
   readonly body?: string;
   readonly silent: boolean;
-  /** The label of the one button the notification offers. */
-  readonly action?: string;
+  /** The label of each button the notification offers, in the order they are drawn. */
+  readonly actions?: readonly string[];
 }
 
 /** The operating system's notifications. */
 export interface NotificationPort {
-  /** Shows a notification, calling `onClick` when it is clicked and `onAction` when its button is; does nothing where the system has none. */
+  /** Shows a notification, calling `onClick` when it is clicked and `onAction` with the index of the button pressed; does nothing where the system has none. */
   readonly show: (
     spec: NotificationSpec,
     onClick: () => void,
-    onAction?: () => void
+    onAction?: (index: number) => void
   ) => void;
 }
 
