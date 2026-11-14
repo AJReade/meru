@@ -75,6 +75,52 @@ describe(Links, () => {
     ]).toStrictEqual([null, null, null, null, []]);
   });
 
+  it("keeps a pop-out on Gmail's origin and Google's sign-in, sending every other window and navigation to the browser", async () => {
+    const { shell, views } = await setup();
+    const [gmail] = views.created;
+    const routes = gmail?.popOut(
+      "https://mail.google.com/mail/u/0/?view=cm&fs=1&tf=1"
+    )?.spec.routes;
+    if (routes === undefined) {
+      throw new Error("Gmail opened no pop-out");
+    }
+    expect([
+      routes.open("https://example.com/from-open", "default"),
+      routes.open("https://example.com/from-link", "window"),
+      routes.open("https://example.com/from-nav", "inPlace"),
+      routes.open("https://mail.google.com@example.com/", "inPlace"),
+      routes.open("https://mail.google.com/mail/u/0/#inbox", "inPlace"),
+      routes.open("https://accounts.google.com/ServiceLogin", "inPlace"),
+      routes.open("https://accounts.google.com/AddSession", "window"),
+      routes.popup("https://example.com/blank"),
+      routes.popup("https://accounts.google.com/o/oauth2/auth"),
+      routes.popOut(
+        "https://mail.google.com/mail/u/0/?view=cm&fs=1&tf=1",
+        "window"
+      ) === null,
+    ]).toStrictEqual([
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+    ]);
+    await expect
+      .poll(() => shell.opened)
+      .toStrictEqual([
+        "https://example.com/from-open",
+        "https://example.com/from-link",
+        "https://example.com/from-nav",
+        "https://mail.google.com@example.com/",
+        "https://example.com/blank",
+      ]);
+  });
+
   it("leaves a page navigating itself and a window onto Google's sign-in to Chromium", async () => {
     const { views, shell } = await setup();
     const [gmail] = views.created;

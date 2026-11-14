@@ -7,6 +7,7 @@ import { invokeIn } from "../scripts/lib/app.ts";
 import {
   entitlementKindOf,
   expect,
+  inspect,
   must,
   panesOf,
   profilesOf,
@@ -179,6 +180,77 @@ test("opens Compose in an 800 by 600 pop-out, hides it once sent with an Undo to
           : await run(app, popOut.contentsId, "document.title")
       )
       .toBe("Undone");
+  } finally {
+    await gmail.stop();
+  }
+});
+
+// A pop-out's page tries every way off Gmail: a window onto another origin, a link that opens one, and navigating itself away.
+const ESCAPING = `<!doctype html><title>Compose</title>
+<a id="out" target="_blank">out</a>
+<script>
+  const elsewhere = location.origin.replace("127.0.0.1", "localhost") + "/elsewhere";
+  document.getElementById("out").href = elsewhere + "?from=link";
+  window.escape = () => {
+    window.open(elsewhere + "?from=open", "_blank");
+    document.getElementById("out").click();
+    location.href = elsewhere + "?from=nav";
+  };
+</script>`;
+
+test("keeps a pop-out on Gmail, sending the windows and navigations off it to the browser", async ({
+  launch,
+  stub,
+}) => {
+  const gmail = await startGmailStub(MAILBOX, { popOut: ESCAPING });
+  try {
+    const { app } = await launch({
+      env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
+    });
+    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await inPane(
+      app,
+      `window.open(location.origin + location.pathname + "?view=cm", "_blank"), null`
+    );
+    await expect
+      .poll(async () => {
+        const opened = await popOutsOf(app);
+        return opened.length;
+      })
+      .toBe(1);
+    const [popOut] = await popOutsOf(app);
+    const { contentsId } = must(popOut, "the pop-out");
+    await expect
+      .poll(async () => await run(app, contentsId, `typeof window.escape`))
+      .toBe("function");
+
+    await run(app, contentsId, `window.escape(), null`);
+
+    const elsewhere = `${gmail.url.replace("127.0.0.1", "localhost").replace("/mail/u/0", "")}/elsewhere`;
+    await expect
+      .poll(async () => {
+        const { external } = await inspect(app);
+        return external.toSorted();
+      })
+      .toStrictEqual([
+        `${elsewhere}?from=link`,
+        `${elsewhere}?from=nav`,
+        `${elsewhere}?from=open`,
+      ]);
+    expect(
+      await app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().map((window) =>
+          window.webContents.getURL().replace(/^file:.*$/u, "chrome")
+        )
+      )
+    ).toStrictEqual(
+      expect.arrayContaining(["chrome", `${gmail.url}/?view=cm`])
+    );
+    expect(
+      await app.evaluate(
+        ({ BrowserWindow }) => BrowserWindow.getAllWindows().length
+      )
+    ).toBe(2);
   } finally {
     await gmail.stop();
   }

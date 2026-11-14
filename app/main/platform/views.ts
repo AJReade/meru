@@ -8,6 +8,7 @@ import type {
 
 import type {
   OpenListener,
+  PageRoutes,
   PopOut,
   PopOutListener,
   ViewFactoryPort,
@@ -41,6 +42,30 @@ const dispositionOf = (
     return "window";
   }
   return disposition === "background-tab" ? "background" : "default";
+};
+
+// Google's sign-in opens a blank window and only then points it at accounts.google.com, so on Electron 45 the window cannot be judged by its address when it opens; it waits hidden for its first navigation, and one that never navigates, such as a page that writes into it, is closed rather than left hidden for good. tests/popup.e2e.ts reproduces both.
+const openBlank = (
+  options: BrowserWindowConstructorOptions,
+  shows: (url: string) => boolean
+): WebContents => {
+  const popup = new BrowserWindow({ ...options, show: false });
+  const unused = setTimeout(() => {
+    popup.destroy();
+  }, BLANK_POPUP_TIMEOUT);
+  popup.once("closed", () => {
+    clearTimeout(unused);
+  });
+  popup.webContents.once("will-navigate", (event) => {
+    clearTimeout(unused);
+    if (shows(event.url)) {
+      popup.show();
+    } else {
+      event.preventDefault();
+      popup.destroy();
+    }
+  });
+  return popup.webContents;
 };
 
 // The options carry the web contents Chromium already made for the window, with the opener's session, so the window wraps it rather than loading the address again.
@@ -92,6 +117,41 @@ const openPopOut = (
   return window.webContents;
 };
 
+// Electron keeps one window-open handler per web contents, so a page's contents get it once and it fans each link out through the routes.
+const route = (
+  contents: WebContents,
+  routes: PageRoutes,
+  opener: ViewSpec
+): void => {
+  contents.setWindowOpenHandler(({ url, disposition }) => {
+    if (url === "about:blank") {
+      return {
+        action: "allow",
+        createWindow: (options) => openBlank(options, routes.popup),
+      };
+    }
+    const popOut = routes.popOut(url, dispositionOf(disposition));
+    if (popOut !== null) {
+      return {
+        action: "allow",
+        createWindow: (options) => {
+          const opened = openPopOut(options, popOut, opener);
+          route(opened, popOut.routes, opener);
+          return opened;
+        },
+      };
+    }
+    return routes.open(url, dispositionOf(disposition))
+      ? { action: "deny" }
+      : { action: "allow" };
+  });
+  contents.on("will-navigate", (event) => {
+    if (routes.open(event.url, "inPlace")) {
+      event.preventDefault();
+    }
+  });
+};
+
 const createView = (spec: ViewSpec): ViewPort => {
   const view = new WebContentsView({
     webPreferences: {
@@ -108,63 +168,28 @@ const createView = (spec: ViewSpec): ViewPort => {
   view.setBackgroundColor(spec.background);
   const contents = view.webContents;
   const openers = new Set<OpenListener>();
-  const taken = (url: string, disposition: Disposition) =>
-    [...openers].some((listener) => listener(url, disposition));
   const popupListeners = new Set<(url: string) => boolean>();
-  const showsPopup = (url: string) =>
-    popupListeners.size === 0 ||
-    [...popupListeners].some((listener) => listener(url));
-  // Google's sign-in opens a blank window and only then points it at accounts.google.com, so on Electron 45 the window cannot be judged by its address when it opens; it waits hidden for its first navigation, and one that never navigates, such as a page that writes into it, is closed rather than left hidden for good. tests/popup.e2e.ts reproduces both.
-  const openBlank = (options: BrowserWindowConstructorOptions): WebContents => {
-    const popup = new BrowserWindow({ ...options, show: false });
-    const unused = setTimeout(() => {
-      popup.destroy();
-    }, BLANK_POPUP_TIMEOUT);
-    popup.once("closed", () => {
-      clearTimeout(unused);
-    });
-    popup.webContents.once("will-navigate", (event) => {
-      clearTimeout(unused);
-      if (showsPopup(event.url)) {
-        popup.show();
-      } else {
-        event.preventDefault();
-        popup.destroy();
-      }
-    });
-    return popup.webContents;
-  };
   const popOutListeners = new Set<PopOutListener>();
-  const popOutOf = (url: string, disposition: Disposition): PopOut | null => {
-    for (const listener of popOutListeners) {
-      const popOut = listener(url, disposition);
-      if (popOut !== null) {
-        return popOut;
-      }
-    }
-    return null;
-  };
-  // Electron keeps one window-open handler per web contents, so the view installs it once and fans each link out to its listeners.
-  contents.setWindowOpenHandler(({ url, disposition }) => {
-    if (url === "about:blank") {
-      return { action: "allow", createWindow: openBlank };
-    }
-    const popOut = popOutOf(url, dispositionOf(disposition));
-    if (popOut !== null) {
-      return {
-        action: "allow",
-        createWindow: (options) => openPopOut(options, popOut, spec),
-      };
-    }
-    return taken(url, dispositionOf(disposition))
-      ? { action: "deny" }
-      : { action: "allow" };
-  });
-  contents.on("will-navigate", (event) => {
-    if (taken(event.url, "inPlace")) {
-      event.preventDefault();
-    }
-  });
+  route(
+    contents,
+    {
+      open: (url, disposition) =>
+        [...openers].some((listener) => listener(url, disposition)),
+      popOut: (url, disposition) => {
+        for (const listener of popOutListeners) {
+          const popOut = listener(url, disposition);
+          if (popOut !== null) {
+            return popOut;
+          }
+        }
+        return null;
+      },
+      popup: (url) =>
+        popupListeners.size === 0 ||
+        [...popupListeners].some((listener) => listener(url)),
+    },
+    spec
+  );
 
   const port: ViewPort = {
     bounds: () => view.getBounds(),

@@ -2,6 +2,7 @@ import {
   isGmailPopOut,
   isSignIn,
   resolveLinkTarget,
+  staysInPopOut,
 } from "../../../core/engines/links.ts";
 import { besideTab, groupOf } from "../../../core/engines/ordering.ts";
 import type { LogPort } from "../../../core/log.ts";
@@ -98,7 +99,6 @@ export class Links {
     return true;
   }
 
-  /** Decides a blank popup at its first address: shown when it heads for Google's sign-in, which needs the opener, and otherwise sent to the browser and closed. */
   /** Keeps a window a Gmail tab's page opens under the mailbox, a compose or a message, as a pop-out window of the tab's profile, as 3.x does; any other window is a link. */
   popOut(tabId: string, url: string, disposition: Disposition): PopOut | null {
     const { popOuts, profiles } = this.#options;
@@ -115,15 +115,37 @@ export class Links {
       opened: (window) => {
         popOuts.opened(window, from.profileId);
       },
+      routes: {
+        open: (link, how) => this.#fromPopOut(tabId, link, how),
+        popOut: (link, how) => this.popOut(tabId, link, how),
+        popup: (link) => this.popup(link),
+      },
     };
   }
 
+  /** Decides a blank popup at its first address: shown when it heads for Google's sign-in, which needs the opener, and otherwise sent to the browser and closed. */
   popup(url: string): boolean {
     const shows = isSignIn(url);
     if (!shows) {
       this.#external(url);
     }
     return shows;
+  }
+
+  /** Routes what a pop-out's page opens as its tab's would be, except that a pop-out holds a Gmail page and never leaves Google's origins: a window nothing else takes, and a navigation off them, go to the browser. */
+  #fromPopOut(tabId: string, url: string, disposition: Disposition): boolean {
+    const mailbox = this.#options.popOuts?.mailbox ?? "";
+    if (disposition === "inPlace") {
+      if (staysInPopOut(url, mailbox)) {
+        return false;
+      }
+    } else if (this.open(tabId, url, disposition)) {
+      return true;
+    } else if (isSignIn(url)) {
+      return false;
+    }
+    this.#external(url);
+    return true;
   }
 
   #external(url: string): void {

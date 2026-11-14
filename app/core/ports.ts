@@ -97,17 +97,25 @@ export interface PopOutWindow {
   readonly onClosed: (listener: () => void) => Unsubscribe;
 }
 
-/** How a window the page opens is kept: its size, and who is told once it exists. */
-export interface PopOut {
-  readonly width: number;
-  readonly height: number;
-  readonly opened: (window: PopOutWindow) => void;
-}
-
 export type PopOutListener = (
   url: string,
   disposition: Disposition
 ) => PopOut | null;
+
+/** What a page's links and windows answer to: a pane's are its view's listeners, a pop-out's are its own. */
+export interface PageRoutes {
+  readonly open: OpenListener;
+  readonly popup: (url: string) => boolean;
+  readonly popOut: PopOutListener;
+}
+
+/** How a window the page opens is kept: its size, who is told once it exists, and where what its own page opens goes. */
+export interface PopOut {
+  readonly width: number;
+  readonly height: number;
+  readonly opened: (window: PopOutWindow) => void;
+  readonly routes: PageRoutes;
+}
 
 export interface ViewPort {
   readonly contentsId: number;

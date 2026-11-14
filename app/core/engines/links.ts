@@ -92,6 +92,16 @@ export const GOOGLE_SIGN_IN = "https://accounts.google.com/";
 export const isSignIn = (url: string): boolean =>
   url.startsWith(GOOGLE_SIGN_IN);
 
+const ORIGIN = /^https?:\/\/[^/?#@]+(?=[/?#]|$)/iu;
+
+const originOf = (url: string): string | null =>
+  ORIGIN.exec(url)?.[0].toLowerCase() ?? null;
+
+/** Whether a pop-out may navigate itself to the address: it holds a Gmail page, so only the mailbox's origin and Google's sign-in. */
+export const staysInPopOut = (url: string, mailbox: string): boolean =>
+  isSignIn(url) ||
+  (originOf(url) !== null && originOf(url) === originOf(mailbox));
+
 /** Where a link followed in a pane goes. */
 export const resolveLinkTarget = (
   url: string,
