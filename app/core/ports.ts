@@ -21,10 +21,18 @@ export interface Clock {
   readonly schedule: (delay: number, task: () => void) => Unsubscribe;
 }
 
+/** What a read bounded by a size found. */
+export type CappedRead =
+  | { readonly kind: "missing" }
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "tooLarge"; readonly bytes: number };
+
 /** Files under the user data directory, named relative to it; a name is one path segment. */
 export interface FsPort {
   /** Undefined when the file does not exist. */
   readonly readText: (name: string) => Promise<string | undefined>;
+  /** The file's text while it is at most `limit` bytes, read no further than that. */
+  readonly readCapped: (name: string, limit: number) => Promise<CappedRead>;
   /** Replaces the file whole or not at all. */
   readonly writeTextAtomic: (name: string, text: string) => Promise<void>;
   /** Calls `listener` when the file may have changed on disk; a change can be reported more than once. */

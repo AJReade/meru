@@ -1,4 +1,4 @@
-import type { FsPort, Unsubscribe } from "../../core/ports.ts";
+import type { CappedRead, FsPort, Unsubscribe } from "../../core/ports.ts";
 
 export class FakeFs implements FsPort {
   readonly files = new Map<string, string>();
@@ -20,6 +20,18 @@ export class FakeFs implements FsPort {
       throw this.failReads;
     }
     return this.files.get(name);
+  };
+
+  readonly readCapped = async (
+    name: string,
+    limit: number
+  ): Promise<CappedRead> => {
+    const text = await this.readText(name);
+    if (text === undefined) {
+      return { kind: "missing" };
+    }
+    const bytes = new TextEncoder().encode(text).byteLength;
+    return bytes > limit ? { bytes, kind: "tooLarge" } : { kind: "text", text };
   };
 
   readonly writeTextAtomic = async (name: string, text: string) => {

@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { watch as watchPath } from "node:fs";
 import type { FSWatcher } from "node:fs";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { FsPort } from "../../core/ports.ts";
+import type { CappedRead, FsPort } from "../../core/ports.ts";
 
 const isMissing = (error: unknown) =>
   error instanceof Error && "code" in error && error.code === "ENOENT";
@@ -17,7 +17,37 @@ export const createFs = (userDataDir: string): FsPort => {
     return path.join(userDataDir, name);
   };
 
+  const readCapped = async (
+    name: string,
+    limit: number
+  ): Promise<CappedRead> => {
+    const handle = await open(pathOf(name), "r").catch((error: unknown) => {
+      if (isMissing(error)) {
+        return null;
+      }
+      throw error;
+    });
+    if (handle === null) {
+      return { kind: "missing" };
+    }
+    try {
+      const { size } = await handle.stat();
+      if (size > limit) {
+        return { bytes: size, kind: "tooLarge" };
+      }
+      // One byte past the limit tells a file that grew since its size was read.
+      const buffer = Buffer.alloc(limit + 1);
+      const { bytesRead } = await handle.read(buffer, 0, limit + 1, 0);
+      return bytesRead > limit
+        ? { bytes: bytesRead, kind: "tooLarge" }
+        : { kind: "text", text: buffer.toString("utf-8", 0, bytesRead) };
+    } finally {
+      await handle.close();
+    }
+  };
+
   return {
+    readCapped,
     readText: async (name) => {
       const read = await readFile(pathOf(name), "utf-8")
         .then((text) => ({ text }))

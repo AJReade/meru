@@ -35,6 +35,23 @@ describe(createFs, () => {
     ]);
   });
 
+  it("reads a file up to a size and refuses one past it without reading it", async () => {
+    const fs = createFs(await temporary());
+    await expect(fs.readCapped("styles.css", 4)).resolves.toStrictEqual({
+      kind: "missing",
+    });
+    await fs.writeTextAtomic("styles.css", "abcd");
+    await expect(fs.readCapped("styles.css", 4)).resolves.toStrictEqual({
+      kind: "text",
+      text: "abcd",
+    });
+    await fs.writeTextAtomic("styles.css", "abcde");
+    await expect(fs.readCapped("styles.css", 4)).resolves.toStrictEqual({
+      bytes: 5,
+      kind: "tooLarge",
+    });
+  });
+
   it("refuses a name that leaves the user data directory", async () => {
     const fs = createFs(await temporary());
     await expect(fs.readText("../settings.json")).rejects.toThrow(
