@@ -1,3 +1,5 @@
+import nodePath from "node:path";
+
 import type {
   DownloadEvent,
   DownloadPort,
@@ -5,10 +7,7 @@ import type {
   DownloadTarget,
 } from "../../core/ports.ts";
 
-const parentOf = (path: string) => path.slice(0, path.lastIndexOf("/"));
-const nameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
-
-/** Downloads over a folder tree held in memory, with POSIX paths; a test starts each download and moves it along as the network would. */
+/** Downloads over a folder tree held in memory, with the platform's paths; a test starts each download and moves it along as the network would. */
 export class FakeDownloads implements DownloadPort {
   readonly defaultDirectory: string;
   /** Every file on the fake disk, by absolute path. */
@@ -99,8 +98,8 @@ export class FakeDownloads implements DownloadPort {
 
   readonly namesIn = (directory: string) =>
     [...this.files]
-      .filter((path) => parentOf(path) === directory)
-      .map((path) => nameOf(path));
+      .filter((path) => nodePath.dirname(path) === directory)
+      .map((path) => nodePath.basename(path));
 
   readonly exists = async (path: string) => {
     await Promise.resolve();
