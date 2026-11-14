@@ -124,9 +124,10 @@ export const admitPageNotice = (
       verdict: "show",
     };
   }
-  return notices.held
-    ? { notices: { held: true, shownAt }, verdict: "drop" }
-    : { notices: { held: true, shownAt }, verdict: "held" };
+  return {
+    notices: { held: true, shownAt },
+    verdict: notices.held ? "drop" : "held",
+  };
 };
 
 /** The address in the mailbox that opens a message in a profile's pane. */

@@ -146,12 +146,13 @@ const bytesOf = (text: string): number => {
 
 /** `stem` cut by whole characters until it fits before `tail` within `NAME_MAX`, as Chromium cuts a name it makes unique, keeping the extension; a character is what the reader sees as one, so an emoji sequence is never split. */
 const fitted = (stem: string, tail: string): string => {
-  const room = NAME_MAX - bytesOf(tail);
+  let room = NAME_MAX - bytesOf(tail);
   let kept = "";
   for (const { segment } of new Intl.Segmenter(undefined, {
     granularity: "grapheme",
   }).segment(stem)) {
-    if (bytesOf(kept) + bytesOf(segment) > room) {
+    room -= bytesOf(segment);
+    if (room < 0) {
       break;
     }
     kept += segment;
