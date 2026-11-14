@@ -1,10 +1,11 @@
+import { HttpTooLargeError } from "./http.ts";
 import type { GmailHttp, HttpAnswer } from "./rpc.ts";
 
 type GivenAnswer = Omit<HttpAnswer, "url"> & { readonly url?: string };
 
 const MISSING: GivenAnswer = { status: 404, text: "" };
 
-/** Gmail's endpoints as a test answers them: each request is kept, with the posted `s_jr` field, and each answer is the one it was given, or 404 with no body. */
+/** Gmail's endpoints as a test answers them: each request is kept, with the posted `s_jr` field, and each answer is the one it was given, or 404 with no body, and a `get` past its limit rejects as the page's does. */
 export class FakeGmailHttp implements GmailHttp {
   readonly asked: string[] = [];
   readonly posted: { url: string; field: string }[] = [];
@@ -21,9 +22,13 @@ export class FakeGmailHttp implements GmailHttp {
     this.#thrown = error;
   }
 
-  readonly get = async (url: string): Promise<HttpAnswer> => {
+  readonly get = async (url: string, limit?: number): Promise<HttpAnswer> => {
     this.asked.push(url);
-    return await Promise.resolve(this.#answer(url));
+    const answer = this.#answer(url);
+    if (limit !== undefined && new Blob([answer.text]).size > limit) {
+      throw new HttpTooLargeError(limit);
+    }
+    return await Promise.resolve(answer);
   };
 
   readonly post = async (url: string, body: FormData): Promise<HttpAnswer> => {

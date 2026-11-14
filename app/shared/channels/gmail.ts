@@ -55,6 +55,9 @@ export const gmailPageSettingsSchema = z.object({
 
 export type GmailPageSettings = z.infer<typeof gmailPageSettingsSchema>;
 
+/** How long main waits for a page to act on a message, 3.x's wait, and so how long the page's own request to Gmail may take. */
+export const MAIL_ACTION_TIMEOUT = 15_000;
+
 /** What a page can do to a message through Gmail's own action endpoint. */
 export const mailActionSchema = z.enum(["archive", "markRead"]);
 

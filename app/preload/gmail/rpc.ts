@@ -14,9 +14,9 @@ export interface HttpAnswer {
   readonly url: string;
 }
 
-/** The two requests Gmail's own endpoints take, as the page's `fetch` makes them, with the page's cookies. */
+/** The two requests Gmail's own endpoints take, as the page's `fetch` makes them, with the page's cookies; a `get` given a limit rejects with `http.ts`'s `HttpTooLargeError` once the body passes it. */
 export interface GmailHttp {
-  readonly get: (url: string) => Promise<HttpAnswer>;
+  readonly get: (url: string, limit?: number) => Promise<HttpAnswer>;
   readonly post: (url: string, body: FormData) => Promise<HttpAnswer>;
 }
 

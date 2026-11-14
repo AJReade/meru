@@ -20,6 +20,7 @@ import type { IpcRegistrar } from "../../../shared/channels/define.ts";
 import {
   gmail,
   gmailPushes,
+  MAIL_ACTION_TIMEOUT,
   userStyles,
   userStylesPushes,
 } from "../../../shared/channels/gmail.ts";
@@ -50,7 +51,7 @@ export const USER_STYLES_LIMIT = 256 * 1024;
 export const NAVIGATE_TIMEOUT = 1000;
 
 // How long a page is given to answer an action, as 3.x gave it: Gmail's endpoint answers in one request, but a page that navigated away mid-action answers never.
-export const ACT_TIMEOUT = 15_000;
+export const ACT_TIMEOUT = MAIL_ACTION_TIMEOUT;
 
 // How long the tab is given to get a page once it has been woken, after which the action is refused rather than left hanging.
 export const WAKE_TIMEOUT = 5000;
