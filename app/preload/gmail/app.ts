@@ -83,6 +83,13 @@ export const startGmail = (options: GmailAppOptions): GmailApp => {
     bridge.send(gmail.settingsAck, { version: settings.version });
   };
 
+  if (location.href().startsWith(first.value.mailbox)) {
+    for (const { entry } of features) {
+      if (entry !== undefined) {
+        scheduler.register(entry);
+      }
+    }
+  }
   apply(first.value);
   const unfollow = bridge.on(gmailPushes.settingsChanged, apply);
   scheduler.start();

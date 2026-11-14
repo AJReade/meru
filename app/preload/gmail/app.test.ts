@@ -56,6 +56,34 @@ describe(startGmail, () => {
     app.dispose();
   });
 
+  it("reports a selector miss once per page load, however often the settings change", async () => {
+    let now = 0;
+    const page = mountGmail({
+      features: [hideGmailLogo],
+      grace: 1000,
+      html: '<header><span aria-label="Gmail">Gmail</span></header>',
+      now: () => now,
+      settings: { styles: stylesWith("hideGmailLogo") },
+    });
+    page.run();
+
+    const toggle = async () => {
+      page.change({ styles: stylesWith() });
+      page.change({ styles: stylesWith("hideGmailLogo") });
+      now += 1500;
+      document.body.append(document.createElement("p"));
+      await page.settle();
+    };
+    await toggle();
+    await toggle();
+    await toggle();
+
+    expect(page.bridge.sentOn(gmail.selectorMiss)).toStrictEqual([
+      { selector: "hideGmailLogo" },
+    ]);
+    page.app.dispose();
+  });
+
   it("takes every sheet down when the page goes", () => {
     const page = mountGmail({
       features: [hideGmailLogo],

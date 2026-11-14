@@ -35,6 +35,8 @@ export interface GmailFeature {
   readonly id: string;
   /** Whether it runs wherever the page is, rather than only under the mailbox. */
   readonly anywhere?: boolean;
+  /** Watched once per page load under the mailbox, whatever the settings, so its miss is told once. */
+  readonly entry?: SelectorEntry;
   /** Applied as the preload starts and again on every settings change; whatever it attaches goes to the context's `undo`. */
   readonly apply: (context: FeatureContext) => void;
 }
@@ -45,15 +47,9 @@ export const cssFeature = (declaration: {
   rules: readonly StyleRule[];
   entry?: SelectorEntry;
 }): GmailFeature => ({
-  apply: ({ settings, style, scheduler, undo }) => {
-    if (!settings.styles[declaration.id]) {
-      style("");
-      return;
-    }
-    style(cssOf(declaration.rules));
-    if (declaration.entry !== undefined) {
-      undo(scheduler.register(declaration.entry));
-    }
+  apply: ({ settings, style }) => {
+    style(settings.styles[declaration.id] ? cssOf(declaration.rules) : "");
   },
+  entry: declaration.entry,
   id: declaration.id,
 });
