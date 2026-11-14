@@ -4,7 +4,7 @@ import type { LabelColor } from "../../../core/records/label-color.ts";
 import { cssOf } from "../../content/styles.ts";
 import { mountGmail, reached } from "../testing.ts";
 import labels from "./fixtures/labels.html?raw";
-import { labelColorRules, labelColors, quoteLabel } from "./label-colors.ts";
+import { labelColorRules, labelColors } from "./label-colors.ts";
 
 const work: LabelColor = {
   color: "#ff0000",
@@ -53,25 +53,26 @@ describe(labelColors.id, () => {
   });
 });
 
-describe(quoteLabel, () => {
-  it("keeps a label's own quotes and backslashes inside the string", () => {
-    expect(quoteLabel('a"b')).toBe('a\\"b');
-    expect(quoteLabel("a\\b")).toBe("a\\\\b");
-    expect(quoteLabel("a\r\nb")).toBe("a\\D \\A b");
-  });
+describe("a hostile label name", () => {
+  const hostile = [
+    'x\f] {} body { visibility: hidden !important } .q[a="',
+    'x\0"] {} body { display: none }',
+    'x\u2028"] {} body { display: none }',
+    '"]} </style><script>window.pwned = 1</script>',
+  ];
 
-  it("gives a label that tries to end the rule no selector of its own", () => {
-    const hostile: LabelColor = {
-      color: "#ff0000",
-      label: '"] * { display: none } .at[title="',
-      textColor: "auto",
-    };
+  it.each(hostile)("stays inside its string: %j", (label) => {
+    const rules = labelColorRules([
+      { color: "#ff0000", label, textColor: "auto" },
+    ]);
+    const css = cssOf(rules);
 
-    const css = cssOf(labelColorRules([hostile]));
-
-    expect(css.split("\n")).toHaveLength(labelColorRules([hostile]).length);
-    expect(css).toContain(
-      '.at[title="\\"] * { display: none } .at[title=\\""]'
-    );
+    expect(css.split("\n")).toHaveLength(rules.length);
+    for (const rule of rules) {
+      expect(rule.selector).not.toMatch(/[\p{Cc}\u2028\u2029]/u);
+      // What is left once every quoted string is taken out is the selector Gmail sees.
+      const outside = rule.selector.replaceAll(/"(?:\\.|[^"\\])*"/gu, "");
+      expect(outside).not.toMatch(/["{}<]/u);
+    }
   });
 });
