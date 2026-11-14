@@ -12,13 +12,7 @@ const markDocsExtensionInstalled = () => {
 };
 
 export const grantDocsClipboard = async (): Promise<void> => {
-  try {
-    await webFrame.executeJavaScript(
-      `(${markDocsExtensionInstalled.toString()})()`
-    );
-  } catch (error) {
-    // Main hears a page's console error, which is where a preload's failure belongs.
-    // oxlint-disable-next-line eslint/no-console
-    console.error("Meru could not grant Docs the clipboard", error);
-  }
+  await webFrame.executeJavaScript(
+    `(${markDocsExtensionInstalled.toString()})()`
+  );
 };

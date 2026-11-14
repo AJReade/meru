@@ -171,6 +171,14 @@ describe(Gmail, () => {
     });
   });
 
+  it("writes an error for a failure the page's preload reports", async () => {
+    const { log, request } = await setup();
+    unwrap(
+      request(gmail.failed, { message: "boom", what: "feature labelColors" })
+    );
+    expect(log.at("error")).toStrictEqual(["A Gmail page's preload failed"]);
+  });
+
   it("writes a warning for each selector a page reports missing", async () => {
     const { log, request } = await setup();
     unwrap(request(gmail.selectorMiss, { selector: "conversation" }));

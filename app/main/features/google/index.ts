@@ -1,9 +1,10 @@
 import { DisposableStore } from "../../../core/disposable.ts";
+import type { LogPort } from "../../../core/log.ts";
 import type { Unsubscribe } from "../../../core/ports.ts";
 import type { Tab } from "../../../core/records/tab.ts";
 import { ok } from "../../../core/result.ts";
 import type { IpcRegistrar } from "../../../shared/channels/define.ts";
-import { googlePushes } from "../../../shared/channels/google.ts";
+import { google, googlePushes } from "../../../shared/channels/google.ts";
 import type { MeetToggle } from "../../../shared/channels/google.ts";
 import {
   contentSurfaceArgument,
@@ -18,6 +19,7 @@ export interface GoogleOptions {
   readonly commands: CommandRegistrar;
   /** The built Google preload. */
   readonly preload: string;
+  readonly log: LogPort;
 }
 
 /** The pages of the Google apps other than Gmail: their preload, and Meet's microphone and camera as commands. */
@@ -45,6 +47,15 @@ export class Google {
       when: () => this.#meets.length > 0,
     });
     this.#disposables.add(
+      this.#options.registrar.register(google, {
+        failed: ({ message, stack, what }, { profileId }) => {
+          this.#options.log.error("A Google page's preload failed", {
+            error: { message, name: what, stack },
+            profileId,
+          });
+          return ok(undefined);
+        },
+      }),
       this.#options.commands.register(googleCommands, {
         toggleMeetCamera: toggle("camera"),
         toggleMeetMicrophone: toggle("microphone"),

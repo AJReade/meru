@@ -111,6 +111,13 @@ export class Gmail {
             : this.#options.profiles.setStatus(profileId, {
                 kind: "needsSignIn",
               }),
+        failed: ({ message, stack, what }, { profileId }) => {
+          this.#options.log.error("A Gmail page's preload failed", {
+            error: { message, name: what, stack },
+            profileId,
+          });
+          return ok(undefined);
+        },
         navigated: ({ id, navigated }, { contentsId }) => {
           const waiting = this.#navigations.get(id);
           if (waiting?.contentsId === contentsId) {

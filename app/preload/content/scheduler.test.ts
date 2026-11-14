@@ -67,6 +67,36 @@ describe(DomScheduler, () => {
     scheduler.dispose();
   });
 
+  it("tells a handler that threw and hands the other elements on", () => {
+    document.body.innerHTML = row("a") + row("b");
+    const paint = frames();
+    const seen: string[] = [];
+    const failed: string[] = [];
+    const scheduler = new DomScheduler({
+      document,
+      fail: (id, error) => {
+        failed.push(`${id}: ${String(error)}`);
+      },
+      report: strictReport,
+      requestFrame: paint.requestFrame,
+    });
+    scheduler.register(entry, (element) => {
+      const id = element.dataset.legacyThreadId ?? "";
+      if (id === "a") {
+        throw new Error("no");
+      }
+      seen.push(id);
+    });
+    scheduler.start();
+    paint.run();
+
+    expect({ failed, seen }).toStrictEqual({
+      failed: ["row: Error: no"],
+      seen: ["b"],
+    });
+    scheduler.dispose();
+  });
+
   it("folds what the page did into one frame", async () => {
     document.body.innerHTML = "";
     const paint = frames();

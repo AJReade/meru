@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { gateRefusalSchema } from "../../core/entitlement/gate.ts";
 import { labelColorSchema } from "../../core/records/label-color.ts";
+import { contentFailureSchema } from "./content.ts";
 import {
   defineChannels,
   definePushes,
@@ -48,6 +49,8 @@ export const gmail = defineChannels("gmail", {
   needsSignIn: event(noPayload),
   /** A selector entry found nothing where it should have, once per entry per page load. */
   selectorMiss: event(z.object({ selector: z.string().min(1).max(100) })),
+  /** The preload failed at something of its own, which main logs. */
+  failed: event(contentFailureSchema),
   /** Whether the page took the address of the `navigate` push of this id, which it does only while it shows the mailbox. */
   navigated: event(
     z.object({ id: z.number().int().min(0), navigated: z.boolean() })

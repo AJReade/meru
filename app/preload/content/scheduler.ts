@@ -9,6 +9,8 @@ export interface SchedulerOptions {
   readonly document: Document;
   /** Reports an entry that found nothing where its context says it must, once per entry. */
   readonly report: (id: string) => void;
+  /** Hears a handler that threw, which leaves the rest of the batch to run. */
+  readonly fail?: (id: string, error: unknown) => void;
   readonly now?: () => number;
   /** How long an entry may miss before a miss counts as rot rather than a page still painting. */
   readonly grace?: number;
@@ -36,6 +38,7 @@ const GRACE = 10_000;
 export class DomScheduler {
   readonly #document: Document;
   readonly #report: (id: string) => void;
+  readonly #fail: (id: string, error: unknown) => void;
   readonly #now: () => number;
   readonly #grace: number;
   readonly #requestFrame: (task: () => void) => void;
@@ -49,6 +52,11 @@ export class DomScheduler {
   constructor(options: SchedulerOptions) {
     this.#document = options.document;
     this.#report = options.report;
+    this.#fail =
+      options.fail ??
+      ((_id, error) => {
+        throw error;
+      });
     this.#now = options.now ?? (() => Date.now());
     this.#grace = options.grace ?? GRACE;
     this.#requestFrame =
@@ -159,7 +167,11 @@ export class DomScheduler {
     for (const element of found) {
       if (!registration.handled.has(element)) {
         registration.handled.add(element);
-        handle(element);
+        try {
+          handle(element);
+        } catch (error) {
+          this.#fail(registration.entry.id, error);
+        }
       }
     }
   }

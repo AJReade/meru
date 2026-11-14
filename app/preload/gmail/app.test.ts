@@ -84,6 +84,30 @@ describe(startGmail, () => {
     page.app.dispose();
   });
 
+  it("reports a feature that throws to main and applies the rest, at most five times a page load", () => {
+    const broken = {
+      apply: () => {
+        throw new Error("broken");
+      },
+      id: "broken",
+    };
+    const page = mountGmail({
+      features: [broken, hideGmailLogo],
+      settings: { styles: stylesWith("hideGmailLogo") },
+    });
+    for (let change = 0; change < 6; change += 1) {
+      page.change({});
+    }
+
+    expect(page.sheet("hideGmailLogo")).toContain("display: none");
+    expect(page.bridge.sentOn(gmail.failed)).toHaveLength(5);
+    expect(page.bridge.sentOn(gmail.failed)[0]).toMatchObject({
+      message: "broken",
+      what: "feature broken",
+    });
+    page.app.dispose();
+  });
+
   it("takes every sheet down when the page goes", () => {
     const page = mountGmail({
       features: [hideGmailLogo],

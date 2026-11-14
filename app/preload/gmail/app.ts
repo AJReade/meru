@@ -3,6 +3,7 @@ import { gmail, gmailPushes } from "../../shared/channels/gmail.ts";
 import type { GmailPageSettings } from "../../shared/channels/gmail.ts";
 import type { GmailSurface } from "../../shared/channels/surfaces.ts";
 import type { Bridge } from "../content/bridge-port.ts";
+import { failureReporter } from "../content/failures.ts";
 import { DomScheduler } from "../content/scheduler.ts";
 import { StyleLayers } from "../content/styles.ts";
 import type { GmailFeature, PageLocation } from "./feature.ts";
@@ -27,11 +28,15 @@ export const startGmail = (options: GmailAppOptions): GmailApp => {
   const { bridge, document, location } = options;
   const features = options.features ?? gmailFeatures;
   const styles = new StyleLayers(document);
+  const fail = failureReporter((failure) => {
+    bridge.send(gmail.failed, failure);
+  });
   const first = bridge.sendSync(gmail.settings, {});
   if (!first.ok) {
-    // Main is where a failure is logged; a page that writes to its console is heard there as a page error.
-    // oxlint-disable-next-line eslint/no-console
-    console.error("Meru could not read the Gmail settings", first.error);
+    fail(
+      "readSettings",
+      new Error(`${first.error.kind}: ${first.error.message}`)
+    );
     return {
       dispose: () => {
         styles.dispose();
@@ -41,6 +46,9 @@ export const startGmail = (options: GmailAppOptions): GmailApp => {
 
   const scheduler = new DomScheduler({
     document,
+    fail: (id, error) => {
+      fail(`entry ${id}`, error);
+    },
     grace: options.grace,
     now: options.now,
     report: (selector) => {
@@ -61,24 +69,28 @@ export const startGmail = (options: GmailAppOptions): GmailApp => {
         styles.remove(feature.id);
         continue;
       }
-      feature.apply({
-        bridge,
-        document,
-        location,
-        once: (key) => {
-          const asking = !asked.has(key);
-          asked.add(key);
-          return asking;
-        },
-        scheduler,
-        settings,
-        style: (css) => {
-          styles.set(feature.id, css);
-        },
-        undo: (disposer) => {
-          store.add(disposer);
-        },
-      });
+      try {
+        feature.apply({
+          bridge,
+          document,
+          location,
+          once: (key) => {
+            const asking = !asked.has(key);
+            asked.add(key);
+            return asking;
+          },
+          scheduler,
+          settings,
+          style: (css) => {
+            styles.set(feature.id, css);
+          },
+          undo: (disposer) => {
+            store.add(disposer);
+          },
+        });
+      } catch (error) {
+        fail(`feature ${feature.id}`, error);
+      }
     }
     bridge.send(gmail.settingsAck, { version: settings.version });
   };

@@ -254,6 +254,7 @@ const start = async () => {
   await gmail.start();
   const google = new Google({
     commands,
+    log: log.scoped("google"),
     preload: path.join(dist, "preload", "google.cjs"),
     registrar: dispatcher,
   });

@@ -5,7 +5,7 @@ import { defineSurface } from "./define.ts";
 import type { Surface } from "./define.ts";
 import { dragPushes } from "./drag.ts";
 import { gmail, gmailPushes, userStyles, userStylesPushes } from "./gmail.ts";
-import { googlePushes } from "./google.ts";
+import { google, googlePushes } from "./google.ts";
 import { launcher } from "./launcher.ts";
 import { profiles, profilesPushes, tabs } from "./profiles.ts";
 import { settings, settingsPushes } from "./settings.ts";
@@ -131,10 +131,10 @@ export const gmailSurface = defineSurface({
 
 export type GmailSurface = typeof gmailSurface;
 
-/** The page of a Google app's pane other than Gmail, through the Google preload, which only listens. */
+/** The page of a Google app's pane other than Gmail, through the Google preload, which listens and reports only its own failures. */
 export const googleSurface = defineSurface({
   pushes: [googlePushes],
-  requests: [],
+  requests: [google],
 });
 
 export type GoogleSurface = typeof googleSurface;

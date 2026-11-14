@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { Tab } from "../../../core/records/tab.ts";
 import { wireName } from "../../../shared/channels/define.ts";
-import { googlePushes } from "../../../shared/channels/google.ts";
+import {
+  google as googleChannels,
+  googlePushes,
+} from "../../../shared/channels/google.ts";
+import { googleSurface } from "../../../shared/channels/surfaces.ts";
+import { FakeLog } from "../../../test/fakes/log.ts";
 import { unwrap } from "../../../test/result.ts";
 import { testApp } from "../../testing.ts";
 import { Google } from "./index.ts";
@@ -20,8 +25,10 @@ const tabOf = (id: string, appId: string): Tab => ({
 
 const setup = async () => {
   const app = await testApp();
+  const log = new FakeLog();
   const google = new Google({
     commands: app.commands,
+    log: log.scoped("google"),
     preload: "/dist/preload/google.cjs",
     registrar: app.registrar,
   });
@@ -30,7 +37,7 @@ const setup = async () => {
     app.transport.sent
       .filter((sent) => sent.channel === wireName(googlePushes.meetToggle))
       .map(({ contentsId, payload }) => ({ contentsId, payload }));
-  return { app, google, toggles };
+  return { app, google, log, toggles };
 };
 
 describe(Google, () => {
@@ -49,5 +56,27 @@ describe(Google, () => {
     ]);
     first();
     expect(app.commands.enabled("google.toggleMeetCamera")).toBeFalsy();
+  });
+
+  it("writes an error for a failure the page's preload reports, under the sender's profile", async () => {
+    const { app, google, log } = await setup();
+    google.page(tabOf("docs", "docs")).attach(3);
+    unwrap(
+      app.registrar.dispatch(3, wireName(googleChannels.failed), {
+        message: "denied",
+        what: "grantDocsClipboard",
+      })
+    );
+    expect(log.entries).toMatchObject([
+      {
+        fields: {
+          error: { message: "denied", name: "grantDocsClipboard" },
+          profileId: "personal",
+        },
+        level: "error",
+        message: "A Google page's preload failed",
+      },
+    ]);
+    expect(googleSurface.requests).toHaveLength(1);
   });
 });
