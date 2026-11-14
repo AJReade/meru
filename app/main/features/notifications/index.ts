@@ -1,13 +1,16 @@
 import { DisposableStore } from "../../../core/disposable.ts";
 import {
+  admitPageNotice,
   appNotice,
   mailNotice,
   MAX_MAIL_NOTICES,
   messageUrl,
+  NO_PAGE_NOTICES,
   notifiable,
 } from "../../../core/engines/notifications.ts";
+import type { PageNotices } from "../../../core/engines/notifications.ts";
 import type { AppEventMap, AppEvents } from "../../../core/events.ts";
-import type { NotificationPort } from "../../../core/ports.ts";
+import type { Clock, NotificationPort } from "../../../core/ports.ts";
 import type { FeedEntry } from "../../../core/records/feed.ts";
 import type { Platform } from "../../../core/records/platform.ts";
 import { appById, gmail } from "../../../shared/apps.ts";
@@ -24,6 +27,7 @@ const MAIL_ACTIONS = [
 ] as const satisfies readonly { action: MailAction; label: string }[];
 
 interface NotificationsOptions {
+  readonly clock: Pick<Clock, "now">;
   readonly notifications: NotificationPort;
   readonly platform: Platform;
   readonly inbox: Pick<Inbox, "important">;
@@ -44,6 +48,8 @@ interface NotificationsOptions {
 export class Notifications {
   readonly #options: NotificationsOptions;
   readonly #disposables = new DisposableStore();
+  /** What each tab's page has had of the window its notifications are counted over. */
+  readonly #pageNotices = new Map<string, PageNotices>();
 
   constructor(options: NotificationsOptions) {
     this.#options = options;
@@ -160,7 +166,8 @@ export class Notifications {
     profileId,
     tabId,
   }: AppEventMap["page.notified"]): void {
-    const { notifications, platform, profiles, settings } = this.#options;
+    const { clock, notifications, platform, profiles, settings } =
+      this.#options;
     if (!settings.get("notifications.allowFromWorkspaceApps")) {
       return;
     }
@@ -169,15 +176,29 @@ export class Notifications {
     if (profile === undefined || app === undefined) {
       return;
     }
+    const { notices, verdict } = admitPageNotice(
+      this.#pageNotices.get(tabId) ?? NO_PAGE_NOTICES,
+      clock.now()
+    );
+    this.#pageNotices.set(tabId, notices);
+    if (verdict === "drop") {
+      return;
+    }
+    const options = {
+      // Calendar plays a sound of its own for an event about to start, so a second one from the system doubles it.
+      alwaysSilent: appId === "calendar",
+      appName: app.name,
+      labelled: profiles.state.profiles.length > 1,
+      platform,
+      profileLabel: profile.label,
+    };
     notifications.show(
-      appNotice(notification, {
-        // Calendar plays a sound of its own for an event about to start, so a second one from the system doubles it.
-        alwaysSilent: appId === "calendar",
-        appName: app.name,
-        labelled: profiles.state.profiles.length > 1,
-        platform,
-        profileLabel: profile.label,
-      }),
+      verdict === "show"
+        ? appNotice(notification, options)
+        : appNotice(
+            { silent: true, title: msg`More notifications held back` },
+            options
+          ),
       () => {
         profiles.focusTab(tabId);
         this.#options.showWindow();

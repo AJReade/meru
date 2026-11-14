@@ -8,8 +8,6 @@ const BODY_CAP = 2000;
 export const pageNotificationSchema = z.object({
   /** The page's own notification body, which it may leave out. */
   body: z.string().max(BODY_CAP).optional(),
-  /** The page asked for a notification that stays until it is answered. */
-  requireInteraction: z.boolean().optional(),
   silent: z.boolean().optional(),
   title: z.string().max(TITLE_CAP),
 });

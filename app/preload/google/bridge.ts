@@ -29,9 +29,6 @@ const patchNotifications = (eventName: string) => {
       new CustomEvent(eventName, {
         detail: JSON.stringify({
           ...(options?.body === undefined ? {} : { body: options.body }),
-          ...(options?.requireInteraction === undefined
-            ? {}
-            : { requireInteraction: options.requireInteraction }),
           ...(options?.silent === undefined || options.silent === null
             ? {}
             : { silent: options.silent }),

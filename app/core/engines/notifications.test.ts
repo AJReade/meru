@@ -3,7 +3,16 @@ import { describe, expect, it } from "vitest";
 import { ONE_UNREAD, TWO_UNREAD } from "../fixtures/gmail-feeds.ts";
 import type { FeedEntry } from "../records/feed.ts";
 import { parseFeed } from "./feed.ts";
-import { appNotice, mailNotice, notifiable } from "./notifications.ts";
+import {
+  admitPageNotice,
+  appNotice,
+  mailNotice,
+  NO_PAGE_NOTICES,
+  notifiable,
+  PAGE_NOTICE_LIMIT,
+  PAGE_NOTICE_WINDOW,
+} from "./notifications.ts";
+import type { PageNotices } from "./notifications.ts";
 
 const entriesOf = (text: string): readonly FeedEntry[] => {
   const parsed = parseFeed(text);
@@ -92,26 +101,21 @@ describe(appNotice, () => {
     ]).toStrictEqual([
       {
         body: "Starts in ten minutes",
-        persistent: false,
         silent: false,
         subtitle: "Standup",
         title: "Calendar",
       },
       {
         body: "Standup\nStarts in ten minutes",
-        persistent: false,
         silent: false,
         title: "[Work] Calendar",
       },
     ]);
   });
 
-  it("keeps what the page asked of the sound and the timeout, and silences an app that plays its own", () => {
+  it("keeps what the page asked of the sound, and silences an app that plays its own", () => {
     expect([
-      appNotice(
-        { ...raised, requireInteraction: true, silent: true },
-        { ...shown, platform: "linux" }
-      ),
+      appNotice({ ...raised, silent: true }, { ...shown, platform: "linux" }),
       appNotice(
         { title: "Standup" },
         { ...shown, alwaysSilent: true, platform: "darwin" }
@@ -119,16 +123,54 @@ describe(appNotice, () => {
     ]).toStrictEqual([
       {
         body: "Standup\nStarts in ten minutes",
-        persistent: true,
         silent: true,
         title: "Calendar",
       },
       {
-        persistent: false,
         silent: true,
         subtitle: "Standup",
         title: "Calendar",
       },
+    ]);
+  });
+});
+
+const verdictsAt = (times: readonly number[]) => {
+  let notices: PageNotices = NO_PAGE_NOTICES;
+  return times.map((now) => {
+    const admitted = admitPageNotice(notices, now);
+    ({ notices } = admitted);
+    return admitted.verdict;
+  });
+};
+
+describe(admitPageNotice, () => {
+  it(`shows ${PAGE_NOTICE_LIMIT} a window, then one saying more were held back, then nothing until the window has room`, () => {
+    const flood = Array.from({ length: 2000 }, (_, index) => index);
+    const verdicts = verdictsAt(flood);
+    expect([
+      verdicts.slice(0, PAGE_NOTICE_LIMIT + 1),
+      verdicts.filter((verdict) => verdict !== "drop").length,
+    ]).toStrictEqual([["show", "show", "show", "show", "held"], 5]);
+  });
+
+  it("shows again once the window has aged out, and says once more that more were held back", () => {
+    const later = PAGE_NOTICE_WINDOW + 3;
+    expect(
+      verdictsAt([0, 1, 2, 3, 4, 5, later, later, later, later, later, later])
+    ).toStrictEqual([
+      "show",
+      "show",
+      "show",
+      "show",
+      "held",
+      "drop",
+      "show",
+      "show",
+      "show",
+      "show",
+      "held",
+      "drop",
     ]);
   });
 });

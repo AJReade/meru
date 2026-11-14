@@ -39,7 +39,7 @@ test("shows what a Google app's page raises as a notification, composed by main,
     // The app's name is the title whatever the page called itself, and Calendar is silent because it plays its own sound.
     expect([constructed, fromWorker]).toMatchObject([
       { silent: true, title: "Calendar" },
-      { persistent: true, silent: true, title: "Calendar" },
+      { silent: true, title: "Calendar" },
     ]);
     // macOS has a subtitle for what the page called the notification; elsewhere it goes above the body in it.
     const said = (shown: typeof constructed) =>

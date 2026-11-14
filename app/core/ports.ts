@@ -358,8 +358,6 @@ export interface NotificationSpec {
   readonly subtitle?: string;
   readonly body?: string;
   readonly silent: boolean;
-  /** Stays on screen until it is answered, rather than going by itself; what a page asks for with `requireInteraction`. */
-  readonly persistent?: boolean;
   /** The label of each button the notification offers, in the order they are drawn. */
   readonly actions?: readonly string[];
 }

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseFeed } from "../../../core/engines/feed.ts";
 import { GMAIL_URL } from "../../../core/engines/inbox.ts";
+import { PAGE_NOTICE_WINDOW } from "../../../core/engines/notifications.ts";
 import { TWO_UNREAD } from "../../../core/fixtures/gmail-feeds.ts";
 import { gmail } from "../../../shared/apps.ts";
 import { chromeSurface } from "../../../shared/channels/surfaces.ts";
@@ -17,7 +18,7 @@ const entries = parsed.ok ? parsed.value.entries.toReversed() : [];
 const [older, newest] = entries;
 
 const setup = async () => {
-  const { events, profiles, registrar, settings } = await testApp({
+  const { clock, events, profiles, registrar, settings } = await testApp({
     entitlement: () => PRO,
   });
   registrar.assign(3, chromeSurface);
@@ -30,6 +31,7 @@ const setup = async () => {
     act: (tabId, messageId, action) => {
       acted.push({ action, messageId, tabId });
     },
+    clock,
     events,
     inbox: { important: async () => await Promise.resolve(important) },
     gmailUrl: GMAIL_URL,
@@ -57,6 +59,7 @@ const setup = async () => {
   return {
     acted,
     arrive,
+    clock,
     events,
     first,
     focused,
@@ -177,7 +180,6 @@ describe(Notifications, () => {
     expect(port.shown.map((raised) => raised.spec)).toStrictEqual([
       {
         body: "Starts in ten minutes",
-        persistent: false,
         // Calendar plays its own sound, so the notification is silent whatever the page asked.
         silent: true,
         subtitle: "Standup",
@@ -203,5 +205,41 @@ describe(Notifications, () => {
       tabId: tab.id,
     });
     expect(port.shown).toStrictEqual([]);
+  });
+
+  it("shows a page's first few notifications a minute and one saying more were held back, whatever the page floods or asks to keep", async () => {
+    const { clock, events, first, port, profiles } = await setup();
+    const tab = unwrap(profiles.openTab(first, "calendar"));
+    const other = unwrap(profiles.openTab(first, "chat"));
+    for (let index = 0; index < 2000; index += 1) {
+      events.emit("page.notified", {
+        appId: "calendar",
+        notification: { title: `Flood ${index}` },
+        profileId: first,
+        tabId: tab.id,
+      });
+    }
+    events.emit("page.notified", {
+      appId: "chat",
+      notification: { title: "Ada" },
+      profileId: first,
+      tabId: other.id,
+    });
+    clock.advance(PAGE_NOTICE_WINDOW);
+    events.emit("page.notified", {
+      appId: "calendar",
+      notification: { title: "Later" },
+      profileId: first,
+      tabId: tab.id,
+    });
+    expect(port.shown.map((raised) => raised.spec.subtitle)).toStrictEqual([
+      "Flood 0",
+      "Flood 1",
+      "Flood 2",
+      "Flood 3",
+      "More notifications held back",
+      "Ada",
+      "Later",
+    ]);
   });
 });

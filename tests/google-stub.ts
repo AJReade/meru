@@ -14,10 +14,7 @@ const PAGE = `<!doctype html>
   new Notification("Standup", { body: "Starts in ten minutes" });
   navigator.serviceWorker.register("/sw.js").then(async (registration) => {
     await navigator.serviceWorker.ready;
-    await registration.showNotification("Lunch", {
-      body: "At noon",
-      requireInteraction: true,
-    });
+    await registration.showNotification("Lunch", { body: "At noon" });
   });
 </script>
 `;

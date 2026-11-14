@@ -57,8 +57,6 @@ export const mailNotice = (
 
 interface AppNotice extends MailNotice {
   readonly silent: boolean;
-  /** Stays on screen until it is answered. */
-  readonly persistent: boolean;
 }
 
 interface AppNoticeOptions {
@@ -80,10 +78,8 @@ export const appNotice = (
   const { appName, labelled, platform, profileLabel } = options;
   const title = labelled ? `[${profileLabel}] ${appName}` : appName;
   const silent = options.alwaysSilent || (notification.silent ?? false);
-  const persistent = notification.requireInteraction ?? false;
   if (platform === "darwin") {
     return {
-      persistent,
       silent,
       subtitle: notification.title,
       title,
@@ -94,11 +90,43 @@ export const appNotice = (
     (line) => line !== undefined && line !== ""
   );
   return {
-    persistent,
     silent,
     title,
     ...(lines.length === 0 ? {} : { body: lines.join("\n") }),
   };
+};
+
+/** How many notifications one page shows in `PAGE_NOTICE_WINDOW`; a page raises them as easily as it forges them, so past these one notification says more were held back and the rest go unshown until the window has room. */
+export const PAGE_NOTICE_LIMIT = 4;
+
+export const PAGE_NOTICE_WINDOW = 60_000;
+
+/** What a page's notifications have had of the window: when each shown one was, and whether the one saying more were held back has been shown since the window filled. */
+export interface PageNotices {
+  readonly shownAt: readonly number[];
+  readonly held: boolean;
+}
+
+export const NO_PAGE_NOTICES: PageNotices = { held: false, shownAt: [] };
+
+/** Whether a page's next notification shows, gives way to the one saying more were held back, or goes unshown, and what the page has had of the window after it. */
+export const admitPageNotice = (
+  notices: PageNotices,
+  now: number
+): {
+  readonly verdict: "show" | "held" | "drop";
+  readonly notices: PageNotices;
+} => {
+  const shownAt = notices.shownAt.filter((at) => now - at < PAGE_NOTICE_WINDOW);
+  if (shownAt.length < PAGE_NOTICE_LIMIT) {
+    return {
+      notices: { held: false, shownAt: [...shownAt, now] },
+      verdict: "show",
+    };
+  }
+  return notices.held
+    ? { notices: { held: true, shownAt }, verdict: "drop" }
+    : { notices: { held: true, shownAt }, verdict: "held" };
 };
 
 /** The address in the mailbox that opens a message in a profile's pane. */

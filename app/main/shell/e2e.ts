@@ -57,7 +57,6 @@ export const e2eSnapshotSchema = z.object({
     z.object({
       actions: z.array(z.string()).optional(),
       body: z.string().optional(),
-      persistent: z.boolean().optional(),
       silent: z.boolean(),
       subtitle: z.string().optional(),
       title: z.string(),

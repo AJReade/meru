@@ -498,6 +498,7 @@ const start = async () => {
   }).start();
   const { platform } = ports.lifecycle;
   new Notifications({
+    clock: ports.clock,
     act: (tabId, messageId, action) => {
       void gmail.act(tabId, messageId, action);
     },

@@ -49,7 +49,6 @@ describe(listenForNotifications, () => {
     expect(notifications()).toStrictEqual([
       {
         body: "Starts in ten minutes",
-        requireInteraction: true,
         title: "Standup",
       },
     ]);
