@@ -1,3 +1,4 @@
+import { Handled } from "../../content/handled.ts";
 import type { SelectorEntry } from "../../content/selectors.ts";
 import type { GmailFeature } from "../feature.ts";
 
@@ -16,44 +17,37 @@ export const attachmentsToTop: GmailFeature = {
     if (!settings.switches.moveAttachmentsToTop) {
       return;
     }
-    const moved: {
-      readonly strip: HTMLElement;
-      readonly rule: HTMLElement;
-      readonly parent: HTMLElement;
-      readonly next: ChildNode | null;
-    }[] = [];
+    const handled = new Handled(document, "data-meru-moved-to-top");
+    undo(handled.undoAll);
     undo(
       scheduler.register(attachmentsEntry, (strip) => {
         const parent = strip.parentElement;
         if (
           parent === null ||
           parent.firstElementChild === strip ||
-          strip.dataset.meruMovedToTop !== undefined
+          handled.has(strip)
         ) {
           return;
         }
-        strip.dataset.meruMovedToTop = "";
+        const next = strip.nextSibling;
         const rule = document.createElement("div");
         rule.className = "hp meru-attachments-rule";
         rule.style.marginTop = "16px";
-        moved.push({ next: strip.nextSibling, parent, rule, strip });
         strip.append(rule);
         parent.prepend(strip);
-      })
-    );
-    undo(() => {
-      for (const { next, parent, rule, strip } of moved.splice(0)) {
-        rule.remove();
-        delete strip.dataset.meruMovedToTop;
-        if (strip.isConnected && strip.parentElement === parent) {
+        handled.add(strip, () => {
+          rule.remove();
+          if (strip.parentElement !== parent) {
+            return;
+          }
           if (next !== null && next.parentNode === parent) {
             next.before(strip);
           } else {
             parent.append(strip);
           }
-        }
-      }
-    });
+        });
+      })
+    );
   },
   id: "attachmentsToTop",
 };

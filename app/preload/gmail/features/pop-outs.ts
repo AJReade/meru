@@ -1,4 +1,5 @@
 import type { Unsubscribe } from "../../../core/ports.ts";
+import { Handled } from "../../content/handled.ts";
 import { isHtmlElement, queryAll } from "../../content/query.ts";
 import type { SelectorEntry } from "../../content/selectors.ts";
 import type { GmailFeature } from "../feature.ts";
@@ -18,7 +19,7 @@ const replyForwardEntry: SelectorEntry = {
   id: "replyForward",
 };
 
-/** Turns a plain click on `element` into a Shift-click, which Gmail answers by opening the compose in a window of its own, and marks the element while it does; a click with Shift held already goes through as it is. */
+/** Turns a plain click on `element` into a Shift-click, which Gmail answers by opening the compose in a window of its own; a click with Shift held already goes through as it is. */
 const shiftClicks = (element: HTMLElement): Unsubscribe => {
   const click = (event: MouseEvent) => {
     if (event.shiftKey) {
@@ -35,21 +36,21 @@ const shiftClicks = (element: HTMLElement): Unsubscribe => {
     );
   };
   element.addEventListener("click", click);
-  element.dataset.meruShiftClick = "";
   return () => {
     element.removeEventListener("click", click);
-    delete element.dataset.meruShiftClick;
   };
 };
 
 /** Opens a new compose under `gmail.openComposeInNewWindow`, and a reply or a forward under `gmail.replyForwardInPopOut`, in a pop-out window, as 3.x does. */
 export const popOuts: GmailFeature = {
-  apply: ({ scheduler, settings, undo }) => {
+  apply: ({ document, scheduler, settings, undo }) => {
     const { openComposeInNewWindow, replyForwardInPopOut } = settings.switches;
+    const handled = new Handled(document, "data-meru-shift-click");
+    undo(handled.undoAll);
     if (openComposeInNewWindow) {
       undo(
         scheduler.register(composeEntry, (button) => {
-          undo(shiftClicks(button));
+          handled.add(button, shiftClicks(button));
         })
       );
     }
@@ -62,7 +63,7 @@ export const popOuts: GmailFeature = {
             return;
           }
           for (const link of links) {
-            undo(shiftClicks(link));
+            handled.add(link, shiftClicks(link));
           }
         })
       );
