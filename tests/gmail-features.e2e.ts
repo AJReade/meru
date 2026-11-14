@@ -202,7 +202,7 @@ const ESCAPING = `<!doctype html><title>Compose</title>
   };
 </script>`;
 
-test("keeps a pop-out on Gmail, sending the windows and navigations off it to the browser", async ({
+test("runs the Gmail preload in a pop-out and keeps it on Gmail, sending the windows and navigations off it to the browser", async ({
   launch,
   stub,
 }) => {
@@ -227,6 +227,17 @@ test("keeps a pop-out on Gmail, sending the windows and navigations off it to th
     await expect
       .poll(async () => await run(app, contentsId, `typeof window.escape`))
       .toBe("function");
+    // The window Chromium made carries no preload of its own, so the Gmail preload's style sheets in it say the window was given the opener's again.
+    await expect
+      .poll(
+        async () =>
+          await run(
+            app,
+            contentsId,
+            `document.querySelector('style[data-meru-style="hideGmailLogo"]') !== null`
+          )
+      )
+      .toBe(true);
 
     await run(app, contentsId, `window.escape(), null`);
 
