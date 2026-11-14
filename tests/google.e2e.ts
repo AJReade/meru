@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import {
   entitlementKindOf,
   expect,
@@ -8,9 +11,10 @@ import {
 } from "./app.ts";
 import { startGoogleStub } from "./google-stub.ts";
 
-test("shows what a Google app's page raises as a notification, composed by main", async ({
+test("shows what a Google app's page raises as a notification, composed by main, and loads without a failure of the preload's", async ({
   launch,
   stub,
+  userData,
 }) => {
   const page = await startGoogleStub();
   try {
@@ -47,6 +51,13 @@ test("shows what a Google app's page raises as a notification, composed by main"
       "Standup Starts in ten minutes",
       "Lunch At noon",
     ]);
+    const log = await readFile(
+      path.join(userData, "logs", "main.log"),
+      "utf-8"
+    );
+    expect(
+      log.split("\n").filter((line) => line.includes('"level":"error"'))
+    ).toStrictEqual([]);
   } finally {
     await page.stop();
   }

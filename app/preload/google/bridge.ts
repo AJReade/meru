@@ -66,6 +66,10 @@ const patchNotifications = (eventName: string) => {
     }
   }
   Reflect.set(window, "Notification", PageNotification);
+  // The preload also runs for the blank document a view starts with, which is not a secure context and so has no service worker interfaces.
+  if (typeof ServiceWorkerRegistration === "undefined") {
+    return;
+  }
   Reflect.set(
     ServiceWorkerRegistration.prototype,
     "showNotification",
