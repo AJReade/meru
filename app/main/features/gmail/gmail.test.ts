@@ -8,13 +8,17 @@ import {
   userStyles,
   userStylesPushes,
 } from "../../../shared/channels/gmail.ts";
-import { settingsSurface } from "../../../shared/channels/surfaces.ts";
+import {
+  gmailSurface,
+  settingsSurface,
+} from "../../../shared/channels/surfaces.ts";
 import { FakeLog } from "../../../test/fakes/log.ts";
 import { FakeShell } from "../../../test/fakes/shell.ts";
 import { unwrap } from "../../../test/result.ts";
 import { PRO, testApp } from "../../testing.ts";
 import {
   Gmail,
+  NAVIGATE_TIMEOUT,
   USER_STYLES_FILE,
   USER_STYLES_LIMIT,
   USER_STYLES_SETTLE,
@@ -173,16 +177,49 @@ describe(Gmail, () => {
     expect(log.at("warn")).toStrictEqual(["A Gmail selector found nothing"]);
   });
 
-  it("takes a tab's page to a mailbox address by its fragment, and leaves any other to the caller", async () => {
-    const { detach, feature, pushed, tab } = await setup();
-    expect(feature.navigate(tab.id, `${MAILBOX}/#inbox/FMfcg`)).toBeTruthy();
+  it("takes a tab's page to a mailbox address by its fragment once the page says it moved", async () => {
+    const { feature, pushed, request, tab } = await setup();
+    const moved = feature.navigate(tab.id, `${MAILBOX}/#inbox/FMfcg`);
     expect(pushed(gmailPushes.navigate)).toStrictEqual([
-      { hash: "#inbox/FMfcg" },
+      { hash: "#inbox/FMfcg", id: 0 },
     ]);
-    expect(feature.navigate(tab.id, "https://example.com/#inbox")).toBeFalsy();
-    expect(feature.navigate(tab.id, `${MAILBOX}/`)).toBeFalsy();
+    unwrap(request(gmail.navigated, { id: 0, navigated: true }));
+    await expect(moved).resolves.toBeTruthy();
+  });
+
+  it("leaves the address to the caller when the page is off the mailbox, does not answer, or there is none", async () => {
+    const { app, detach, feature, request, tab } = await setup();
+    const offMailbox = feature.navigate(tab.id, `${MAILBOX}/#inbox/FMfcg`);
+    unwrap(request(gmail.navigated, { id: 0, navigated: false }));
+    await expect(offMailbox).resolves.toBeFalsy();
+
+    const silent = feature.navigate(tab.id, `${MAILBOX}/#inbox/FMfcg`);
+    app.clock.advance(NAVIGATE_TIMEOUT);
+    await expect(silent).resolves.toBeFalsy();
+
+    await expect(
+      feature.navigate(tab.id, "https://example.com/#inbox")
+    ).resolves.toBeFalsy();
+    await expect(feature.navigate(tab.id, `${MAILBOX}/`)).resolves.toBeFalsy();
     detach();
-    expect(feature.navigate(tab.id, `${MAILBOX}/#inbox/FMfcg`)).toBeFalsy();
+    await expect(
+      feature.navigate(tab.id, `${MAILBOX}/#inbox/FMfcg`)
+    ).resolves.toBeFalsy();
+  });
+
+  it("hears a navigation's answer only from the page it was sent to", async () => {
+    const { app, feature, tab } = await setup();
+    const moved = feature.navigate(tab.id, `${MAILBOX}/#inbox/FMfcg`);
+    const OTHER = 42;
+    app.registrar.assign(OTHER, gmailSurface, tab.profileId);
+    unwrap(
+      app.registrar.dispatch(OTHER, wireName(gmail.navigated), {
+        id: 0,
+        navigated: true,
+      })
+    );
+    app.clock.advance(NAVIGATE_TIMEOUT);
+    await expect(moved).resolves.toBeFalsy();
   });
 
   it("refuses a page's request once its view is gone", async () => {

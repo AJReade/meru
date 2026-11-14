@@ -41,6 +41,9 @@ export const USER_STYLES_FILE = "gmail-user-styles.css";
 /** The most of the user styles a page is given; a larger file is refused whole, since every Gmail page holds the text and parses it. */
 export const USER_STYLES_LIMIT = 256 * 1024;
 
+// How long a page is given to say it took an address before main loads the address itself.
+export const NAVIGATE_TIMEOUT = 1000;
+
 // An editor saves in several writes, each of which the watch may report, so a read waits for the writes to stop.
 export const USER_STYLES_SETTLE = 200;
 
@@ -76,6 +79,16 @@ export class Gmail {
   readonly #disposables = new DisposableStore();
   /** Each Gmail tab's page, by tab id. */
   readonly #pages = new Map<string, number>();
+  /** Each navigation a page has yet to answer, by its id. */
+  readonly #navigations = new Map<
+    number,
+    {
+      readonly contentsId: number;
+      readonly settle: (navigated: boolean) => void;
+      readonly timeout: Unsubscribe;
+    }
+  >();
+  #nextNavigation = 0;
   #userStyles = "";
   #tooLarge: UserStylesState["tooLarge"] = null;
   #stylesState: UserStylesState;
@@ -98,6 +111,13 @@ export class Gmail {
             : this.#options.profiles.setStatus(profileId, {
                 kind: "needsSignIn",
               }),
+        navigated: ({ id, navigated }, { contentsId }) => {
+          const waiting = this.#navigations.get(id);
+          if (waiting?.contentsId === contentsId) {
+            waiting.settle(navigated);
+          }
+          return ok(undefined);
+        },
         selectorMiss: ({ selector }, { profileId }) => {
           this.#options.log.warn("A Gmail selector found nothing", {
             profileId,
@@ -181,8 +201,8 @@ export class Gmail {
     };
   }
 
-  /** Takes the tab's page to `url` by its fragment, as Gmail moves between its own views, when the tab has a page and the address is the mailbox's; false leaves it to the caller to load. */
-  navigate(tabId: string, url: string): boolean {
+  /** Takes the tab's page to `url` by its fragment, as Gmail moves between its own views, when the tab has a page on the mailbox and the address is the mailbox's; false, once the page says it is elsewhere or does not answer in time, leaves it to the caller to load. */
+  async navigate(tabId: string, url: string): Promise<boolean> {
     const contentsId = this.#pages.get(tabId);
     const at = url.indexOf("#");
     if (
@@ -192,10 +212,26 @@ export class Gmail {
     ) {
       return false;
     }
+    const id = this.#nextNavigation;
+    this.#nextNavigation += 1;
+    const { promise, resolve } = Promise.withResolvers<boolean>();
+    const settle = (navigated: boolean) => {
+      this.#navigations.get(id)?.timeout();
+      this.#navigations.delete(id);
+      resolve(navigated);
+    };
+    this.#navigations.set(id, {
+      contentsId,
+      settle,
+      timeout: this.#options.clock.schedule(NAVIGATE_TIMEOUT, () => {
+        settle(false);
+      }),
+    });
     this.#options.registrar.push(contentsId, gmailPushes.navigate, {
       hash: url.slice(at),
+      id,
     });
-    return true;
+    return await promise;
   }
 
   #compute(): Omit<GmailPageSettings, "version"> {

@@ -61,7 +61,7 @@ describe(FakeContentBridge, () => {
       seen.push(hash);
     });
 
-    bridge.push(gmailPushes.navigate, { hash: "no-hash" });
+    bridge.push(gmailPushes.navigate, { hash: "no-hash", id: 0 });
 
     expect(seen).toStrictEqual([]);
   });

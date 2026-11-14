@@ -397,14 +397,17 @@ const start = async () => {
     windows: [window, settingsWindow],
   }).start();
   const { platform } = ports.lifecycle;
+  const openMessage = async (tabId: string, url: string) => {
+    if (!(await gmail.navigate(tabId, url))) {
+      stages.load(tabId, url);
+    }
+  };
   new Notifications({
     events,
     inbox,
     gmailUrl: gmailOverride ?? GMAIL_URL,
     load: (tabId, url) => {
-      if (!gmail.navigate(tabId, url)) {
-        stages.load(tabId, url);
-      }
+      void openMessage(tabId, url);
     },
     notifications: desktop.notifications,
     platform,

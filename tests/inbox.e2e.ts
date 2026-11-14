@@ -48,6 +48,16 @@ const paneUrlsOf = async (app: ElectronApplication) => {
   );
 };
 
+const inPane = async (app: ElectronApplication, code: string) => {
+  const [pane] = await panesOf(app);
+  await app.evaluate(
+    async ({ webContents }, [contentsId, script]) => {
+      await webContents.fromId(contentsId)?.executeJavaScript(script, true);
+    },
+    [pane?.contentsId ?? -1, code] as const
+  );
+};
+
 // Waking the machine reads every feed at once, rather than waiting out the 30 seconds between reads.
 const wake = async (app: ElectronApplication) => {
   await app.evaluate(({ powerMonitor }) => {
@@ -55,7 +65,7 @@ const wake = async (app: ElectronApplication) => {
   });
 };
 
-test("shows the feed's unread count, notifies about mail that arrives, opens a message from its notification and marks a signed-out session without following its redirect", async ({
+test("shows the feed's unread count, notifies about mail that arrives, opens a message from its notification whether or not the pane is on the mailbox, and marks a signed-out session without following its redirect", async ({
   feed,
   launch,
   stub,
@@ -76,6 +86,17 @@ test("shows the feed's unread count, notifies about mail that arrives, opens a m
     .toStrictEqual(["12345", "Tom O'Brien"]);
   await expect.poll(async () => await badgeOf(app)).toBe(2);
 
+  await clickNotification(app, 0);
+  await expect
+    .poll(async () => await paneUrlsOf(app))
+    .toStrictEqual([`${feed.url}/#inbox/18c1a2b3c4d5e6f8`]);
+
+  // A pane that has left the mailbox, as one on Google's sign-in has, cannot move by its fragment, so main loads the message instead.
+  const elsewhere = new URL("/elsewhere", feed.url).href;
+  await inPane(app, `location.href = ${JSON.stringify(elsewhere)}`);
+  await expect
+    .poll(async () => await paneUrlsOf(app))
+    .toStrictEqual([elsewhere]);
   await app.evaluate(({ BrowserWindow }) => {
     for (const window of BrowserWindow.getAllWindows()) {
       window.hide();

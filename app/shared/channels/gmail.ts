@@ -48,12 +48,21 @@ export const gmail = defineChannels("gmail", {
   needsSignIn: event(noPayload),
   /** A selector entry found nothing where it should have, once per entry per page load. */
   selectorMiss: event(z.object({ selector: z.string().min(1).max(100) })),
+  /** Whether the page took the address of the `navigate` push of this id, which it does only while it shows the mailbox. */
+  navigated: event(
+    z.object({ id: z.number().int().min(0), navigated: z.boolean() })
+  ),
 });
 
 export const gmailPushes = definePushes("gmail", {
   settingsChanged: push(gmailPageSettingsSchema),
-  /** Takes the page to a place in the mailbox, such as a message, by its address's fragment. */
-  navigate: push(z.object({ hash: z.string().startsWith("#").max(2000) })),
+  /** Takes the page to a place in the mailbox, such as a message, by its address's fragment; the page answers `navigated` with the id. */
+  navigate: push(
+    z.object({
+      hash: z.string().startsWith("#").max(2000),
+      id: z.number().int().min(0),
+    })
+  ),
 });
 
 /** What the settings page says of the user styles: the gate's refusal while Pro does not allow them, and the file's size while it is past the limit and so not applied. */
