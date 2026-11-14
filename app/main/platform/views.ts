@@ -160,7 +160,11 @@ const route = (
     }
     return routes.open(url, dispositionOf(disposition))
       ? { action: "deny" }
-      : { action: "allow" };
+      : {
+          action: "allow",
+          createWindow: (options) =>
+            adopt({ contents: new BrowserWindow(options).webContents, routes }),
+        };
   });
   // will-navigate never hears a server's redirect, so a page could leave by a redirect where it may not by a link; will-redirect also hears a frame's, which the page's own origin does not answer for.
   const guard = (

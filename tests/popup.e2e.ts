@@ -143,3 +143,27 @@ test("makes every blank popup hidden, and shows only one that heads for sign-in,
     .toStrictEqual([{ url: "accounts.google.com", visible: true }]);
   expect(await createdOf(app)).toStrictEqual([false, false, false]);
 });
+
+// A window onto sign-in is the one a page opens as it asks; it answers to the page's routes like any other, so its own window.open does not make a bare window.
+test("routes what a window onto Google's sign-in opens as its page's own links", async ({
+  launch,
+}) => {
+  const { app } = await launch();
+  await expect.poll(async () => await panesOf(app)).toHaveLength(1);
+  await offline(app);
+
+  await runInPane(
+    app,
+    `window.open("https://accounts.google.com/AddSession").open("https://example.com/from-sign-in"); 1`
+  );
+  await expect
+    .poll(async () => {
+      const { external } = await inspect(app);
+      return external;
+    })
+    .toStrictEqual(["https://example.com/from-sign-in"]);
+  await expect
+    .poll(async () => await popupsOf(app))
+    .toStrictEqual([{ url: "accounts.google.com", visible: true }]);
+  await closeSignIn(app);
+});
