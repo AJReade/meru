@@ -4,7 +4,12 @@ import type { App, AppId } from "../records/app.ts";
 import type { Group } from "../records/group.ts";
 import type { Tab } from "../records/tab.ts";
 import { leaf } from "./layout.ts";
-import { appOfUrl, isSignIn, resolveLinkTarget } from "./links.ts";
+import {
+  appOfUrl,
+  isSignIn,
+  opensOutside,
+  resolveLinkTarget,
+} from "./links.ts";
 import type { LinkContext, LinkSettings } from "./links.ts";
 
 const app = (id: AppId, hosts: string[], more: Partial<App> = {}): App => ({
@@ -179,5 +184,35 @@ describe(isSignIn, () => {
         "https://mail.google.com/",
       ].map(isSignIn)
     ).toStrictEqual([true, false, false]);
+  });
+});
+
+describe(opensOutside, () => {
+  it("takes a web page or a mail address, in any case, and no other scheme", () => {
+    expect(
+      [
+        "https://example.com/",
+        "HTTP://example.com/",
+        "mailto:ada@example.com",
+        "data:text/html,x",
+        "blob:https://example.com/1",
+        "file:///etc/passwd",
+        "about:blank",
+        "x-app://run",
+        " https://example.com/",
+        "httpsx://example.com/",
+      ].map(opensOutside)
+    ).toStrictEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
   });
 });

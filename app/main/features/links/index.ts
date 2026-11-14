@@ -1,6 +1,7 @@
 import {
   isGmailPopOut,
   isSignIn,
+  opensOutside,
   resolveLinkTarget,
   staysInPopOut,
 } from "../../../core/engines/links.ts";
@@ -149,6 +150,12 @@ export class Links {
   }
 
   #external(url: string): void {
+    if (!opensOutside(url)) {
+      this.#options.log.warn("A link was not opened outside the app", {
+        scheme: url.slice(0, url.indexOf(":") + 1).slice(0, 32),
+      });
+      return;
+    }
     const open = async () => {
       try {
         await this.#options.shell.openExternal(url);

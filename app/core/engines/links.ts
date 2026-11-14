@@ -92,6 +92,11 @@ export const GOOGLE_SIGN_IN = "https://accounts.google.com/";
 export const isSignIn = (url: string): boolean =>
   url.startsWith(GOOGLE_SIGN_IN);
 
+const EXTERNAL_SCHEME = /^(?:https?|mailto):/iu;
+
+/** Whether the address may go to the system: a web page or a mail address, never a `data:` or `blob:` page, a file, a script or another app's scheme, which a page could hand the system to run. */
+export const opensOutside = (url: string): boolean => EXTERNAL_SCHEME.test(url);
+
 const ORIGIN = /^https?:\/\/[^/?#@]+(?=[/?#]|$)/iu;
 
 const originOf = (url: string): string | null =>

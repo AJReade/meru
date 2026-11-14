@@ -262,4 +262,37 @@ describe(Links, () => {
       .poll(() => log.at("warn"))
       .toStrictEqual(["The browser did not open a link"]);
   });
+
+  it("hands the system only a web page or a mail address, refusing any other scheme with one warning", async () => {
+    const { profiles, settings } = await setup();
+    const log = new FakeLog();
+    const shell = new FakeShell();
+    const links = new Links({
+      log: log.scoped("links"),
+      profiles,
+      settings,
+      shell,
+      stages: { load: () => {} },
+    });
+    const tabId = profiles.state.tabs[0]?.id ?? "";
+    const refused = [
+      "data:text/html,<title>data</title>",
+      "blob:https://mail.google.com/9bc4d142-eda8-4f2e-83cc-7de575bcfe24",
+      "file:///System/Applications/Calculator.app",
+      // oxlint-disable-next-line no-script-url -- a page handing the system a script address is the case refused
+      "javascript:alert(1)",
+      "x-meru-test://run",
+    ];
+    expect([
+      ...refused.map((url) => links.open(tabId, url, "default")),
+      links.open(tabId, "https://example.com/", "default"),
+      links.popup("mailto:ada@example.com"),
+    ]).toStrictEqual([true, true, true, true, true, true, false]);
+    await expect
+      .poll(() => shell.opened)
+      .toStrictEqual(["https://example.com/", "mailto:ada@example.com"]);
+    expect(log.at("warn")).toStrictEqual(
+      refused.map(() => "A link was not opened outside the app")
+    );
+  });
 });
