@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { DownloadProgress } from "../../core/engines/downloads.ts";
 import type {
   BadgePort,
+  GlobalShortcutPort,
   NotificationPort,
   NotificationSpec,
   ProgressPort,
@@ -61,6 +62,8 @@ export const e2eSnapshotSchema = z.object({
       title: z.string(),
     })
   ),
+  /** The accelerators the app would hold system-wide, in the order it took them. */
+  shortcuts: z.array(z.string()),
   /** What the tray's menu lists while its icon is up. */
   tray: z.array(z.string()).nullable(),
   /** The accelerator of each command in the application menu. */
@@ -99,6 +102,7 @@ export class RecordingShell implements ShellPort {
 /** The app icon, notifications and tray of a run under MERU_E2E: each keeps what it was asked to show and shows nothing on the desktop the suite shares. */
 interface RecordingDesktop {
   readonly badge: BadgePort;
+  readonly globalShortcuts: GlobalShortcutPort;
   readonly notifications: NotificationPort;
   readonly tray: TrayPort;
   readonly progress: ProgressPort;
@@ -108,6 +112,7 @@ interface RecordingDesktop {
   readonly act: (index: number, action: number) => void;
   readonly read: () => {
     readonly badge: number;
+    readonly shortcuts: readonly string[];
     readonly notifications: readonly NotificationSpec[];
     readonly tray: TraySpec | undefined;
     readonly progress: DownloadProgress;
@@ -121,6 +126,7 @@ export const recordingDesktop = (): RecordingDesktop => {
     click: () => void;
     act: ((action: number) => void) | undefined;
   }[] = [];
+  const shortcuts = new Set<string>();
   let tray: TraySpec | undefined;
   let progress: DownloadProgress = { kind: "none" };
   return {
@@ -134,6 +140,15 @@ export const recordingDesktop = (): RecordingDesktop => {
     },
     click: (index) => {
       notifications[index]?.click();
+    },
+    globalShortcuts: {
+      register: (accelerator) => {
+        shortcuts.add(accelerator);
+        return true;
+      },
+      unregister: (accelerator) => {
+        shortcuts.delete(accelerator);
+      },
     },
     notifications: {
       show: (spec, click, act) => {
@@ -149,6 +164,7 @@ export const recordingDesktop = (): RecordingDesktop => {
       badge,
       notifications: notifications.map(({ spec }) => spec),
       progress,
+      shortcuts: [...shortcuts],
       tray,
     }),
     tray: {
@@ -186,6 +202,7 @@ export const exposeE2e = (options: {
         ...shown,
         ...(actions === undefined ? {} : { actions: [...actions] }),
       })),
+      shortcuts: [...desktop.shortcuts],
       tray:
         desktop.tray?.menu.map((item) =>
           item.kind === "separator" ? "-" : item.label

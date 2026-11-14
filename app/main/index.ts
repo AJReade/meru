@@ -280,9 +280,13 @@ const start = async () => {
   const google = new Google({
     commands,
     events,
+    globalShortcuts: desktop.globalShortcuts,
+    lifecycle: ports.lifecycle,
     log: log.scoped("google"),
+    platform: ports.lifecycle.platform,
     preload: path.join(dist, "preload", "google.cjs"),
     registrar: dispatcher,
+    settings,
   });
   google.start();
   const overlayUrl = (

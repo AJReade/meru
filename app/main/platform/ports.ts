@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import {
   app,
   BrowserWindow,
+  globalShortcut,
   nativeTheme,
   net,
   powerMonitor,
@@ -214,6 +215,12 @@ export const createElectronPorts = (): Ports => ({
       return () => {
         powerMonitor.off("resume", listener);
       };
+    },
+  },
+  globalShortcuts: {
+    register: (accelerator, run) => globalShortcut.register(accelerator, run),
+    unregister: (accelerator) => {
+      globalShortcut.unregister(accelerator);
     },
   },
   badge: createBadge(platformOf(process.platform)),

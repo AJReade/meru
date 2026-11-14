@@ -20,6 +20,7 @@ import {
   gmailPage,
   gmailSettings,
 } from "../../main/features/gmail/settings.ts";
+import { googleSettings } from "../../main/features/google/settings.ts";
 import {
   inboxPage,
   inboxSettings,
@@ -78,6 +79,7 @@ export const settingsPages = sortBy(pages, [(page) => page.order]);
 export const registry = [
   ...appearanceSettings,
   ...gmailSettings,
+  ...googleSettings,
   ...inboxSettings,
   ...launcherSettings,
   ...linksSettings,

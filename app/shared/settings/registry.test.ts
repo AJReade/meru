@@ -41,6 +41,7 @@ describe("the settings registry", () => {
       | "launcher.apps"
       | "links.excludedApps"
       | "links.openInApp"
+      | "meet.globalShortcuts"
       | "notifications.actions"
       | "notifications.downloadCompleted"
       | "notifications.enabled"

@@ -228,6 +228,14 @@ export interface PowerPort {
   readonly onResume: (listener: () => void) => Unsubscribe;
 }
 
+/** The keys the system hands the app whatever has focus, Meru's own windows included. */
+export interface GlobalShortcutPort {
+  /** Takes `accelerator` system-wide, answering whether the system gave it; it refuses one another app already holds. */
+  readonly register: (accelerator: string, run: () => void) => boolean;
+  /** Hands `accelerator` back, doing nothing when the app does not hold it. */
+  readonly unregister: (accelerator: string) => void;
+}
+
 export type UpdaterEvent =
   | { readonly kind: "checking" }
   | { readonly kind: "available"; readonly version: string }
@@ -436,6 +444,7 @@ export interface Ports {
   readonly ipc: IpcTransportPort;
   readonly online: OnlinePort;
   readonly power: PowerPort;
+  readonly globalShortcuts: GlobalShortcutPort;
   readonly sessions: SessionPort;
   readonly badge: BadgePort;
   readonly notifications: NotificationPort;
