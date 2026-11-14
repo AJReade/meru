@@ -1,6 +1,3 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
 import type { ElectronApplication } from "@playwright/test";
 
 import { settings } from "../app/shared/channels/settings.ts";
@@ -68,20 +65,20 @@ test("styles the Gmail pane from the settings, following a change at once, and r
 
 test("writes a warning when a selector entry finds nothing on Gmail's page", async ({
   launch,
-  userData,
 }) => {
   test.setTimeout(40_000);
   const stub = await startGmailStub(CHANGED_HEADER);
   try {
-    await launch({ env: { MERU_GMAIL_URL: stub.url } });
+    const { app } = await launch({ env: { MERU_GMAIL_URL: stub.url } });
+    // A run from the repository mirrors its log to the console, a warning on standard error, which the suite reads alike on every platform.
+    let written = "";
+    app.process().stderr?.on("data", (chunk: Buffer) => {
+      written += chunk.toString();
+    });
     // The preload waits out a grace of ten seconds before it calls a selector missing.
     await expect
-      .poll(
-        async () =>
-          await readFile(path.join(userData, "logs", "main.log"), "utf-8"),
-        { timeout: 25_000 }
-      )
-      .toContain('"A Gmail selector found nothing"');
+      .poll(() => written, { timeout: 25_000 })
+      .toContain("A Gmail selector found nothing");
   } finally {
     await stub.stop();
   }
