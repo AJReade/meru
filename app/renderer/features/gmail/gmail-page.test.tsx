@@ -2,6 +2,11 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { commands } from "../../../shared/channels/commands.ts";
+import {
+  userStyles,
+  userStylesPushes,
+} from "../../../shared/channels/gmail.ts";
+import type { UserStylesState } from "../../../shared/channels/gmail.ts";
 import { settings } from "../../../shared/channels/settings.ts";
 import type { Locked } from "../../../shared/settings/schema.ts";
 import { answer, mountSettings, typeInto } from "../../testing.tsx";
@@ -9,8 +14,13 @@ import { GmailPage } from "./gmail-page.tsx";
 
 const WORK = { color: "#1a73e8", label: "Work", textColor: "auto" } as const;
 
-const mount = (locked: Locked = {}) =>
+const ALLOWED: UserStylesState = { refusal: null, tooLarge: null };
+
+const tooLargeLine = () => document.querySelector("output")?.textContent;
+
+const mount = (locked: Locked = {}, styles: UserStylesState = ALLOWED) =>
   mountSettings(<GmailPage />, [
+    answer(userStyles.snapshot, styles),
     answer(settings.snapshot, {
       layers: { global: { "gmail.labelColors": [WORK] }, profiles: {} },
       locked,
@@ -124,7 +134,7 @@ describe(GmailPage, () => {
   });
 
   it("says why the gate locks the label colours and lets nothing change while it does", () => {
-    mount({ "gmail.labelColors": "free" });
+    mount({ "gmail.labelColors": "free" }, { refusal: "free", tooLarge: null });
     expect({
       add: button("Add label color")?.disabled,
       editor: button("Open in editor")?.disabled,
@@ -150,5 +160,21 @@ describe(GmailPage, () => {
       { id: "gmail.editUserStyles" },
       { id: "gmail.revealUserStyles" },
     ]);
+  });
+
+  it("says when the user styles are too large to apply, and stops saying it once they are not", () => {
+    const { push } = mount();
+    expect(tooLargeLine()).toBeUndefined();
+
+    push(userStylesPushes.changed, {
+      refusal: null,
+      tooLarge: { bytes: 300 * 1024, limit: 256 * 1024 },
+    });
+    expect(tooLargeLine()).toBe(
+      "The file is 300 KB, past the 256 KB Gmail is given, so it is not applied."
+    );
+
+    push(userStylesPushes.changed, { refusal: null, tooLarge: null });
+    expect(tooLargeLine()).toBeUndefined();
   });
 });

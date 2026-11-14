@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { gateRefusalSchema } from "../../core/entitlement/gate.ts";
 import { labelColorSchema } from "../../core/records/label-color.ts";
 import {
   defineChannels,
@@ -53,4 +54,22 @@ export const gmailPushes = definePushes("gmail", {
   settingsChanged: push(gmailPageSettingsSchema),
   /** Takes the page to a place in the mailbox, such as a message, by its address's fragment. */
   navigate: push(z.object({ hash: z.string().startsWith("#").max(2000) })),
+});
+
+/** What the settings page says of the user styles: the gate's refusal while Pro does not allow them, and the file's size while it is past the limit and so not applied. */
+export const userStylesStateSchema = z.object({
+  refusal: gateRefusalSchema.nullable(),
+  tooLarge: z
+    .object({ bytes: z.number().int().min(0), limit: z.number().int().min(0) })
+    .nullable(),
+});
+
+export type UserStylesState = z.infer<typeof userStylesStateSchema>;
+
+export const userStyles = defineChannels("userStyles", {
+  snapshot: sync(noPayload, userStylesStateSchema),
+});
+
+export const userStylesPushes = definePushes("userStyles", {
+  changed: push(userStylesStateSchema),
 });

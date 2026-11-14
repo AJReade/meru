@@ -16,8 +16,16 @@ import type { Tab } from "../../../core/records/tab.ts";
 import { err, ok } from "../../../core/result.ts";
 import type { Result } from "../../../core/result.ts";
 import type { IpcRegistrar } from "../../../shared/channels/define.ts";
-import { gmail, gmailPushes } from "../../../shared/channels/gmail.ts";
-import type { GmailPageSettings } from "../../../shared/channels/gmail.ts";
+import {
+  gmail,
+  gmailPushes,
+  userStyles,
+  userStylesPushes,
+} from "../../../shared/channels/gmail.ts";
+import type {
+  GmailPageSettings,
+  UserStylesState,
+} from "../../../shared/channels/gmail.ts";
 import {
   contentSurfaceArgument,
   gmailSurface,
@@ -29,6 +37,12 @@ import { gmailCommands } from "./commands.ts";
 
 /** The user's own style sheet for Gmail, a file in the user data directory, as 3.x kept it. */
 export const USER_STYLES_FILE = "gmail-user-styles.css";
+
+/** The most of the user styles a page is given; a larger file is refused whole, since every Gmail page holds the text and parses it. */
+export const USER_STYLES_LIMIT = 256 * 1024;
+
+// An editor saves in several writes, each of which the watch may report, so a read waits for the writes to stop.
+export const USER_STYLES_SETTLE = 200;
 
 export interface GmailOptions {
   readonly settings: Pick<SettingsStore, "get" | "subscribe">;
@@ -63,11 +77,15 @@ export class Gmail {
   /** Each Gmail tab's page, by tab id. */
   readonly #pages = new Map<string, number>();
   #userStyles = "";
+  #tooLarge: UserStylesState["tooLarge"] = null;
+  #stylesState: UserStylesState;
+  #settle: Unsubscribe | undefined;
   #current: GmailPageSettings;
 
   constructor(options: GmailOptions) {
     this.#options = options;
     this.#current = { ...this.#compute(), version: 0 };
+    this.#stylesState = this.#computeStylesState();
   }
 
   async start(): Promise<void> {
@@ -96,6 +114,9 @@ export class Gmail {
           return ok(undefined);
         },
       }),
+      registrar.register(userStyles, {
+        snapshot: () => ok(this.#stylesState),
+      }),
       commands.register(gmailCommands, {
         editUserStyles: {
           run: () => {
@@ -121,8 +142,15 @@ export class Gmail {
         this.#refresh();
       }),
       fs.watch(USER_STYLES_FILE, () => {
-        void this.#readUserStyles();
-      })
+        this.#settle?.();
+        this.#settle = this.#options.clock.schedule(USER_STYLES_SETTLE, () => {
+          this.#settle = undefined;
+          void this.#readUserStyles();
+        });
+      }),
+      () => {
+        this.#settle?.();
+      }
     );
     await this.#readUserStyles();
   }
@@ -187,7 +215,22 @@ export class Gmail {
     };
   }
 
+  #computeStylesState(): UserStylesState {
+    const gate = canUse(this.#options.entitlement(), "proSetting", {
+      now: this.#options.clock.now(),
+    });
+    return {
+      refusal: gate.allowed ? null : gate.reason,
+      tooLarge: this.#tooLarge,
+    };
+  }
+
   #refresh(): void {
+    const stylesState = this.#computeStylesState();
+    if (!isEqual(stylesState, this.#stylesState)) {
+      this.#stylesState = stylesState;
+      this.#options.registrar.broadcast(userStylesPushes.changed, stylesState);
+    }
     const { version, ...shown } = this.#current;
     const next = this.#compute();
     if (isEqual(shown, next)) {
@@ -207,14 +250,35 @@ export class Gmail {
   }
 
   async #readUserStyles(): Promise<void> {
+    let text = "";
+    let tooLarge: UserStylesState["tooLarge"] = null;
     try {
-      this.#userStyles =
-        (await this.#options.fs.readText(USER_STYLES_FILE)) ?? "";
+      const read = await this.#options.fs.readCapped(
+        USER_STYLES_FILE,
+        USER_STYLES_LIMIT
+      );
+      if (read.kind === "text") {
+        ({ text } = read);
+      } else if (read.kind === "tooLarge") {
+        tooLarge = { bytes: read.bytes, limit: USER_STYLES_LIMIT };
+      }
     } catch (error) {
       this.#options.log.warn("The Gmail user styles could not be read", {
         error,
       });
+      return;
     }
+    if (tooLarge !== null && this.#tooLarge === null) {
+      this.#options.log.warn("The Gmail user styles are too large to apply", {
+        bytes: tooLarge.bytes,
+        limit: USER_STYLES_LIMIT,
+      });
+    }
+    if (text === this.#userStyles && isEqual(tooLarge, this.#tooLarge)) {
+      return;
+    }
+    this.#userStyles = text;
+    this.#tooLarge = tooLarge;
     this.#refresh();
   }
 

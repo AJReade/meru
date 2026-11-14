@@ -4,7 +4,7 @@ import { commands } from "./commands.ts";
 import { defineSurface } from "./define.ts";
 import type { Surface } from "./define.ts";
 import { dragPushes } from "./drag.ts";
-import { gmail, gmailPushes } from "./gmail.ts";
+import { gmail, gmailPushes, userStyles, userStylesPushes } from "./gmail.ts";
 import { googlePushes } from "./google.ts";
 import { launcher } from "./launcher.ts";
 import { profiles, profilesPushes, tabs } from "./profiles.ts";
@@ -52,10 +52,16 @@ export const launcherSurface = defineSurface({
 
 export type LauncherSurface = typeof launcherSurface;
 
-/** The settings window's page: it reads and writes the settings and the profiles, reads the update state and checks for one, runs commands such as restarting to update, and says while it records a shortcut. */
+/** The settings window's page: it reads and writes the settings and the profiles, reads the update state and checks for one, reads what stands in the way of the user styles, runs commands such as restarting to update, and says while it records a shortcut. */
 export const settingsSurface = defineSurface({
-  pushes: [settingsPushes, profilesPushes, updaterPushes, themePushes],
-  requests: [settings, profiles, commands, updater, shortcuts],
+  pushes: [
+    settingsPushes,
+    profilesPushes,
+    updaterPushes,
+    themePushes,
+    userStylesPushes,
+  ],
+  requests: [settings, profiles, commands, updater, shortcuts, userStyles],
 });
 
 export type SettingsSurface = typeof settingsSurface;

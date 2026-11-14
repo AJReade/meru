@@ -2,12 +2,23 @@ import { describe, expect, it } from "vitest";
 
 import type { Entitlement } from "../../../core/records/entitlement.ts";
 import { wireName } from "../../../shared/channels/define.ts";
-import { gmail, gmailPushes } from "../../../shared/channels/gmail.ts";
+import {
+  gmail,
+  gmailPushes,
+  userStyles,
+  userStylesPushes,
+} from "../../../shared/channels/gmail.ts";
+import { settingsSurface } from "../../../shared/channels/surfaces.ts";
 import { FakeLog } from "../../../test/fakes/log.ts";
 import { FakeShell } from "../../../test/fakes/shell.ts";
 import { unwrap } from "../../../test/result.ts";
 import { PRO, testApp } from "../../testing.ts";
-import { Gmail, USER_STYLES_FILE } from "./index.ts";
+import {
+  Gmail,
+  USER_STYLES_FILE,
+  USER_STYLES_LIMIT,
+  USER_STYLES_SETTLE,
+} from "./index.ts";
 
 const FREE: Entitlement = { expiresAt: null, kind: "free", source: "stored" };
 const MAILBOX = "https://mail.google.com/mail/u/0";
@@ -81,6 +92,7 @@ describe(Gmail, () => {
   it("carries the user's styles while Pro allows them, and follows the file", async () => {
     const { app, entitle, pushed, request } = await setup();
     app.fs.edit(USER_STYLES_FILE, "a { color: red }");
+    app.clock.advance(USER_STYLES_SETTLE);
     await expect
       .poll(() => pushed(gmailPushes.settingsChanged).at(-1))
       .toMatchObject({ userStyles: "a { color: red }" });
@@ -89,6 +101,61 @@ describe(Gmail, () => {
       userStyles: "",
     });
     expect(unwrap(request(gmail.settings))).toMatchObject({ userStyles: "" });
+  });
+
+  it("reads the user styles once an editor's writes have settled, and pushes them only when their text changed", async () => {
+    const { app, pushed } = await setup();
+    app.fs.edit(USER_STYLES_FILE, "a {");
+    app.clock.advance(50);
+    app.fs.edit(USER_STYLES_FILE, "a { color: red }");
+    app.clock.advance(USER_STYLES_SETTLE);
+    await expect
+      .poll(() => pushed(gmailPushes.settingsChanged))
+      .toMatchObject([{ userStyles: "a { color: red }" }]);
+
+    app.fs.edit(USER_STYLES_FILE, "a { color: red }");
+    app.clock.advance(USER_STYLES_SETTLE);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(pushed(gmailPushes.settingsChanged)).toHaveLength(1);
+  });
+
+  it("refuses user styles past the limit with one warning, and says so to the settings page", async () => {
+    const { app, log, pushed } = await setup();
+    const SETTINGS_PAGE = 77;
+    app.registrar.assign(SETTINGS_PAGE, settingsSurface);
+    const state = () =>
+      unwrap(
+        app.registrar.dispatch(SETTINGS_PAGE, wireName(userStyles.snapshot), {})
+      );
+    app.fs.edit(USER_STYLES_FILE, "a { color: red }");
+    app.clock.advance(USER_STYLES_SETTLE);
+    await expect
+      .poll(() => pushed(gmailPushes.settingsChanged))
+      .toHaveLength(1);
+
+    const big = "x".repeat(USER_STYLES_LIMIT + 1);
+    app.fs.edit(USER_STYLES_FILE, big);
+    app.clock.advance(USER_STYLES_SETTLE);
+    await expect
+      .poll(() => pushed(userStylesPushes.changed))
+      .toStrictEqual([
+        {
+          refusal: null,
+          tooLarge: { bytes: big.length, limit: USER_STYLES_LIMIT },
+        },
+      ]);
+    expect(pushed(gmailPushes.settingsChanged).at(-1)).toMatchObject({
+      userStyles: "",
+    });
+    app.fs.edit(USER_STYLES_FILE, `${big}y`);
+    app.clock.advance(USER_STYLES_SETTLE);
+    await expect
+      .poll(state)
+      .toMatchObject({ tooLarge: { bytes: big.length + 1 } });
+    expect(log.at("warn")).toStrictEqual([
+      "The Gmail user styles are too large to apply",
+    ]);
   });
 
   it("marks the sender's profile as needing to sign in, whatever profile the payload names", async () => {

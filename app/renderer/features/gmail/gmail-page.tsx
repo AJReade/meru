@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   labelColorSchema,
@@ -9,6 +9,11 @@ import type {
   LabelTextColor,
 } from "../../../core/records/label-color.ts";
 import { commands } from "../../../shared/channels/commands.ts";
+import {
+  userStyles,
+  userStylesPushes,
+} from "../../../shared/channels/gmail.ts";
+import type { UserStylesState } from "../../../shared/channels/gmail.ts";
 import { settings as channels } from "../../../shared/channels/settings.ts";
 import { msg } from "../../../shared/msg.ts";
 import type { Message } from "../../../shared/msg.ts";
@@ -266,10 +271,25 @@ const LabelColors = () => {
   );
 };
 
-/** The user's own CSS for Gmail, opened in the editor or shown in its folder; the same gate as the label colours holds it. */
+const NOTHING_IN_THE_WAY: UserStylesState = { refusal: null, tooLarge: null };
+
+const useUserStyles = (): UserStylesState => {
+  const client = useSettingsClient();
+  const [state, setState] = useState(() => {
+    const seed = client.sendSync(userStyles.snapshot, {});
+    return seed.ok ? seed.value : NOTHING_IN_THE_WAY;
+  });
+  useEffect(() => client.on(userStylesPushes.changed, setState), [client]);
+  return state;
+};
+
+const kilobytes = (bytes: number): number => Math.ceil(bytes / 1024);
+
+/** The user's own CSS for Gmail, opened in the editor or shown in its folder while Pro allows it, and a line when the file is too large to apply. */
 const UserStyles = () => {
   const client = useSettingsClient();
-  const locked = useLocked(KEY) !== undefined;
+  const { refusal, tooLarge } = useUserStyles();
+  const locked = refusal !== null;
   const run = (id: "gmail.editUserStyles" | "gmail.revealUserStyles") => {
     void client.invoke(commands.run, { id });
   };
@@ -278,6 +298,11 @@ const UserStyles = () => {
       <div className="flex items-center justify-between gap-6 p-4">
         <p className="text-muted-foreground text-sm">
           {msg`Your own CSS applies to Gmail as soon as you save the file.`}
+          {tooLarge === null ? null : (
+            <output className="text-destructive block">
+              {msg`The file is ${kilobytes(tooLarge.bytes)} KB, past the ${kilobytes(tooLarge.limit)} KB Gmail is given, so it is not applied.`}
+            </output>
+          )}
         </p>
         <div className="flex shrink-0 gap-2">
           <Button
