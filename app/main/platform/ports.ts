@@ -20,7 +20,7 @@ import type {
 import { platformOf } from "../../core/records/platform.ts";
 import { createBadge, createNotifications, createTray } from "./desktop.ts";
 import { createEntitlementApi } from "./entitlement-api.ts";
-import { onFailure } from "./failures.ts";
+import { createFailureWatch } from "./failures.ts";
 import { createFs } from "./fs.ts";
 import { ipcTransport } from "./ipc.ts";
 import { onBeforeInput } from "./keys.ts";
@@ -162,7 +162,7 @@ const createQuitHold = (): LifecyclePort["onQuit"] => {
 
 export const createElectronPorts = (): Ports => ({
   lifecycle: {
-    onFailure,
+    ...createFailureWatch(),
     onQuit: createQuitHold(),
     onWindowAllClosed: (listener) => {
       app.on("window-all-closed", listener);

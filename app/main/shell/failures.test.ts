@@ -13,9 +13,9 @@ const OWN = "file:///app/dist/renderer/chrome.html?platform=darwin";
 const GMAIL = "https://mail.google.com/mail/u/0/#inbox";
 
 const setup = () => {
-  const lifecycle = new FakeLifecycle();
-  const log = new FakeLog();
   const clock = new FakeClock();
+  const lifecycle = new FakeLifecycle("darwin", false, clock);
+  const log = new FakeLog();
   const stop = logFailures({
     clock,
     lifecycle,
@@ -78,11 +78,14 @@ describe(logFailures, () => {
     ]);
   });
 
-  it("writes a console error from the app's own pages only", () => {
+  it("writes a console error from the app's own pages only, and stops hearing any other page's console at its first", () => {
     const { lifecycle, log } = setup();
-    for (const url of [OWN, GMAIL]) {
+    for (const [contentsId, url] of [
+      [1, OWN],
+      [2, GMAIL],
+    ] as const) {
       lifecycle.fail({
-        contentsId: 1,
+        contentsId,
         kind: "consoleError",
         line: 12,
         message: "Uncaught TypeError: x is undefined",
@@ -103,9 +106,10 @@ describe(logFailures, () => {
         scope: "app",
       },
     ]);
+    expect([...lifecycle.muted.keys()]).toStrictEqual([2]);
   });
 
-  it("writes a page's first errors in a window and only counts the rest, saying so once the window ends", () => {
+  it("writes a page's first errors in a window and stops hearing the rest of the window's, saying so once", () => {
     const { clock, lifecycle, log } = setup();
     const flood = (contentsId: number, count: number) => {
       for (let index = 0; index < count; index += 1) {
@@ -119,30 +123,28 @@ describe(logFailures, () => {
         });
       }
     };
+    clock.advance(1000);
     flood(1, PAGE_ERRORS_PER_WINDOW + 500);
     flood(2, 1);
-    const inWindow = log.entries.length;
+    const written = log.entries.map(({ message }) => message);
     clock.advance(PAGE_ERROR_WINDOW);
     flood(1, 1);
-    expect([
-      inWindow,
-      log.entries.slice(inWindow).map(({ fields, message }) => ({
-        fields,
-        message,
-      })),
-    ]).toStrictEqual([
-      PAGE_ERRORS_PER_WINDOW + 1,
-      [
-        {
-          fields: { dropped: 500, url: OWN },
-          message: "A page's errors were dropped",
-        },
-        {
-          fields: { line: 1, source: OWN, text: "flood 0", url: OWN },
-          message: "A page logged an error",
-        },
+    expect({
+      afterWindow: log.entries
+        .slice(written.length)
+        .map(({ fields }) => fields),
+      errors: written.filter((message) => message === "A page logged an error")
+        .length,
+      muted: lifecycle.muted.get(1),
+      warnings: log.at("warn"),
+    }).toStrictEqual({
+      afterWindow: [{ line: 1, source: OWN, text: "flood 0", url: OWN }],
+      errors: PAGE_ERRORS_PER_WINDOW + 1,
+      muted: 1000 + PAGE_ERROR_WINDOW,
+      warnings: [
+        "A page wrote too many errors, so the rest of the minute's go unheard",
       ],
-    ]);
+    });
   });
 
   it("writes nothing once stopped", () => {

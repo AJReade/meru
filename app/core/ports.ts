@@ -77,6 +77,8 @@ export interface LifecyclePort {
   /** Keeps the app from ever coming to the front, for a run nobody watches; macOS only. */
   readonly prohibitActivation: () => void;
   readonly onFailure: (listener: (failure: Failure) => void) => Unsubscribe;
+  /** Stops hearing the page's console for `duration` milliseconds, or for as long as the page lives when none is given. */
+  readonly muteConsole: (contentsId: number, duration?: number) => void;
 }
 
 /** Hears each key before the page does; a listener answering true keeps the key from the page. */
