@@ -1,4 +1,8 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import type { ElectronApplication, Page } from "@playwright/test";
+import { z } from "zod";
 
 import { settings } from "../app/shared/channels/settings.ts";
 import type { SettingKey } from "../app/shared/settings/registry.ts";
@@ -255,3 +259,92 @@ test("keeps a pop-out on Gmail, sending the windows and navigations off it to th
     await gmail.stop();
   }
 });
+// What review 21 sent through the print view, each of which restyled Gmail, ran script or left the page past the old denylist.
+const HOSTILE_PRINT_VIEW = `<!doctype html><table class="message"><tr><td><font size="-1">
+<p>whole</p>
+<script>document.title = "script ran"</script>
+<a id="js" href="javascript:document.title='js link ran'">js</a>
+<style>[gh="cm"] { color: rgb(1, 2, 3) !important; }</style>
+<svg><a id="svga"><animate attributeName="href" values="javascript:document.title='svg ran'" begin="0s" dur="1s" fill="freeze"/><text y="20">click</text></a></svg>
+</font></td></tr></table>`;
+
+test("loads a hostile print view without its style sheet, script or SVG animation", async ({
+  launch,
+  stub,
+}) => {
+  const gmail = await startGmailStub(MAILBOX, {
+    printView: HOSTILE_PRINT_VIEW,
+  });
+  try {
+    const { app, chrome } = await launch({
+      env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
+    });
+    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await turnOn(chrome, ["gmail.loadClippedMessages"]);
+
+    await expect
+      .poll(
+        async () =>
+          await inPane(app, `document.querySelector(".clipped").textContent`)
+      )
+      .toContain("whole");
+    expect(
+      await inPane(
+        app,
+        `[document.title, getComputedStyle(document.querySelector('[gh="cm"]')).color, document.querySelectorAll(".clipped style, .clipped svg, .clipped animate, .clipped script").length, document.querySelector(".clipped a")?.getAttribute("href") ?? null]`
+      )
+    ).toStrictEqual(["Gmail", "rgb(0, 0, 0)", 0, null]);
+  } finally {
+    await gmail.stop();
+  }
+});
+
+const logLineSchema = z.object({
+  fields: z.object({ reason: z.unknown(), status: z.unknown() }),
+});
+
+const warningsOf = async (userData: string, message: string) => {
+  const log = await readFile(
+    path.join(userData, "logs", "main.log"),
+    "utf-8"
+  ).catch(() => "");
+  return log
+    .split("\n")
+    .filter((line) => line.includes(message))
+    .map((line) => logLineSchema.parse(JSON.parse(line)).fields);
+};
+
+for (const { printView, warning } of [
+  { printView: { status: 401 }, warning: { reason: "status", status: 401 } },
+  {
+    printView: { status: 302, toSignIn: true },
+    warning: { reason: "signIn", status: null },
+  },
+] as const) {
+  test(`warns once that a clipped message did not load when its print view answers ${printView.status}`, async ({
+    launch,
+    stub,
+    userData,
+  }) => {
+    const gmail = await startGmailStub(MAILBOX, { printView });
+    try {
+      const { app, chrome } = await launch({
+        env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
+      });
+      await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+      await turnOn(chrome, ["gmail.loadClippedMessages"]);
+
+      await expect
+        .poll(
+          async () =>
+            await warningsOf(userData, "A clipped message did not load")
+        )
+        .toStrictEqual([warning]);
+      expect(
+        await warningsOf(userData, "A Gmail selector found nothing")
+      ).toStrictEqual([]);
+    } finally {
+      await gmail.stop();
+    }
+  });
+}

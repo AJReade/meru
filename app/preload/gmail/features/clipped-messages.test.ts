@@ -3,14 +3,18 @@ import { describe, expect, it, vi } from "vitest";
 import { gmail } from "../../../shared/channels/gmail.ts";
 import { MAILBOX, mountGmail, switchesWith } from "../testing.ts";
 import type { MountedGmail } from "../testing.ts";
-import { bodyOf, clippedMessages } from "./clipped-messages.ts";
+import {
+  bodyOf,
+  clippedMessages,
+  PRINT_VIEW_LIMIT,
+} from "./clipped-messages.ts";
 import clipped from "./fixtures/clipped.html?raw";
 
 const PRINT_VIEW = `<html><body>
 <table class="message"><tr><td><font size="-1">An earlier message</font></td></tr></table>
 <table class="message"><tr><td>
   <font size="-1">Header</font>
-  <font size="-1"><p onclick="steal()">The whole message.</p><script>steal()</script><a href="javascript:steal()">bad</a><a href="https://example.com/">good</a><img src="data:image/png;base64,AA=="></font>
+  <font size="-1"><p onclick="steal()">The whole message.</p><script>steal()</script><a href="javascript:steal()">bad</a><a href="https://example.com/">good</a><img src="cid:logo@example.com"><img src="data:image/png;base64,AA=="></font>
 </td></tr></table>
 </body></html>`;
 
@@ -25,8 +29,8 @@ const mount = (on = true): MountedGmail =>
       : undefined,
   });
 
-const printed = (page: MountedGmail, url?: string) => {
-  page.http.answer(`${MAILBOX}/?`, { status: 200, text: PRINT_VIEW, url });
+const printed = (page: MountedGmail) => {
+  page.http.answer(`${MAILBOX}/?`, { status: 200, text: PRINT_VIEW });
 };
 
 describe(clippedMessages.id, () => {
@@ -53,25 +57,58 @@ describe(clippedMessages.id, () => {
       [null, null],
       ["https://example.com/", "_blank"],
     ]);
-    expect(body?.querySelector("img")?.getAttribute("src")).toBe(
-      "data:image/png;base64,AA=="
-    );
+    expect(
+      [...(body?.querySelectorAll("img") ?? [])].map((image) =>
+        image.getAttribute("src")
+      )
+    ).toStrictEqual(["cid:logo@example.com", null]);
     page.app.dispose();
   });
 
-  it("reports a print view that lands on the sign-in page once, as a selector miss, and leaves the link", async () => {
-    const page = mount();
-    printed(page, "https://accounts.google.com/ServiceLogin");
-    page.run();
+  it.each([
+    {
+      answer: {
+        status: 200,
+        text: PRINT_VIEW,
+        redirected: true,
+      },
+      failure: { reason: "signIn", status: null },
+      what: "redirects to the sign-in page",
+    },
+    {
+      answer: { status: 401, text: "Unauthorized" },
+      failure: { reason: "status", status: 401 },
+      what: "is refused",
+    },
+    {
+      answer: { status: 200, text: "x".repeat(PRINT_VIEW_LIMIT + 1) },
+      failure: { reason: "tooLarge", status: null },
+      what: "runs past the limit",
+    },
+    {
+      answer: { status: 200, text: "<p>Nothing</p>" },
+      failure: { reason: "noBody", status: null },
+      what: "holds no message body",
+    },
+  ] as const)(
+    "reports a print view that $what once, as its own failure, and leaves the link",
+    async ({ answer, failure }) => {
+      const page = mount();
+      page.http.answer(`${MAILBOX}/?`, answer);
+      page.run();
 
-    await vi.waitFor(() => {
-      expect(page.bridge.sentOn(gmail.selectorMiss)).toStrictEqual([
-        { selector: "clippedMessages" },
-      ]);
-    });
-    expect(document.querySelector(".iX")).not.toBeNull();
-    page.app.dispose();
-  });
+      await vi.waitFor(() => {
+        expect(page.bridge.sentOn(gmail.clippedFailed)).toStrictEqual([
+          failure,
+        ]);
+      });
+      expect([
+        document.querySelector(".iX") !== null,
+        page.bridge.sentOn(gmail.selectorMiss),
+      ]).toStrictEqual([true, []]);
+      page.app.dispose();
+    }
+  );
 
   it("fetches nothing while it is off, or for a link that leaves Gmail", () => {
     const off = mount(false);
@@ -90,7 +127,7 @@ describe(clippedMessages.id, () => {
 
   it("refuses a print view with no message body", () => {
     expect(() => bodyOf("<p>Sign in</p>", MAILBOX)).toThrow(
-      "The print view holds no message body"
+      "The print view did not load: noBody"
     );
   });
 });

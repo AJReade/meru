@@ -17,9 +17,15 @@ export interface GmailStub {
   readonly stop: () => Promise<void>;
 }
 
+/** An answer with no page: a status, and for a redirect, the stand-in's sign-in page as where it sends the request. */
+export interface StubRefusal {
+  readonly status: number;
+  readonly toSignIn?: boolean;
+}
+
 /** What the mailbox answers besides its page: the print view of a message, `?view=lg`, and a pop-out, any other `?view=`. */
 export interface GmailStubPages {
-  readonly printView?: string;
+  readonly printView?: string | StubRefusal;
   readonly popOut?: string;
 }
 
@@ -50,7 +56,16 @@ export const startGmailStub = async (
     const view = searchParams.get("view");
     const other = view === "lg" ? pages.printView : pages.popOut;
     const shown = view === null ? page : other;
-    if (pathname === `${MAILBOX_PATH}/` && shown !== undefined) {
+    if (pathname === `${MAILBOX_PATH}/` && typeof shown === "object") {
+      response
+        .writeHead(
+          shown.status,
+          shown.toSignIn === true
+            ? { location: `http://${request.headers.host ?? ""}/signin` }
+            : {}
+        )
+        .end();
+    } else if (pathname === `${MAILBOX_PATH}/` && shown !== undefined) {
       response
         .writeHead(200, {
           "content-type": "text/html",

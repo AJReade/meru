@@ -1,7 +1,10 @@
 import { gmail } from "../../../shared/channels/gmail.ts";
+import type { ClippedFailure } from "../../../shared/channels/gmail.ts";
 import type { SelectorEntry } from "../../content/selectors.ts";
 import type { GmailFeature } from "../feature.ts";
 import { parseHtml } from "../html.ts";
+import { HttpTooLargeError } from "../http.ts";
+import { sanitise } from "../sanitise.ts";
 
 // Gmail cuts a body over about 102 KB on the server, so the rest is never in the page; the "View entire message" link opens the print view of that one message, which holds the whole body.
 const clippedEntry: SelectorEntry = {
@@ -9,55 +12,31 @@ const clippedEntry: SelectorEntry = {
   id: "clippedMessages",
 };
 
-const REMOVED =
-  "script, iframe, frame, object, embed, applet, form, base, meta, link, noscript, template";
-const ALLOWED_PROTOCOLS = new Set(["http:", "https:", "mailto:"]);
-const URL_ATTRIBUTES = new Set([
-  "href",
-  "src",
-  "action",
-  "formaction",
-  "xlink:href",
-]);
 /** How many whole messages a page keeps, so going back to a long thread does not fetch them again. */
 const CLIPPED_CACHE = 5;
 
-const allowedUrl = (name: string, value: string, base: string): boolean => {
-  let protocol: string;
-  try {
-    ({ protocol } = new URL(value, base));
-  } catch {
-    return false;
-  }
-  return (
-    ALLOWED_PROTOCOLS.has(protocol) ||
-    (name === "src" &&
-      protocol === "data:" &&
-      /^data:image\//iu.test(value.trim()))
-  );
-};
+/** The most of a print view a page reads; Gmail clips a body at about 102 KB, so a whole one past this is not mail a page should hold. */
+export const PRINT_VIEW_LIMIT = 5 * 1024 * 1024;
 
-// Gmail's server sanitises the print view as it does the inline one; this keeps anything that runs code out of the page should that ever change.
-const sanitise = (root: Element, base: string): void => {
-  for (const element of root.querySelectorAll(REMOVED)) {
-    element.remove();
+class ClippedError extends Error {
+  readonly reason: ClippedFailure;
+  readonly status: number | null;
+
+  constructor(reason: ClippedFailure, status: number | null = null) {
+    super(`The print view did not load: ${reason}`);
+    this.name = "ClippedError";
+    this.reason = reason;
+    this.status = status;
   }
-  for (const element of [root, ...root.querySelectorAll("*")]) {
-    for (const name of element.getAttributeNames()) {
-      if (
-        name.startsWith("on") ||
-        (URL_ATTRIBUTES.has(name) &&
-          !allowedUrl(name, element.getAttribute(name) ?? "", base))
-      ) {
-        element.removeAttribute(name);
-      }
-    }
+}
+
+const failureOf = (error: unknown): ClippedError => {
+  if (error instanceof ClippedError) {
+    return error;
   }
-  // A link with no target would replace Gmail itself, which has no guard against it, rather than open through the window-open handler.
-  for (const link of root.querySelectorAll("a[href]")) {
-    link.setAttribute("target", "_blank");
-    link.setAttribute("rel", "noopener noreferrer");
-  }
+  return new ClippedError(
+    error instanceof HttpTooLargeError ? "tooLarge" : "threw"
+  );
 };
 
 /** The body of the print view's last message, sanitised. */
@@ -65,7 +44,7 @@ export const bodyOf = (html: string, base: string): Element => {
   const table = [...parseHtml(html).querySelectorAll("table.message")].at(-1);
   const body = [...(table?.querySelectorAll('font[size="-1"]') ?? [])].at(-1);
   if (body === undefined) {
-    throw new Error("The print view holds no message body");
+    throw new ClippedError("noBody");
   }
   sanitise(body, base);
   return body;
@@ -94,14 +73,13 @@ export const clippedMessages: GmailFeature = {
         return await cached;
       }
       const request = (async () => {
-        const page = await http.get(url.href);
-        // Signed out, Gmail answers the print view with its sign-in page and a 200.
-        if (
-          page.status < 200 ||
-          page.status > 299 ||
-          new URL(page.url).origin !== url.origin
-        ) {
-          throw new Error(`The print view answered ${page.status}`);
+        const page = await http.get(url.href, PRINT_VIEW_LIMIT);
+        // Signed out, Gmail redirects the print view to its sign-in page.
+        if (page.redirected) {
+          throw new ClippedError("signIn");
+        }
+        if (page.status < 200 || page.status > 299) {
+          throw new ClippedError("status", page.status);
         }
         return bodyOf(page.text, url.href);
       })();
@@ -119,9 +97,10 @@ export const clippedMessages: GmailFeature = {
       }
       return await request;
     };
-    const fail = () => {
-      if (once("clippedMessages.failed")) {
-        bridge.send(gmail.selectorMiss, { selector: clippedEntry.id });
+    const fail = (error: unknown) => {
+      const { reason, status } = failureOf(error);
+      if (once(`clippedMessages ${reason}`)) {
+        bridge.send(gmail.clippedFailed, { reason, status });
       }
     };
     undo(
@@ -151,8 +130,8 @@ export const clippedMessages: GmailFeature = {
                 ...document.importNode(body, true).childNodes
               );
             }
-          } catch {
-            fail();
+          } catch (error) {
+            fail(error);
           }
         };
         void replace();

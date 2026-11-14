@@ -42,7 +42,7 @@ interface PageHttpOptions {
   readonly timeout: number;
 }
 
-/** Gmail's endpoints as the page reaches them: a request from the page's own world carries its cookies, which is what the action endpoint asks for and main cannot send. Each is aborted once main would stop waiting for it, so a hung endpoint holds nothing. */
+/** Gmail's endpoints as the page reaches them: a request from the page's own world carries its cookies, which is what the action endpoint asks for and main cannot send. Each is aborted once main would stop waiting for it, so a hung endpoint holds nothing, and follows no redirect: Gmail redirects a signed-out request to accounts.google.com, which a fetch from Gmail's origin cannot read, so following it would fail as a network error does. */
 export const pageHttp = (options: Partial<PageHttpOptions> = {}): GmailHttp => {
   const request = options.fetch ?? fetch;
   const timeout = options.timeout ?? MAIL_ACTION_TIMEOUT;
@@ -54,12 +54,13 @@ export const pageHttp = (options: Partial<PageHttpOptions> = {}): GmailHttp => {
     const response = await request(url, {
       ...init,
       credentials: "include",
+      redirect: "manual",
       signal: AbortSignal.timeout(timeout),
     });
     return {
+      redirected: response.type === "opaqueredirect",
       status: response.status,
       text: await textOf(response, limit),
-      url: response.url,
     };
   };
   return {

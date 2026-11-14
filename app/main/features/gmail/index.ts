@@ -180,6 +180,14 @@ export class Gmail {
           }
           return ok(undefined);
         },
+        clippedFailed: ({ reason, status }, { profileId }) => {
+          this.#options.log.warn("A clipped message did not load", {
+            profileId,
+            reason,
+            status,
+          });
+          return ok(undefined);
+        },
         mailActionFailed: ({ reason }, { profileId }) => {
           this.#options.log.warn("Gmail refused an action on a message", {
             profileId,

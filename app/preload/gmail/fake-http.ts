@@ -1,7 +1,9 @@
 import { HttpTooLargeError } from "./http.ts";
 import type { GmailHttp, HttpAnswer } from "./rpc.ts";
 
-type GivenAnswer = Omit<HttpAnswer, "url"> & { readonly url?: string };
+type GivenAnswer = Omit<HttpAnswer, "redirected"> & {
+  readonly redirected?: boolean;
+};
 
 const MISSING: GivenAnswer = { status: 404, text: "" };
 
@@ -12,7 +14,7 @@ export class FakeGmailHttp implements GmailHttp {
   readonly #answers = new Map<string, GivenAnswer>();
   #thrown: Error | undefined;
 
-  /** Answers every request whose address starts with `prefix`, the longest prefix given winning, from the address asked for unless the answer names where a redirect ended. */
+  /** Answers every request whose address starts with `prefix`, the longest prefix given winning, as no redirect unless it says it is one. */
   answer(prefix: string, answer: GivenAnswer): void {
     this.#answers.set(prefix, answer);
   }
@@ -48,6 +50,6 @@ export class FakeGmailHttp implements GmailHttp {
     const given =
       (matched === undefined ? undefined : this.#answers.get(matched)) ??
       MISSING;
-    return { ...given, url: given.url ?? url };
+    return { ...given, redirected: given.redirected ?? false };
   }
 }

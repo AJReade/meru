@@ -10,8 +10,8 @@ import type {
 export interface HttpAnswer {
   readonly status: number;
   readonly text: string;
-  /** The address the answer came from, after any redirect. */
-  readonly url: string;
+  /** Whether the answer was a redirect, which is not followed. */
+  readonly redirected: boolean;
 }
 
 /** The two requests Gmail's own endpoints take, as the page's `fetch` makes them, with the page's cookies; a `get` given a limit rejects with `http.ts`'s `HttpTooLargeError` once the body passes it. */

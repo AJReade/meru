@@ -74,6 +74,17 @@ export const mailActionRefusalSchema = z.enum([
 
 export type MailActionRefusal = z.infer<typeof mailActionRefusalSchema>;
 
+/** Why a clipped message's print view did not load: Gmail answered with a status that is not a 2xx or redirected to its sign-in, it ran past the size a page reads, it held no message body, or the request threw. */
+export const clippedFailureSchema = z.enum([
+  "status",
+  "signIn",
+  "tooLarge",
+  "noBody",
+  "threw",
+]);
+
+export type ClippedFailure = z.infer<typeof clippedFailureSchema>;
+
 /** What a Gmail pane's page asks of main; the profile is the sender's, never the payload's. */
 export const gmail = defineChannels("gmail", {
   /** The settings the page paints its first frame with, read once as the preload starts. */
@@ -102,6 +113,13 @@ export const gmail = defineChannels("gmail", {
   ),
   /** An action Gmail refused, once per reason per page load, which main logs as a warning. */
   mailActionFailed: event(z.object({ reason: mailActionRefusalSchema })),
+  /** A clipped message's whole body did not load, once per reason per page load, with the status Gmail answered when that is the reason. */
+  clippedFailed: event(
+    z.object({
+      reason: clippedFailureSchema,
+      status: z.number().int().min(0).max(999).nullable(),
+    })
+  ),
 });
 
 export const gmailPushes = definePushes("gmail", {
