@@ -50,6 +50,17 @@ export const bodyOf = (html: string, base: string): Element => {
   return body;
 };
 
+/** The body's content in a box of its own on Gmail's page: a stacking context, so nothing in it rises above Gmail's own layers, that clips what a margin pulls outside it and scrolls what is wider. */
+const contained = (document: Document, body: Element): HTMLElement => {
+  const box = document.createElement("div");
+  box.dataset.meruClipped = "";
+  box.style.setProperty("position", "relative");
+  box.style.setProperty("isolation", "isolate");
+  box.style.setProperty("overflow", "auto");
+  box.append(...document.importNode(body, true).childNodes);
+  return box;
+};
+
 /** Replaces a clipped message's "View entire message" with the whole message, fetched from Gmail's print view in the page's own session. */
 export const clippedMessages: GmailFeature = {
   apply: ({
@@ -126,9 +137,7 @@ export const clippedMessages: GmailFeature = {
           try {
             const body = await load(url);
             if (link.isConnected) {
-              clipped.replaceChildren(
-                ...document.importNode(body, true).childNodes
-              );
+              clipped.replaceChildren(contained(document, body));
             }
           } catch (error) {
             fail(error);

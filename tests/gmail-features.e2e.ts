@@ -367,9 +367,10 @@ const HOSTILE_PRINT_VIEW = `<!doctype html><table class="message"><tr><td><font 
 <a id="js" href="javascript:document.title='js link ran'">js</a>
 <style>[gh="cm"] { color: rgb(1, 2, 3) !important; }</style>
 <svg><a id="svga"><animate attributeName="href" values="javascript:document.title='svg ran'" begin="0s" dur="1s" fill="freeze"/><text y="20">click</text></a></svg>
+<p style="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2147483647;background:rgb(10, 11, 12)">overlay</p>
 </font></td></tr></table>`;
 
-test("loads a hostile print view without its style sheet, script or SVG animation", async ({
+test("loads a hostile print view without its style sheet, script, SVG animation or an element over Gmail's page", async ({
   launch,
   stub,
 }) => {
@@ -395,6 +396,13 @@ test("loads a hostile print view without its style sheet, script or SVG animatio
         `[document.title, getComputedStyle(document.querySelector('[gh="cm"]')).color, document.querySelectorAll(".clipped style, .clipped svg, .clipped animate, .clipped script").length, document.querySelector(".clipped a")?.getAttribute("href") ?? null]`
       )
     ).toStrictEqual(["Gmail", "rgb(0, 0, 0)", 0, null]);
+    // Review 22's overlay, fixed over the whole window at the highest z-index, took every click meant for Gmail's own controls.
+    expect(
+      await inPane(
+        app,
+        `(() => { const { x, y, width, height } = document.querySelector('[gh="cm"]').getBoundingClientRect(); return document.elementFromPoint(x + width / 2, y + height / 2)?.textContent; })()`
+      )
+    ).toBe("Compose");
   } finally {
     await gmail.stop();
   }

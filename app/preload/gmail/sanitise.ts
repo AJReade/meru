@@ -164,6 +164,26 @@ const URL_PROTOCOLS = new Set(["cid:", "http:", "https:", "mailto:"]);
 const UNSAFE_STYLE =
   /url\(|image-set\(|image\(|expression|behavior|-moz-binding|\\/iu;
 
+// What lifts an element out of its place in the message, over Gmail's own page, or takes the clicks meant for it; the logical insets and the single transforms move an element as the physical ones do, and a vendor prefix spells the same.
+const PLACING =
+  /^(?:-[a-z]+-)?(?:position|z-index|inset(?:-[a-z-]+)?|top|left|right|bottom|transform|translate|rotate|scale|pointer-events|clip-path)$/u;
+
+const unplace = (element: Element): void => {
+  if (!(element instanceof HTMLElement) || !element.hasAttribute("style")) {
+    return;
+  }
+  const { style } = element;
+  const placing = Array.from({ length: style.length }, (_, index) =>
+    style.item(index)
+  ).filter((name) => PLACING.test(name));
+  for (const name of placing) {
+    style.removeProperty(name);
+  }
+  if (style.length === 0) {
+    element.removeAttribute("style");
+  }
+};
+
 const allowedUrl = (value: string, base: string): boolean =>
   URL.canParse(value, base) && URL_PROTOCOLS.has(new URL(value, base).protocol);
 
@@ -178,6 +198,7 @@ const cleanAttributes = (element: Element, base: string): void => {
       element.removeAttribute(name);
     }
   }
+  unplace(element);
   // A link with no target would replace Gmail itself rather than open through the window-open handler.
   if (element.localName === "a" && element.hasAttribute("href")) {
     element.setAttribute("target", "_blank");
@@ -211,7 +232,7 @@ const cleanChildren = (parent: Element, base: string): void => {
   }
 };
 
-/** Leaves only the elements and attributes mail is written in, every address `http`, `https`, `mailto` or `cid` resolved against `base`, and every link opening a window: no style sheet, no SVG or MathML, no frame, no form, no handler, no id or class that could pass for Gmail's own. */
+/** Leaves only the elements and attributes mail is written in, every address `http`, `https`, `mailto` or `cid` resolved against `base`, and every link opening a window: no style sheet, no SVG or MathML, no frame, no form, no handler, no id or class that could pass for Gmail's own, and no style that moves an element out of its place. */
 export const sanitise = (root: Element, base: string): void => {
   cleanChildren(root, base);
   cleanAttributes(root, base);

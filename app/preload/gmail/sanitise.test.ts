@@ -106,6 +106,27 @@ describe(sanitise, () => {
     ]);
   });
 
+  it("drops what lifts an element out of its place from a style attribute, keeping the rest, and the attribute once nothing is left", () => {
+    const root = sanitised(
+      [
+        '<p style="position: fixed; top: 0; left: 0; width: 100vw; z-index: 2147483647; color: red">overlay</p>',
+        '<p style="inset: 0; transform: translate(10px); pointer-events: none; clip-path: inset(0); right: 1px; bottom: 1px">moved</p>',
+        '<p style="-webkit-transform: scale(2); translate: 10px; rotate: 1deg; scale: 2">prefixed</p>',
+        '<p style="font-weight: bold">kept</p>',
+      ].join("")
+    );
+    expect(
+      [...root.querySelectorAll("p")].map((paragraph) =>
+        paragraph.getAttribute("style")
+      )
+    ).toStrictEqual([
+      "width: 100vw; color: red;",
+      null,
+      null,
+      "font-weight: bold",
+    ]);
+  });
+
   it("unwraps an element off the list, keeping its cleaned text, and drops the attributes off it, ids and classes among them", () => {
     const root = sanitised(
       '<custom-tag><o:p>Outlook</o:p><b class="gmail_quote" id="link_undo" title="t" data-x="1" onclick="x()">bold</b></custom-tag><!-- a comment -->'
