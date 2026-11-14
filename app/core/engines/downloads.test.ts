@@ -6,6 +6,7 @@ import {
   HISTORY_LIMIT,
   nameKey,
   countedReceived,
+  NAME_MAX,
   progressOf,
   pruneHistory,
   takenAmong,
@@ -54,6 +55,48 @@ describe(uniqueName, () => {
     expect(uniqueName("report.pdf", takenAmong(["Report.PDF"], "linux"))).toBe(
       "report.pdf"
     );
+  });
+
+  it.each([
+    { character: "a", what: "a 254-byte name" },
+    { character: "é", what: "a name of two-byte characters" },
+    { character: "日", what: "a name of three-byte characters" },
+    { character: "😀", what: "a name of four-byte characters" },
+  ])(
+    "cuts the stem of $what by whole characters to stay within NAME_MAX, keeping the extension",
+    ({ character }) => {
+      const stem = character.repeat(
+        Math.ceil(250 / Buffer.byteLength(character))
+      );
+      const suggested = `${stem}.txt`;
+      const first = uniqueName(suggested, () => false);
+      const second = uniqueName(suggested, takenAmong([first], "linux"));
+      const third = uniqueName(suggested, takenAmong([first, second], "linux"));
+      for (const name of [first, second, third]) {
+        expect(Buffer.byteLength(name)).toBeLessThanOrEqual(NAME_MAX);
+        expect(name.replace(/ \(\d+\)\.txt$|\.txt$/u, "")).toMatch(
+          new RegExp(`^(?:${character})+$`, "u")
+        );
+      }
+      expect([
+        second.endsWith(" (1).txt"),
+        third.endsWith(" (2).txt"),
+      ]).toStrictEqual([true, true]);
+    }
+  );
+
+  it("cuts a suggested name past NAME_MAX before its extension, and one whose extension leaves no room anywhere", () => {
+    const long = uniqueName(`${"b".repeat(300)}.pdf`, () => false);
+    const dotted = uniqueName(`x.${"c".repeat(300)}`, () => false);
+    expect([
+      Buffer.byteLength(long),
+      long.endsWith("b.pdf"),
+      Buffer.byteLength(dotted),
+      uniqueName(
+        `x.${"c".repeat(300)}`,
+        takenAmong([dotted], "linux")
+      ).endsWith(" (1)"),
+    ]).toStrictEqual([NAME_MAX, true, NAME_MAX, true]);
   });
 
   it("folds case wider than either mapping alone, and composed and decomposed forms together", () => {

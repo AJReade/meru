@@ -124,13 +124,55 @@ export const withPreferredExtension = (
   return extension === undefined ? name : `${name}.${extension}`;
 };
 
-/** `name (n + 1).ext` after `name (n).ext`, and `name (1).ext` after `name.ext`. */
-const nextName = (name: string): string => {
-  const extension = extensionOf(name);
+/** The longest name a disk takes, in bytes of UTF-8: macOS's and Linux's limit, which a name within it also meets on Windows, where the limit is 255 UTF-16 units and no character takes more units than bytes. */
+export const NAME_MAX = 255;
+
+const bytesOf = (text: string): number => {
+  let bytes = 0;
+  for (const character of text) {
+    const point = character.codePointAt(0) ?? 0;
+    if (point < 0x80) {
+      bytes += 1;
+    } else if (point < 0x8_00) {
+      bytes += 2;
+    } else if (point < 0x1_00_00) {
+      bytes += 3;
+    } else {
+      bytes += 4;
+    }
+  }
+  return bytes;
+};
+
+/** `stem` cut by whole characters until it fits before `tail` within `NAME_MAX`, as Chromium cuts a name it makes unique, keeping the extension; a character is what the reader sees as one, so an emoji sequence is never split. */
+const fitted = (stem: string, tail: string): string => {
+  const room = NAME_MAX - bytesOf(tail);
+  let kept = "";
+  for (const { segment } of new Intl.Segmenter(undefined, {
+    granularity: "grapheme",
+  }).segment(stem)) {
+    if (bytesOf(kept) + bytesOf(segment) > room) {
+      break;
+    }
+    kept += segment;
+  }
+  return `${kept.trimEnd()}${tail}`;
+};
+
+/** The stem a counter follows, without any counter it already has, the count it had, and the extension kept after it; an extension too long to leave a stem room counts as part of the stem. */
+const partsOf = (
+  name: string
+): {
+  readonly base: string;
+  readonly count: number;
+  readonly extension: string;
+} => {
+  const found = extensionOf(name);
+  const extension = bytesOf(found) < NAME_MAX / 2 ? found : "";
   const stem = name.slice(0, name.length - extension.length);
   const { base = stem, count = "0" } =
     /^(?<base>.*)\((?<count>\d+)\)$/u.exec(stem)?.groups ?? {};
-  return `${base.trim()} (${Number(count) + 1})${extension}`;
+  return { base: base.trim(), count: Number(count), extension };
 };
 
 /** Whether a name is one of `names` on the platform's disks. */
@@ -142,14 +184,21 @@ export const takenAmong = (
   return (name) => keys.has(nameKey(name, platform));
 };
 
-/** `suggested` itself, or the first of `name (1).ext`, `name (2).ext` and on that `taken` does not hold. */
+/** `suggested` itself, or the first of `name (1).ext`, `name (2).ext` and on that `taken` does not hold, `name (n + 1).ext` after `name (n).ext`, each with its stem cut to what a disk takes. */
 export const uniqueName = (
   suggested: string,
   taken: (name: string) => boolean
 ): string => {
-  let candidate = suggested;
-  while (taken(candidate)) {
-    candidate = nextName(candidate);
+  const { base, count, extension } = partsOf(suggested);
+  let candidate =
+    bytesOf(suggested) <= NAME_MAX
+      ? suggested
+      : fitted(
+          suggested.slice(0, suggested.length - extension.length),
+          extension
+        );
+  for (let next = count + 1; taken(candidate); next += 1) {
+    candidate = fitted(base, ` (${next})${extension}`);
   }
   return candidate;
 };
