@@ -317,16 +317,34 @@ describe("a settings file edited by hand", () => {
 });
 
 describe("a Pro setting", () => {
-  it("resolves to its default while the entitlement refuses Pro, and to what is stored once it allows it", async () => {
+  it("resolves a switch to off or the value it names and anything else to its default while the entitlement refuses Pro, and to what is stored once it allows it", async () => {
     const { store, entitle, changes } = await setup(
-      { global: { "links.openInApp": false } },
+      {
+        global: {
+          "gmail.reverseConversation": true,
+          "links.openInApp": false,
+          "notifications.newEmails": "important",
+        },
+      },
       { entitled: FREE }
     );
-    const free = store.get("links.openInApp");
+    const free = [
+      store.get("gmail.reverseConversation"),
+      store.get("links.openInApp"),
+      store.get("notifications.newEmails"),
+    ];
     entitle(LICENSED);
-    expect([free, store.get("links.openInApp"), changes]).toStrictEqual([
-      true,
-      false,
+    expect([
+      free,
+      [
+        store.get("gmail.reverseConversation"),
+        store.get("links.openInApp"),
+        store.get("notifications.newEmails"),
+      ],
+      changes,
+    ]).toStrictEqual([
+      [false, true, "all"],
+      [true, false, "important"],
       [
         [
           { key: "gmail.hidePromoBanner", profileId: null },

@@ -5,6 +5,7 @@ import {
   diff,
   emptySettings,
   forPlatform,
+  lockedValue,
   resolve,
   storedValue,
   withoutProfile,
@@ -163,14 +164,12 @@ export class SettingsStore {
     return this.#settings;
   }
 
-  /** The value in force: a Pro setting's default while the entitlement refuses Pro, whatever is stored. */
+  /** The value in force: a Pro setting's locked value while the entitlement refuses Pro, whatever is stored. */
   get<K extends SettingKey>(key: K, ...profile: ProfileArg<K>) {
     const [profileId] = profile;
-    const layers =
-      PRO_KEYS.has(key) && this.#proRefusal() !== null
-        ? emptySettings()
-        : this.#settings;
-    return resolve(this.#specs, layers, key, profileId);
+    return PRO_KEYS.has(key) && this.#proRefusal() !== null
+      ? lockedValue(this.#specs, key)
+      : resolve(this.#specs, this.#settings, key, profileId);
   }
 
   /** The keys whose stored value the entitlement holds back, each with the gate's reason. */

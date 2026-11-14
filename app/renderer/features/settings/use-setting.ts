@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 import {
   emptySettings,
   forPlatform,
+  lockedValue,
   resolve,
   withValue,
 } from "../../../core/engines/settings.ts";
@@ -87,7 +88,7 @@ const useSettingsStore = (): Store<SettingsCopy> => useSettingsSource().store;
 export const useSettingSpecs = (): PlatformRegistry =>
   useSettingsSource().specs;
 
-/** The value in force for a key, for a profile when the key is one a profile may override, its default while the key is locked; re-renders when it changes. */
+/** The value in force for a key, for a profile when the key is one a profile may override, its locked value while the key is locked; re-renders when it changes. */
 export const useSetting = <K extends SettingKey>(
   key: K,
   ...profile: ProfileArg<K>
@@ -95,12 +96,9 @@ export const useSetting = <K extends SettingKey>(
   const [profileId] = profile;
   const { specs, store } = useSettingsSource();
   return useStore(store, ({ layers, locked }) =>
-    resolve(
-      specs,
-      locked[key] === undefined ? layers : emptySettings(),
-      key,
-      profileId
-    )
+    locked[key] === undefined
+      ? resolve(specs, layers, key, profileId)
+      : lockedValue(specs, key)
   );
 };
 

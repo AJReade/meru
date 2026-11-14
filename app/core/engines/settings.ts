@@ -19,6 +19,8 @@ export interface SettingSpec<
   readonly default: z.output<S>;
   /** Takes the place of `default` on the platforms it names. */
   readonly platformDefaults?: Readonly<Partial<Record<Platform, z.output<S>>>>;
+  /** What a Pro setting is while the entitlement refuses Pro; a switch is off and anything else its default when this is absent. */
+  readonly lockedValue?: z.output<S>;
   readonly scope: Scope;
 }
 
@@ -142,6 +144,20 @@ export const resolve = <R extends SettingSpecs, K extends KeyOf<R>>(
   }
   const layer: GlobalLayer<R> | undefined = settings.profiles[profileId];
   return layer?.[key] ?? fallback;
+};
+
+/** The value of a setting the entitlement locks: its `lockedValue`, or off for a switch, so that a locked feature is a feature turned off, and its default for anything else. */
+export const lockedValue = <R extends SettingSpecs, K extends KeyOf<R>>(
+  specs: R,
+  key: K
+): ValueOf<R, K> => {
+  const spec = specOf(specs, key);
+  if (spec.lockedValue !== undefined) {
+    return spec.lockedValue;
+  }
+  return typeof spec.default === "boolean"
+    ? spec.schema.parse(false)
+    : spec.default;
 };
 
 /** The specs as `platform` has them, each platform default in the place of the default. */

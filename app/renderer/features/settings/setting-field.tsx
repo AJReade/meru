@@ -2,7 +2,7 @@ import { useId } from "react";
 import type { ReactNode } from "react";
 
 import {
-  emptySettings,
+  lockedValue,
   resolve,
   storedValue,
 } from "../../../core/engines/settings.ts";
@@ -187,11 +187,11 @@ export const SettingField = ({
             }}
             schema={setting.schema}
             setting={setting}
-            value={resolve(
-              specs,
-              locked ? emptySettings() : layers,
-              setting.key
-            )}
+            value={
+              locked
+                ? lockedValue(specs, setting.key)
+                : resolve(specs, layers, setting.key)
+            }
           />
         }
         wide={kind === "multiChoice"}

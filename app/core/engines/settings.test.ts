@@ -1,15 +1,17 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import { z } from "zod";
 
 import { specs } from "../fixtures/settings-specs.ts";
 import {
   diff,
   emptySettings,
   forPlatform,
+  lockedValue,
   resolve,
   storedValue,
   withValue,
 } from "./settings.ts";
-import type { SettingsLayers } from "./settings.ts";
+import type { SettingSpecs, SettingsLayers } from "./settings.ts";
 
 type Layers = SettingsLayers<typeof specs>;
 
@@ -53,6 +55,27 @@ describe(resolve, () => {
       },
     };
     expect(resolve(specs, layers, "look.style", "work")).toBe("classic");
+  });
+});
+
+describe(lockedValue, () => {
+  const switches = [
+    { default: true, key: "a.on", schema: z.boolean(), scope: "global" },
+    {
+      default: false,
+      key: "a.kept",
+      lockedValue: true,
+      schema: z.boolean(),
+      scope: "global",
+    },
+  ] as const satisfies SettingSpecs;
+
+  it("is off for a switch, the value a setting names for itself, and the default for anything else", () => {
+    expect([
+      lockedValue(switches, "a.on"),
+      lockedValue(switches, "a.kept"),
+      lockedValue(specs, "look.style"),
+    ]).toStrictEqual([false, true, "modern"]);
   });
 });
 

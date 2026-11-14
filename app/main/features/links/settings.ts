@@ -9,6 +9,8 @@ export const linksSettings = [
   defineSetting("links.openInApp", {
     default: true,
     description: msg`Open links to Google apps in Meru rather than in the browser.`,
+    // Links stay in the app for a free user; only choosing otherwise is Pro.
+    lockedValue: true,
     label: msg`Open Google apps in Meru`,
     page: "panes",
     section: msg`Links`,
