@@ -1,5 +1,6 @@
 import { once } from "node:events";
 import { createServer } from "node:http";
+import type { IncomingMessage } from "node:http";
 
 import { NONE_UNREAD } from "../app/core/fixtures/gmail-feeds.ts";
 
@@ -27,6 +28,10 @@ export interface StubRefusal {
 export interface GmailStubPages {
   readonly printView?: string | StubRefusal;
   readonly popOut?: string;
+  /** A `?view=` the mailbox answers with a 302 to `path`, on the stand-in's own origin or, when `foreign`, on `localhost`, which is another origin to the page. */
+  readonly redirects?: Readonly<
+    Record<string, { readonly path: string; readonly foreign?: boolean }>
+  >;
 }
 
 const MAILBOX_PATH = "/mail/u/0";
@@ -39,6 +44,21 @@ const PIXEL = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
   "base64"
 );
+
+/** Where the mailbox redirects a `?view=`, if it does. */
+const locationOf = (
+  request: IncomingMessage,
+  pages: GmailStubPages,
+  view: string | null
+): string | undefined => {
+  const redirect = view === null ? undefined : pages.redirects?.[view];
+  if (redirect === undefined) {
+    return undefined;
+  }
+  const { port } = new URL(`http://${request.headers.host ?? ""}`);
+  const host = redirect.foreign === true ? "localhost" : "127.0.0.1";
+  return `http://${host}:${port}${redirect.path}`;
+};
 
 /** A loopback stand-in for Gmail: the mailbox page, which is `page`, its print view and pop-out when given, its action endpoint and the cookie that endpoint asks for, its feed, the senders' icons, and the sign-in page beside it. */
 export const startGmailStub = async (
@@ -56,7 +76,10 @@ export const startGmailStub = async (
     const view = searchParams.get("view");
     const other = view === "lg" ? pages.printView : pages.popOut;
     const shown = view === null ? page : other;
-    if (pathname === `${MAILBOX_PATH}/` && typeof shown === "object") {
+    const redirect = locationOf(request, pages, view);
+    if (pathname === `${MAILBOX_PATH}/` && redirect !== undefined) {
+      response.writeHead(302, { location: redirect }).end();
+    } else if (pathname === `${MAILBOX_PATH}/` && typeof shown === "object") {
       response
         .writeHead(
           shown.status,

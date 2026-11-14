@@ -270,6 +270,96 @@ test("runs the Gmail preload in a pop-out and keeps it on Gmail, sending the win
     await gmail.stop();
   }
 });
+/** The windows that show, by address, the chrome page's as `chrome`. */
+const shownOf = async (app: ElectronApplication) =>
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()
+      .filter((window) => window.isVisible())
+      .map((window) =>
+        window.webContents.getURL().replace(/^file:.*$/u, "chrome")
+      )
+      .toSorted()
+  );
+
+// Two steps off Gmail that review 22 found: a window the blank popup opens, which had no window-open handler of its own, and a redirect, which will-navigate never hears.
+const STEPPING = `<!doctype html><title>Compose</title>
+<script>
+  const elsewhere = location.origin.replace("127.0.0.1", "localhost") + "/elsewhere";
+  window.throughBlank = () => {
+    window.open("").open(elsewhere + "?from=popOutBlank", "_blank");
+  };
+  window.redirect = (view) => {
+    location.href = location.pathname + "?view=" + view;
+  };
+</script>`;
+
+test("sends a blank popup's own windows and a redirect off Gmail to the browser, from a pop-out and from a pane, the pop-out staying where it was", async ({
+  launch,
+  stub,
+}) => {
+  const gmail = await startGmailStub(MAILBOX, {
+    popOut: STEPPING,
+    redirects: {
+      chain: { path: "/mail/u/0/?view=redirect" },
+      redirect: { foreign: true, path: "/elsewhere?from=redirect" },
+    },
+  });
+  try {
+    const { app } = await launch({
+      env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
+    });
+    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await inPane(
+      app,
+      `window.open(location.origin + location.pathname + "?view=cm", "_blank"), null`
+    );
+    await expect.poll(async () => await popOutsOf(app)).toHaveLength(1);
+    const [popOut] = await popOutsOf(app);
+    const { contentsId } = must(popOut, "the pop-out");
+    await expect
+      .poll(async () => await run(app, contentsId, `typeof window.redirect`))
+      .toBe("function");
+    const elsewhere = `${gmail.url.replace("127.0.0.1", "localhost").replace("/mail/u/0", "")}/elsewhere`;
+    const sent = async () => {
+      const { external } = await inspect(app);
+      return external.toSorted();
+    };
+
+    await run(app, contentsId, `window.throughBlank(), null`);
+    await inPane(
+      app,
+      `window.open("").open(${JSON.stringify(`${elsewhere}?from=paneBlank`)}, "_blank"), null`
+    );
+    await expect
+      .poll(sent)
+      .toStrictEqual([
+        `${elsewhere}?from=paneBlank`,
+        `${elsewhere}?from=popOutBlank`,
+      ]);
+
+    await run(app, contentsId, `window.redirect("redirect"), null`);
+    await expect.poll(sent).toContain(`${elsewhere}?from=redirect`);
+    await run(app, contentsId, `window.redirect("chain"), null`);
+    await expect
+      .poll(sent)
+      .toStrictEqual([
+        `${elsewhere}?from=paneBlank`,
+        `${elsewhere}?from=popOutBlank`,
+        `${elsewhere}?from=redirect`,
+        `${elsewhere}?from=redirect`,
+      ]);
+    expect(await shownOf(app)).toStrictEqual([
+      "chrome",
+      `${gmail.url}/?view=cm`,
+    ]);
+    expect(await run(app, contentsId, "typeof window.redirect")).toBe(
+      "function"
+    );
+  } finally {
+    await gmail.stop();
+  }
+});
+
 // What review 21 sent through the print view, each of which restyled Gmail, ran script or left the page past the old denylist.
 const HOSTILE_PRINT_VIEW = `<!doctype html><table class="message"><tr><td><font size="-1">
 <p>whole</p>
