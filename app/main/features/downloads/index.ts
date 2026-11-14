@@ -414,13 +414,14 @@ export class Downloads {
     void this.#sweepPending();
   }
 
-  /** Deletes what the pending folder holds that no download under way is writing, such as what a crash or a cancelled dialog left. */
+  /** Deletes what the pending folder holds that no download under way is writing and the history does not list, such as what a crash or a cancelled dialog left. */
   async #sweepPending() {
     const { downloads, pendingDirectory } = this.#options;
     const names = await downloads.namesIn(pendingDirectory);
-    const owned = new Set(
-      [...this.#active.values()].map(({ written }) => written)
-    );
+    const owned = new Set([
+      ...[...this.#active.values()].map(({ written }) => written),
+      ...this.#items.map(({ filePath }) => filePath),
+    ]);
     await Promise.all(
       names
         .map((name) => path.join(pendingDirectory, name))
@@ -512,10 +513,11 @@ export class Downloads {
     await this.#delete(active.written);
   }
 
+  /** Moves a whole download where it was saved, holding it among those under way until the move has settled, so the pending folder's sweep leaves its file alone; a move the disk refuses leaves the file where it was written, recorded there and said so. */
   async #complete(active: Active) {
     const { downloads, log, settings, shell } = this.#options;
     const target = pathOf(active.destination);
-    this.#active.delete(active.id);
+    let saved = target;
     try {
       if (target !== active.written) {
         await downloads.move(active.written, target);
@@ -524,20 +526,42 @@ export class Downloads {
       log.error("A download could not be moved where it was saved", {
         error,
       });
-      await this.#fail(active);
-      return;
+      saved = active.written;
+    } finally {
+      this.#active.delete(active.id);
     }
     // Before anything else touches the file, so nothing can open it unquarantined.
     try {
-      await downloads.finished(target);
+      await downloads.finished(saved);
     } catch (error) {
       log.error("A download could not be quarantined", { error });
     }
-    this.#record(active, "done");
+    this.#record(active, "done", saved);
+    if (saved !== target) {
+      this.#announceUnmoved(active.id, path.basename(target));
+      return;
+    }
     if (settings.get("downloads.openFolderWhenDone")) {
       shell.showItemInFolder(target);
     }
     this.#announce(active.id, path.basename(target));
+  }
+
+  #announceUnmoved(id: string, name: string) {
+    const { notifications, platform, settings } = this.#options;
+    const reveal = () => {
+      this.showInFolder(id);
+    };
+    notifications.show(
+      {
+        actions: [revealLabel(platform)],
+        body: msg`${name} could not be saved where you chose, so it stays in the folder it was downloaded to.`,
+        silent: !settings.get("notifications.playSound"),
+        title: msg`Download not moved`,
+      },
+      platform === "linux" ? reveal : noop,
+      reveal
+    );
   }
 
   #announce(id: string, name: string) {
@@ -566,10 +590,13 @@ export class Downloads {
     );
   }
 
-  /** Records how the download ended and answers the name it ended under. */
-  #record(active: Active, state: Download["state"]): string {
-    const filePath = pathOf(active.destination);
-    const fileName = path.basename(filePath);
+  /** Records how the download ended, under the name it was given and at `filePath`, where it was given unless it stayed elsewhere, and answers the name. */
+  #record(
+    active: Active,
+    state: Download["state"],
+    filePath = pathOf(active.destination)
+  ): string {
+    const fileName = path.basename(pathOf(active.destination));
     this.#write([
       {
         createdAt: active.createdAt,

@@ -218,19 +218,58 @@ describe(Downloads, () => {
     ]);
   });
 
-  it("records a saved download that cannot be moved where the dialog said as failed, under the name chosen", async () => {
-    const { dialogs, feature, port, settings } = await setup();
+  it("leaves a saved download the disk will not move where it was written, records it there under the name chosen and says so, and keeps it through the next sweep", async () => {
+    const { dialogs, feature, notifications, port, settings } = await setup();
     settings.set("downloads.saveAs", true);
-    const { id } = port.start({ suggestedName: "a.zip" });
+    const { id, path: started } = port.start({ suggestedName: "a.zip" });
+    const written = started ?? "";
     port.complete(id);
     const chosen = path.join(path.sep, "Volumes", "Gone", "a.zip");
     port.stuck.add(chosen);
     await settle();
     dialogs.answer(chosen);
     await settle();
+    const next = port.start({ suggestedName: "b.zip" });
+    await settle();
+    dialogs.answer(null);
+    port.cancel(next.id);
+    await settle();
+
     expect(feature.snapshot().items).toMatchObject([
-      { exists: false, filePath: chosen, state: "failed" },
+      { state: "cancelled" },
+      { exists: true, fileName: "a.zip", filePath: written, state: "done" },
     ]);
+    expect([
+      port.files.has(written),
+      notifications.shown.map(({ spec }) => [spec.title, spec.actions]),
+    ]).toStrictEqual([true, [["Download not moved", ["Show in Finder"]]]]);
+  });
+
+  it("keeps a whole download's file from the pending folder's sweep while it is moved where it was saved", async () => {
+    const { dialogs, feature, port, settings } = await setup();
+    settings.set("downloads.saveAs", true);
+    const first = port.start({ suggestedName: "a.zip" });
+    await settle();
+    const chosen = path.join(path.sep, "Users", "me", "Desktop", "a.zip");
+    dialogs.answer(chosen);
+    await settle();
+    const second = port.start({ suggestedName: "b.zip" });
+    await settle();
+    const release = port.holdMoves();
+    port.complete(first.id);
+    await settle();
+    dialogs.answer(null);
+    port.cancel(second.id);
+    await settle();
+    release();
+    await settle();
+
+    expect([
+      port.files.has(chosen),
+      feature
+        .snapshot()
+        .items.map(({ fileName, state }) => `${state} ${fileName}`),
+    ]).toStrictEqual([true, ["done a.zip", "cancelled b.zip"]]);
   });
 
   it("records a download interrupted before the save dialog answers under the name it suggested", async () => {

@@ -20,6 +20,7 @@ export class FakeDownloads implements DownloadPort {
   /** Each file marked as a finished download, in order. */
   readonly marked: string[] = [];
   #decide: ((start: DownloadStart) => DownloadTarget) | undefined;
+  #moves: Promise<void> = Promise.resolve();
   readonly #listeners = new Set<(event: DownloadEvent) => void>();
   #count = 0;
 
@@ -118,8 +119,17 @@ export class FakeDownloads implements DownloadPort {
     this.files.delete(path);
   };
 
+  /** Holds every move from now on, as a slow disk does, until the answer is called. */
+  holdMoves(): () => void {
+    const { promise, resolve } = Promise.withResolvers<undefined>();
+    this.#moves = promise;
+    return () => {
+      resolve(undefined);
+    };
+  }
+
   readonly move = async (from: string, to: string) => {
-    await Promise.resolve();
+    await this.#moves;
     if (this.stuck.has(from) || this.stuck.has(to)) {
       throw new Error(`ENOTDIR: ${to}`);
     }
