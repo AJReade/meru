@@ -32,7 +32,7 @@ export interface Command<Id extends string = string> extends CommandSpec {
   readonly id: Id;
 }
 
-type CommandIdOf<G extends CommandGroup> =
+export type CommandIdOf<G extends CommandGroup> =
   `${G["feature"]}.${keyof G["commands"] & string}`;
 
 type Named<C> = {

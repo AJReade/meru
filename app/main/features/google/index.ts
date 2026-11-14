@@ -17,7 +17,10 @@ import {
   contentSurfaceArgument,
   googleSurface,
 } from "../../../shared/channels/surfaces.ts";
-import type { CommandRegistrar } from "../../../shared/commands/define.ts";
+import type {
+  CommandIdOf,
+  CommandRegistrar,
+} from "../../../shared/commands/define.ts";
 import { commandsOf } from "../../../shared/commands/define.ts";
 import type { SettingsStore } from "../settings/index.ts";
 import type { ContentPage } from "../stage/tab-views.ts";
@@ -36,7 +39,9 @@ export interface GoogleOptions {
   readonly events: Pick<AppEvents, "on" | "emit">;
 }
 
-const TOGGLE_COMMANDS: Readonly<Record<string, MeetToggle>> = {
+const TOGGLE_COMMANDS: Readonly<
+  Record<CommandIdOf<typeof googleCommands>, MeetToggle>
+> = {
   "google.toggleMeetCamera": "camera",
   "google.toggleMeetMicrophone": "microphone",
 };
@@ -182,9 +187,8 @@ export class Google {
     );
     const wanted = new Map<string, MeetToggle>();
     for (const [id, accelerator] of resolved) {
-      const toggle = TOGGLE_COMMANDS[id];
-      if (accelerator !== null && toggle !== undefined) {
-        wanted.set(accelerator, toggle);
+      if (accelerator !== null) {
+        wanted.set(accelerator, TOGGLE_COMMANDS[id]);
       }
     }
     return wanted;
