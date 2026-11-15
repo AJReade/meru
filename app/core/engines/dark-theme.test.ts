@@ -9,6 +9,7 @@ import {
   darkBorder,
   darkGradient,
   darkText,
+  over,
   formatColour,
   imageTone,
   luminance,
@@ -168,6 +169,18 @@ describe(darkBorder, () => {
     expect(luminance(rule)).toBeGreaterThan(luminance(DARK_SURFACE));
     expect(luminance(rule)).toBeLessThan(0.2);
     expect(contrast(vanished, DARK_SURFACE)).toBeGreaterThanOrEqual(1.5);
+  });
+
+  it("keeps a translucent seam translucent and as faint on the dark sheet as on the light one", () => {
+    // Gmail's seam between a thread's messages, measured live.
+    const seam = { a: 0.12, b: 143, g: 121, r: 100 };
+    const white = colour("#ffffff");
+    const dark = darkBorder(seam, DARK_SURFACE);
+    const shown = contrast(over(dark, DARK_SURFACE), DARK_SURFACE);
+
+    expect(dark.a).toBe(0.12);
+    expect(shown).toBeLessThan(1.5);
+    expect(shown).toBeCloseTo(contrast(over(seam, white), white), 1);
   });
 });
 

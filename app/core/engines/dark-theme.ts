@@ -250,10 +250,20 @@ const readableOn = (colour: Rgba, ground: Rgba, floor: number): Rgba => {
 export const darkText = (colour: Rgba, ground: Rgba): Rgba =>
   colour.a === 0 ? colour : readableOn(colour, ground, TEXT_CONTRAST);
 
-/** A border or rule's colour on the opaque `ground`: a light one darkened a step above the surfaces beside it, and any that vanishes into its ground turned until it shows. */
+/**
+ * A border or rule's colour on the opaque `ground`: a light one darkened a step above the surfaces
+ * beside it, and any that vanishes into its ground turned until it shows. A translucent one is a
+ * shade of whatever lies under it, a hairline as faint on the light page as it was drawn, so it
+ * stays as translucent with its lightness turned over: made opaque and turned until it showed, a
+ * dark 12% seam became a light line across a dark sheet.
+ */
 export const darkBorder = (colour: Rgba, ground: Rgba): Rgba => {
   if (colour.a === 0) {
     return colour;
+  }
+  if (colour.a < 1) {
+    const { h, s, l } = toHsl(colour);
+    return l >= 0.5 ? colour : fromHsl({ h, l: 1 - l, s }, colour.a);
   }
   const shifted =
     luminance(colour) > DARK_LUMINANCE && !isBrand(colour)
