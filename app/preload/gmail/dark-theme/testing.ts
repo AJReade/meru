@@ -15,7 +15,7 @@ export const styleOf = (element: Element) => getComputedStyle(element);
 /** The mark a test's walks write, fixed so a test can look for it. */
 export const TEST_MARK = markOf("test");
 
-export const theme: Theme = { mark: TEST_MARK, styleOf };
+export const theme: Theme = { colourOf: parseColour, mark: TEST_MARK, styleOf };
 
 export const corpus = Object.entries(
   import.meta.glob("../features/fixtures/corpus/*.html", {

@@ -61,11 +61,27 @@ export const TURN_LIGHT = "invert(1) hue-rotate(180deg)";
 /** What reads an element's computed style, which the page gives. */
 export type StyleOf = (element: Element) => CSSStyleDeclaration;
 
-/** What a walk needs of the page: the mark it writes and how to read a computed style. */
+/** What reads a computed colour, `parseColour` for `rgb()` and the page's canvas for the rest of CSS Color 4, or undefined for one it cannot read. */
+export type ColourOf = (text: string) => Rgba | undefined;
+
+/** What a walk needs of the page: the mark it writes, how to read a computed style and how to read a colour in it. */
 export interface Theme {
   readonly mark: string;
   readonly styleOf: StyleOf;
+  readonly colourOf: ColourOf;
 }
+
+const CLEAR: Rgba = { a: 0, b: 0, g: 0, r: 0 };
+
+// A colour function other than `rgb()` left in a computed gradient, whose stops the walk cannot weigh.
+const UNREAD_STOP = /\b(?:oklch|oklab|lab|lch|hwb|color|color-mix)\(/u;
+
+/** A computed background colour; an empty one is a property no style set, as a page without layout answers. */
+const backgroundOf = (
+  style: CSSStyleDeclaration,
+  colourOf: ColourOf
+): Rgba | undefined =>
+  style.backgroundColor === "" ? CLEAR : colourOf(style.backgroundColor);
 
 interface Write {
   readonly element: HTMLElement;
@@ -95,13 +111,13 @@ const isHtml = (element: Element): element is HTMLElement =>
   "style" in element && element.namespaceURI === "http://www.w3.org/1999/xhtml";
 
 /** The ground under `root`, read off its nearest ancestor that paints one, darkened as the walk would darken it. */
-const groundAbove = (root: Element, styleOf: StyleOf): Rgba => {
+const groundAbove = (root: Element, { colourOf, styleOf }: Theme): Rgba => {
   for (
     let ancestor = root.parentElement;
     ancestor !== null;
     ancestor = ancestor.parentElement
   ) {
-    const colour = parseColour(styleOf(ancestor).backgroundColor);
+    const colour = backgroundOf(styleOf(ancestor), colourOf);
     if (colour !== undefined && colour.a > 0) {
       return over(darkBackground(colour), DARK_SURFACE);
     }
@@ -130,12 +146,17 @@ type WriteTo = (property: string, value: string) => void;
 const paintBackground = (
   style: CSSStyleDeclaration,
   inherited: Paint,
-  write: WriteTo
+  write: WriteTo,
+  colourOf: ColourOf
 ): Paint => {
   let { ground, darkened } = inherited;
   const image = style.backgroundImage;
   const pictured = image.includes("url(") && !isDarkIcon(image);
-  const background = parseColour(style.backgroundColor);
+  const background = backgroundOf(style, colourOf);
+  if (background === undefined) {
+    // A ground the walk cannot read is one it cannot decide a text against, so what the element holds is left as the mail set it.
+    return { darkened, ground: undefined };
+  }
   if (background !== undefined && background.a > 0) {
     const dark = pictured ? background : darkBackground(background);
     if (dark !== background) {
@@ -144,7 +165,9 @@ const paintBackground = (
     darkened = dark !== background || (darkened && ground === undefined);
     ground = over(dark, ground ?? DARK_SURFACE);
   }
-  if (image.includes("gradient(")) {
+  if (image.includes("gradient(") && UNREAD_STOP.test(image)) {
+    ground = undefined;
+  } else if (image.includes("gradient(")) {
     const gradient = darkGradient(image);
     if (gradient.image !== image) {
       write("background-image", gradient.image);
@@ -161,14 +184,15 @@ const paintBackground = (
 const paintBorders = (
   style: CSSStyleDeclaration,
   ground: Rgba,
-  write: WriteTo
+  write: WriteTo,
+  colourOf: ColourOf
 ): void => {
   for (const side of SIDES) {
     // A computed border width is always in pixels.
     const width = Number(
       style.getPropertyValue(`border-${side}-width`).replace("px", "")
     );
-    const border = parseColour(style.getPropertyValue(`border-${side}-color`));
+    const border = colourOf(style.getPropertyValue(`border-${side}-color`));
     if (
       style.getPropertyValue(`border-${side}-style`) !== "none" &&
       width > 0 &&
@@ -187,11 +211,12 @@ const paintElement = (
   element: HTMLElement,
   style: CSSStyleDeclaration,
   frame: Frame,
-  write: WriteTo
+  write: WriteTo,
+  colourOf: ColourOf
 ): Painted => {
-  const paint = paintBackground(style, frame, write);
+  const paint = paintBackground(style, frame, write, colourOf);
   const { ground } = paint;
-  const colour = parseColour(style.color);
+  const colour = colourOf(style.color);
   if (colour === undefined) {
     return { ...paint, text: frame.parentText };
   }
@@ -209,7 +234,7 @@ const paintElement = (
   if (text !== shown) {
     write("color", text);
   }
-  paintBorders(style, ground, write);
+  paintBorders(style, ground, write, colourOf);
   return { ...paint, text };
 };
 
@@ -252,9 +277,10 @@ const writtenValue = (flag: string, element: Element): string => {
  */
 export const themeTree = (
   root: Element,
-  { mark, styleOf }: Theme,
+  theme: Theme,
   skip: string = EDITOR
 ): Themed => {
+  const { colourOf, mark, styleOf } = theme;
   const writes: Write[] = [];
   const images: HTMLImageElement[] = [];
   const touched = new Set<Element>();
@@ -263,7 +289,7 @@ export const themeTree = (
     {
       darkened: true,
       element: root,
-      ground: groundAbove(root, styleOf),
+      ground: groundAbove(root, theme),
       parentColour: "",
       parentText: "",
     },
@@ -286,7 +312,8 @@ export const themeTree = (
           : (property, value) => {
               writes.push({ element, property, value });
               touched.add(element);
-            }
+            },
+        colourOf
       );
       if (
         element instanceof HTMLImageElement &&

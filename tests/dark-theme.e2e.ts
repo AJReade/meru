@@ -240,3 +240,92 @@ test("keeps a text readable while the pointer is over it, and a batch with nothi
     await gmail.stop();
   }
 });
+
+const MODERN_MAIL = `<div class="a3s aiL"><div style="background-color: #ffffff">${[
+  ["oklch", "color: oklch(0.3 0 0)"],
+  ["mix", "color: color-mix(in srgb, #000 80%, #fff)"],
+  ["lab", "color: lab(20 0 0)"],
+  ["lch", "color: lch(25 10 200)"],
+  ["p3", "color: color(display-p3 0.1 0.1 0.1)"],
+  ["oklab", "color: oklab(0.3 0 0)"],
+  ["ground", "background-color: oklch(0.99 0 0); color: #222222"],
+]
+  .map(([id, style]) => `<p id="${id}" style="${style}">${id}</p>`)
+  .join("")}</div></div>`;
+
+// Each case's text colour and ground as the canvas reads them, which turns any CSS colour into sRGB, and the time the canvas takes per colour, read the way the feature reads one.
+const MODERN = `(() => {
+  const context = new OffscreenCanvas(1, 1).getContext("2d", { willReadFrequently: true });
+  const read = (text) => {
+    context.fillStyle = "#000000";
+    context.fillStyle = text;
+    context.clearRect(0, 0, 1, 1);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return "rgb(" + r + ", " + g + ", " + b + ")";
+  };
+  const ground = (element) => {
+    for (let box = element; box !== null; box = box.parentElement) {
+      const colour = getComputedStyle(box).backgroundColor;
+      if (colour !== "rgba(0, 0, 0, 0)") {
+        return read(colour);
+      }
+    }
+    return read(getComputedStyle(document.body).backgroundColor);
+  };
+  const cases = ["oklch", "mix", "lab", "lch", "p3", "oklab", "ground"].map((id) => {
+    const element = document.querySelector("#" + id);
+    return [id, read(getComputedStyle(element).color), ground(element)];
+  });
+  const started = performance.now();
+  for (let index = 0; index < 200; index += 1) {
+    read("oklch(" + (index / 200).toFixed(3) + " 0.1 200)");
+  }
+  return [cases, (performance.now() - started) / 200];
+})()`;
+const MODERN_SCHEMA = z.tuple([
+  z.array(z.tuple([z.string(), z.string(), z.string()])),
+  z.number(),
+]);
+
+test("reads CSS Color 4's colours and keeps every text over them readable", async ({
+  launch,
+  stub,
+}) => {
+  const gmail = await startGmailStub(await conversationOf(MODERN_MAIL));
+  try {
+    const { app, chrome } = await launch({
+      env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
+    });
+    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await expect
+      .poll(async () => await inPane(app, STATE))
+      .toStrictEqual(["rgb(255, 255, 255)", 0]);
+    await setTo(chrome, true);
+    await expect
+      .poll(async () => {
+        const [ground] = STATE_SCHEMA.parse(await inPane(app, STATE));
+        return ground !== "rgb(255, 255, 255)";
+      })
+      .toBe(true);
+
+    const [cases, perColour] = MODERN_SCHEMA.parse(await inPane(app, MODERN));
+    const ratios = Object.fromEntries(
+      cases.map(([id, text, ground]) => [
+        id,
+        Math.round(
+          contrast(
+            must(parseColour(text), "a text colour"),
+            must(parseColour(ground), "a ground")
+          ) * 100
+        ) / 100,
+      ])
+    );
+    console.log(JSON.stringify({ canvasMsPerColour: perColour, ratios }));
+    expect(Object.values(ratios).every((ratio) => ratio >= TEXT_CONTRAST)).toBe(
+      true
+    );
+  } finally {
+    await gmail.stop();
+  }
+});

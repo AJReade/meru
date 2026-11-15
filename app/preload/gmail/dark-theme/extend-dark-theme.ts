@@ -82,7 +82,11 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
       return;
     }
     const styleOf: StyleOf = (element) => view.getComputedStyle(element);
-    const theme: Theme = { mark, styleOf };
+    const theme: Theme = {
+      colourOf: (text) => parseColour(text) ?? canvas.colour(text),
+      mark,
+      styleOf,
+    };
     // Each root with what its walk passes over.
     const roots = new Map<Element, string>();
     let on = true;

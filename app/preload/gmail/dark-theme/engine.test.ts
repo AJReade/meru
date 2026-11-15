@@ -7,6 +7,7 @@ import {
   parseColour,
 } from "../../../core/engines/dark-theme.ts";
 import { newMark, releaseTree, themeTree } from "./engine.ts";
+import { FakeCanvas } from "./fake-canvas.ts";
 import {
   TEST_MARK,
   corpus,
@@ -112,12 +113,39 @@ describe(themeTree, () => {
     expect(body.querySelector("#pictured")?.getAttribute("style")).toBe(before);
   });
 
+  // happy-dom computes a named colour as it was written and drops CSS Color 4's, so a named one stands here for a colour Chromium computes in a space of its own, such as `oklch()`, which `parseColour` cannot read either.
+  it("reads a colour parseColour cannot through the canvas, and leaves what neither can read", () => {
+    const canvas = new FakeCanvas();
+    canvas.answerColour("dimgray", { a: 1, b: 105, g: 105, r: 105 });
+    const body = mount(
+      `<div class="a3s"><div style="background-color: rgb(255, 255, 255)"><p id="read" style="color: dimgray">Read</p><div style="background-color: white"><p id="unread" style="color: rgb(34, 34, 34)">Unread</p></div></div></div>`
+    );
+    themeTree(body, {
+      ...theme,
+      colourOf: (text) => parseColour(text) ?? canvas.colour(text),
+    });
+    const read = parseColour(
+      body
+        .querySelector("#read")
+        ?.getAttribute("style")
+        ?.replace(
+          /^.*color: (?<colour>rgb\([^)]*\)) !important.*$/u,
+          "$<colour>"
+        ) ?? ""
+    );
+
+    expect([
+      read === undefined ? 0 : contrast(read, DARK_SURFACE) >= TEXT_CONTRAST,
+      body.querySelector("#unread")?.getAttribute("style"),
+    ]).toStrictEqual([true, "color: rgb(34, 34, 34)"]);
+  });
+
   it("leaves a mark the mail carries alone, whatever it holds", () => {
     const mark = newMark();
     const body = mount(
       `<div class="a3s"><div id="spoof" data-meru-dark="position:fixed;inset:0;z-index:2147483647" style="color:#000">Spoof</div><div id="wipe" data-meru-dark="" data-meru-dark-0="" style="background:#fff;color:#000">Wipe</div></div>`
     );
-    themeTree(body, { mark, styleOf });
+    themeTree(body, { ...theme, mark });
 
     releaseTree(document, mark);
 
