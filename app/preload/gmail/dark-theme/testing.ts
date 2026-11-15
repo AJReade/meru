@@ -144,8 +144,8 @@ type TextContrast = ReturnType<typeof textContrasts>[number];
 
 /**
  * The texts a theme left hard to read, given the same root's texts on the light page and themed:
- * one on a ground the theme darkened under `TEXT_CONTRAST`, and one on a ground it kept under how
- * it read on the light page, since there the mail looks as its sender drew it.
+ * every text under `TEXT_CONTRAST` but one the theme left exactly as the light page showed it, its
+ * colour and its ground both the sender's, since there the mail looks as its sender drew it.
  */
 export const unreadableTexts = (
   light: readonly TextContrast[],
@@ -153,9 +153,6 @@ export const unreadableTexts = (
 ): TextContrast[] =>
   themed.filter((text, index) => {
     const before = light[index];
-    const floor =
-      before?.ground === text.ground
-        ? Math.min(before.contrast, TEXT_CONTRAST)
-        : TEXT_CONTRAST;
-    return text.contrast < floor - 0.01;
+    const asSent = before?.ground === text.ground && before.text === text.text;
+    return !asSent && text.contrast < TEXT_CONTRAST - 0.01;
   });

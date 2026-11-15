@@ -46,7 +46,7 @@ describe(themeTree, () => {
   });
 
   it.each(corpus)(
-    `themes $name with every text at ${TEXT_CONTRAST} against a ground it darkened, and as it read on the light page on one it kept`,
+    `themes $name with every text at ${TEXT_CONTRAST} but one it left as the light page showed it, colour and ground`,
     ({ html }) => {
       const sheet = mountMail(html);
       const light = textContrasts(sheet);
@@ -55,6 +55,65 @@ describe(themeTree, () => {
       expect(unreadableTexts(light, textContrasts(sheet))).toStrictEqual([]);
     }
   );
+
+  it(`leaves under ${TEXT_CONTRAST} only the texts the sender drew so, each as the light page showed it`, () => {
+    const under = corpus.flatMap(({ html, name }) => {
+      const sheet = mountMail(html);
+      const light = textContrasts(sheet);
+      themeTree(sheet, theme, "#nothing");
+      return textContrasts(sheet).flatMap((text, index) =>
+        text.contrast < TEXT_CONTRAST
+          ? [
+              {
+                asOnLight: light[index]?.contrast === text.contrast,
+                contrast: Number(text.contrast.toFixed(2)),
+                ground: text.ground,
+                name,
+                text: text.text,
+              },
+            ]
+          : []
+      );
+    });
+
+    expect(under).toStrictEqual([
+      {
+        asOnLight: true,
+        contrast: 3.61,
+        ground: "rgb(65, 132, 243)",
+        name: "account-alert",
+        text: "rgb(255, 255, 255)",
+      },
+      {
+        asOnLight: true,
+        contrast: 3.89,
+        ground: "rgb(18, 18, 18)",
+        name: "dark-sender",
+        text: "rgb(114, 114, 114)",
+      },
+      {
+        asOnLight: true,
+        contrast: 4.31,
+        ground: "rgb(110, 101, 198)",
+        name: "gradients",
+        text: "rgb(240, 240, 255)",
+      },
+      {
+        asOnLight: true,
+        contrast: 2.91,
+        ground: "rgb(255, 103, 25)",
+        name: "newsletter-essay",
+        text: "rgb(255, 255, 255)",
+      },
+      {
+        asOnLight: true,
+        contrast: 3.55,
+        ground: "rgb(60, 136, 235)",
+        name: "translucent-shades",
+        text: "rgb(255, 255, 255)",
+      },
+    ]);
+  });
 
   it.each(corpus)("puts $name back exactly as the mail had it", ({ html }) => {
     const body = mount(html);
