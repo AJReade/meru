@@ -302,7 +302,7 @@ const start = async () => {
     online: ports.online,
     power: ports.power,
     readFeed: (profileId) => {
-      inbox.read(profileId);
+      inbox.nudge(profileId);
     },
     openMailbox: (profileId, hash) => {
       const tab = gmailTabOf(profiles, profileId);

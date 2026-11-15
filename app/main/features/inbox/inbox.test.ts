@@ -149,18 +149,42 @@ describe(Inbox, () => {
     });
   });
 
-  it("reads one profile's feed when asked, and starts its interval again", async () => {
+  it("reads one profile's feed when nudged, and starts its interval again", async () => {
     const { advance, first, inbox, sessions, start } = await setup();
     sessions.answer(INBOX_FEED_URL, feed(ONE_UNREAD));
     await start();
     await advance(20_000);
-    inbox.read(first);
-    inbox.read("elsewhere");
+    inbox.nudge(first);
+    inbox.nudge("elsewhere");
     await advance(0);
     await advance(29_999);
     expect(sessions.fetched).toHaveLength(2);
     await advance(1);
     expect(sessions.fetched).toHaveLength(3);
+  });
+
+  it("reads a failing feed no sooner than its backoff allows however often it is nudged, and reads at once when nudged again after it reads", async () => {
+    const { advance, first, inbox, sessions, start } = await setup();
+    sessions.answer(INBOX_FEED_URL, SIGNED_OUT);
+    await start();
+    const nudgeFor = async (left: number): Promise<void> => {
+      if (left > 0) {
+        inbox.nudge(first);
+        await advance(1500);
+        await nudgeFor(left - 1500);
+      }
+    };
+    await nudgeFor(10 * 60_000);
+    const failing = sessions.fetched.length;
+    sessions.answer(INBOX_FEED_URL, feed(ONE_UNREAD));
+    await advance(5 * 60_000);
+    const recovered = sessions.fetched.length;
+    inbox.nudge(first);
+    await advance(0);
+    // Each failure doubles the wait from 30 seconds: reads at 0, 60, 180 and 420 seconds, as with no nudge at all.
+    expect([failing, sessions.fetched.length - recovered]).toStrictEqual([
+      4, 1,
+    ]);
   });
 
   it("marks a profile whose session is sent to sign in, waits twice as long after each failure, and is back to every 30 seconds once the feed reads", async () => {

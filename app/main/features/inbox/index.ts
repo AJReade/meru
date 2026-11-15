@@ -123,8 +123,12 @@ export class Inbox {
     );
   }
 
-  /** Reads the profile's feed now, starting its interval again; a profile not followed has none to read. */
-  read(profileId: string): void {
+  /** Reads the profile's feed now, starting its interval again, while its last read succeeded or none has been tried; while it backs off after failures, the read already due is the soonest the backoff allows, so a page that keeps nudging cannot read a failing feed faster. A profile not followed has none to read. */
+  nudge(profileId: string): void {
+    const feed = this.#feeds.get(profileId);
+    if (feed === undefined || feed.failures > 0) {
+      return;
+    }
     void this.#read(profileId);
   }
 
