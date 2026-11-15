@@ -1,8 +1,9 @@
 import type { StyleRule } from "../../content/styles.ts";
 import { cssFeature } from "../feature.ts";
 
-// The footer is the one content-info region in Gmail's main area, under the list or the open conversation; its links and wording change with the locale and the account, so it is found by where it sits.
-const FOOTER = '[role="main"] [role="contentinfo"]';
+// Gmail draws its footer beside the main area as often as inside it, so the region is told by what only the footer holds: the storage meter's link and Google's policy links, whose addresses stay the same in every locale while their words do not.
+const FOOTER =
+  '[role="contentinfo"]:has(a[href*="/settings/storage"], a[href*="/policies/"])';
 
 export const hideInboxFooterRules: readonly StyleRule[] = [
   { declarations: "display: none !important;", selector: FOOTER },
