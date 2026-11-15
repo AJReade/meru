@@ -10,7 +10,6 @@ import { runInNewContext } from "node:vm";
 
 import { describe, expect, it } from "vitest";
 
-import { TEXT_CONTRAST } from "../../../core/engines/dark-theme.ts";
 import { EDITOR, releaseTree, themeTree } from "./engine.ts";
 import {
   TEST_MARK,
@@ -19,6 +18,7 @@ import {
   styleOf,
   textContrasts,
   theme,
+  unreadableTexts,
 } from "./testing.ts";
 
 // Node gives a test no collector to call unless one is exposed, which a fresh context can take after the flag is set.
@@ -35,6 +35,8 @@ const SHEETS_3X = [
   "packages/preload-gmail/dark-theme/message.css",
   "packages/shared/gmail-editor-dark-theme.css",
 ];
+// The attribute 3.x's engine puts on an element whose `::before` or `::after` it overrides in a sheet of its own, which changes no inline style.
+const PSEUDO_3X = "data-dark-theme-pseudo";
 // Vite serves a test nothing outside the workspace, so 3.x's engine is read from a copy inside it, which git ignores.
 const COPY = path.join(process.cwd(), ".meru/bench/dark-theme-3x");
 
@@ -158,16 +160,17 @@ const measureMail = (engine: Engine, html: string): Row => {
     const sheet = mountMail(html);
     const boxes = [sheet, ...sheet.querySelectorAll("*")];
     const before = boxes.map((box) => box.getAttribute("style"));
+    const light = textContrasts(sheet);
     const started = performance.now();
     const leave = engine.theme(sheet);
     times.push(performance.now() - started);
-    // Both engines mark more than they write, so an element counts only when its inline style changed.
+    // Both engines mark more than they write, so an element counts when its inline style changed or, for 3.x, when it gained a rule in 3.x's sheet for its pseudo-elements.
     touched = boxes.filter(
-      (box, index) => box.getAttribute("style") !== before[index]
+      (box, index) =>
+        box.getAttribute("style") !== before[index] ||
+        box.hasAttribute(PSEUDO_3X)
     ).length;
-    unreadable = textContrasts(sheet).filter(
-      ({ contrast }) => contrast < TEXT_CONTRAST - 0.01
-    ).length;
+    unreadable = unreadableTexts(light, textContrasts(sheet)).length;
     leave();
   }
   return { ms: median(times), touched, unreadable };
@@ -241,7 +244,7 @@ const tableOf = async (engines: readonly Engine[]) => {
   const header = engines.flatMap(({ name }) => [
     `${name} ms`,
     `${name} written`,
-    `${name} <4.5`,
+    `${name} unreadable`,
   ]);
   const totals = engines.map((_, index) =>
     rows.map(({ results }) => results[index])

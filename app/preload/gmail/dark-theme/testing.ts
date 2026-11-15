@@ -1,5 +1,6 @@
 import {
   DARK_SURFACE,
+  TEXT_CONTRAST,
   contrast,
   formatColour,
   over,
@@ -137,4 +138,24 @@ export const textContrasts = (root: Element) =>
         text: formatColour(text),
       },
     ];
+  });
+
+type TextContrast = ReturnType<typeof textContrasts>[number];
+
+/**
+ * The texts a theme left hard to read, given the same root's texts on the light page and themed:
+ * one on a ground the theme darkened under `TEXT_CONTRAST`, and one on a ground it kept under how
+ * it read on the light page, since there the mail looks as its sender drew it.
+ */
+export const unreadableTexts = (
+  light: readonly TextContrast[],
+  themed: readonly TextContrast[]
+): TextContrast[] =>
+  themed.filter((text, index) => {
+    const before = light[index];
+    const floor =
+      before?.ground === text.ground
+        ? Math.min(before.contrast, TEXT_CONTRAST)
+        : TEXT_CONTRAST;
+    return text.contrast < floor - 0.01;
   });

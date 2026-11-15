@@ -21,6 +21,7 @@ import {
   styleOf,
   textContrasts,
   theme,
+  unreadableTexts,
 } from "./testing.ts";
 
 const mount = (html: string): HTMLElement => {
@@ -51,15 +52,7 @@ describe(themeTree, () => {
       const light = textContrasts(sheet);
       themeTree(sheet, theme, "#nothing");
 
-      const unreadable = textContrasts(sheet).filter((text, index) => {
-        const before = light[index];
-        const floor =
-          before?.ground === text.ground
-            ? Math.min(before.contrast, TEXT_CONTRAST)
-            : TEXT_CONTRAST;
-        return text.contrast < floor - 0.01;
-      });
-      expect(unreadable).toStrictEqual([]);
+      expect(unreadableTexts(light, textContrasts(sheet))).toStrictEqual([]);
     }
   );
 
