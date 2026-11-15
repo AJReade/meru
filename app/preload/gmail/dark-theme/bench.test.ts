@@ -1,7 +1,7 @@
 // Measures the dark theme over the corpus against 3.x's engine, read from a 3.x checkout, and prints the table; skipped unless asked for:
 // MERU_DARK_BENCH=1 [MERU_3X=<3.x checkout, ~/projects/zoidsh/meru by default>] vp test run app/preload/gmail/dark-theme/bench.test.ts
 import { existsSync } from "node:fs";
-import { cp, rm } from "node:fs/promises";
+import { cp, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
@@ -27,10 +27,14 @@ const collector: unknown = runInNewContext("gc");
 const isCollector = (value: unknown): value is () => void =>
   typeof value === "function";
 
-const THREE_X = path.join(
-  process.env.MERU_3X ?? path.join(homedir(), "projects/zoidsh/meru"),
-  "packages/dark-theme"
-);
+const CHECKOUT_3X =
+  process.env.MERU_3X ?? path.join(homedir(), "projects/zoidsh/meru");
+const THREE_X = path.join(CHECKOUT_3X, "packages/dark-theme");
+// The sheets 3.x's Gmail preload hands its engine for an opened conversation.
+const SHEETS_3X = [
+  "packages/preload-gmail/dark-theme/message.css",
+  "packages/shared/gmail-editor-dark-theme.css",
+];
 // Vite serves a test nothing outside the workspace, so 3.x's engine is read from a copy inside it, which git ignores.
 const COPY = path.join(process.cwd(), ".meru/bench/dark-theme-3x");
 
@@ -39,12 +43,22 @@ interface Controller {
 }
 type Apply = (root: HTMLElement, options: object) => Controller;
 
+interface ThreeX {
+  readonly apply: Apply;
+  readonly css: string;
+}
+
 const isApply = (value: unknown): value is Apply => typeof value === "function";
 
-const loadThreeX = async (): Promise<Apply | undefined> => {
+const loadThreeX = async (): Promise<ThreeX | undefined> => {
   if (!existsSync(path.join(THREE_X, "index.ts"))) {
     return undefined;
   }
+  const sheets = await Promise.all(
+    SHEETS_3X.map(
+      async (sheet) => await readFile(path.join(CHECKOUT_3X, sheet), "utf-8")
+    )
+  );
   await rm(COPY, { force: true, recursive: true });
   await cp(THREE_X, COPY, { recursive: true });
   const module: unknown = await import(path.join(COPY, "index.ts"));
@@ -52,7 +66,7 @@ const loadThreeX = async (): Promise<Apply | undefined> => {
     typeof module === "object" && module !== null && "applyDarkTheme" in module
       ? module.applyDarkTheme
       : undefined;
-  return isApply(apply) ? apply : undefined;
+  return isApply(apply) ? { apply, css: sheets.join("\n") } : undefined;
 };
 
 /** One engine as the bench drives it: theme the sheet, answering how to leave it. */
@@ -83,13 +97,31 @@ const untouched: Engine = {
   },
 };
 
-const threeX = (apply: Apply): Engine => ({
+const threeX = ({ apply, css }: ThreeX): Engine => ({
   name: "3.x",
-  // As 3.x's Gmail preload calls it on an opened conversation, less the observer, which one walk has no use for.
+  // Exactly as 3.x's packages/preload-gmail/dark-theme/message.ts calls it on an opened conversation.
   theme: (sheet) => {
     const controller = apply(sheet, {
       backgroundColor: "rgb(19, 19, 19)",
-      observe: false,
+      css,
+      ignore: [
+        '[contenteditable="true"]',
+        ".edeTZ",
+        { properties: ["border-color"], selector: ".HM .I5" },
+        { properties: ["background-color"], selector: ".J-JN-M-I" },
+        { properties: ["background-color"], selector: ".J-N" },
+        { properties: ["background-color"], selector: ".dC" },
+      ],
+      invertImageExcludeFilenames: [
+        "star_googyellow500_20dp.png",
+        "archive_white_20dp.png",
+        "schedule_send_googblue_20dp.png",
+        "label_important_fill_googyellow500_20dp.png",
+      ],
+      invertImageUrls: [
+        "https://www.gstatic.com/images/icons/material/system_gm/",
+        "https://ssl.gstatic.com/ui/v1/icons/mail/gm3/",
+      ],
     });
     return () => {
       controller.revert();
@@ -124,11 +156,14 @@ const measureMail = (engine: Engine, html: string): Row => {
   let unreadable = 0;
   for (let round = 0; round < ROUNDS; round += 1) {
     const sheet = mountMail(html);
+    const boxes = [sheet, ...sheet.querySelectorAll("*")];
+    const before = boxes.map((box) => box.getAttribute("style"));
     const started = performance.now();
     const leave = engine.theme(sheet);
     times.push(performance.now() - started);
-    touched = sheet.querySelectorAll(
-      `[${TEST_MARK}], [data-dark-theme]`
+    // Both engines mark more than they write, so an element counts only when its inline style changed.
+    touched = boxes.filter(
+      (box, index) => box.getAttribute("style") !== before[index]
     ).length;
     unreadable = textContrasts(sheet).filter(
       ({ contrast }) => contrast < TEXT_CONTRAST - 0.01
@@ -205,7 +240,7 @@ const tableOf = async (engines: readonly Engine[]) => {
   }
   const header = engines.flatMap(({ name }) => [
     `${name} ms`,
-    `${name} nodes`,
+    `${name} written`,
     `${name} <4.5`,
   ]);
   const totals = engines.map((_, index) =>
@@ -213,7 +248,7 @@ const tableOf = async (engines: readonly Engine[]) => {
   );
   return {
     lines: [
-      `| Mail | ${header.join(" | ")} |`,
+      `| Mail, both engines under happy-dom | ${header.join(" | ")} |`,
       `| --- | ${header.map(() => "---:").join(" | ")} |`,
       ...rows.map(
         ({ name, results }) =>
@@ -233,7 +268,7 @@ const tableOf = async (engines: readonly Engine[]) => {
         ])
         .join(" | ")} |`,
       "",
-      `| Engine | Heap held with all ${corpus.length} themed (KB) | Mails still reachable after leaving |`,
+      `| Engine, under happy-dom | Heap held with all ${corpus.length} themed (KB) | Mails still reachable after leaving |`,
       "| --- | ---: | ---: |",
       ...engines.map(
         ({ name }, index) =>
@@ -248,9 +283,9 @@ describe("the dark theme against 3.x", () => {
   it.runIf(process.env.MERU_DARK_BENCH === "1")(
     "measures the corpus against 3.x's engine",
     async () => {
-      const apply = await loadThreeX();
-      const engines = apply === undefined ? [meru] : [meru, threeX(apply)];
-      if (apply === undefined) {
+      const loaded = await loadThreeX();
+      const engines = loaded === undefined ? [meru] : [meru, threeX(loaded)];
+      if (loaded === undefined) {
         console.log(`No 3.x engine at ${THREE_X}; measuring 4.0 alone`);
       }
       const { lines, unreadable } = await tableOf(engines);
