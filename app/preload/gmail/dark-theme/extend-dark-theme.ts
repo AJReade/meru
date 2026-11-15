@@ -5,8 +5,14 @@ import {
 } from "../../../core/engines/dark-theme.ts";
 import type { SelectorEntry } from "../../content/selectors.ts";
 import type { GmailFeature } from "../feature.ts";
-import { EDITOR, releaseTree, themeTree, turnLight } from "./engine.ts";
-import type { StyleOf } from "./engine.ts";
+import {
+  EDITOR,
+  newMark,
+  releaseTree,
+  themeTree,
+  turnLight,
+} from "./engine.ts";
+import type { StyleOf, Theme } from "./engine.ts";
 
 // An image larger than this is a photograph or a banner, which darkening would only spoil.
 const LARGEST_ICON = 512 * 512;
@@ -63,7 +69,7 @@ const sheetOf = (
  * it is painted. It holds nothing between frames: what it wrote lives on the elements, which go with
  * the message, and turning it off or Gmail's theme turning light puts every element back.
  */
-export const extendDarkTheme: GmailFeature = {
+export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
   apply: ({ document, pixels, scheduler, settings, undo }) => {
     if (!settings.switches.extendDarkTheme) {
       return;
@@ -73,6 +79,7 @@ export const extendDarkTheme: GmailFeature = {
       return;
     }
     const styleOf: StyleOf = (element) => view.getComputedStyle(element);
+    const theme: Theme = { mark, styleOf };
     let on = true;
     const look = async (image: HTMLImageElement) => {
       if (
@@ -83,7 +90,7 @@ export const extendDarkTheme: GmailFeature = {
       }
       const sampled = await pixels(image.currentSrc);
       if (on && image.isConnected && imageTone(sampled) === "dark") {
-        turnLight(image);
+        turnLight(image, mark);
       }
     };
     const lookAt = (image: HTMLImageElement) => {
@@ -91,12 +98,12 @@ export const extendDarkTheme: GmailFeature = {
         // An image that cannot be read stays as the mail drew it.
       });
     };
-    const theme = (root: Element, skip: string) => {
+    const walk = (root: Element, skip: string) => {
       if (!isGmailDark(document, styleOf)) {
-        releaseTree(document);
+        releaseTree(document, mark);
         return;
       }
-      for (const image of themeTree(root, styleOf, skip).images) {
+      for (const image of themeTree(root, theme, skip).images) {
         if (image.complete) {
           lookAt(image);
         } else {
@@ -112,27 +119,27 @@ export const extendDarkTheme: GmailFeature = {
     };
     undo(() => {
       on = false;
-      releaseTree(document);
+      releaseTree(document, mark);
     });
     undo(
       scheduler.register(conversationEntry, (subject) => {
         const sheet = sheetOf(subject, styleOf);
         if (sheet !== undefined) {
           // Each message is walked as its own entry finds it, so the sheet's walk leaves them to it.
-          theme(sheet, `${EDITOR}, ${MESSAGE}`);
+          walk(sheet, `${EDITOR}, ${MESSAGE}`);
         }
       })
     );
     undo(
       scheduler.register(messageEntry, (message) => {
-        theme(message, EDITOR);
+        walk(message, EDITOR);
       })
     );
     undo(
       scheduler.register(clippedEntry, (box) => {
-        theme(box, EDITOR);
+        walk(box, EDITOR);
       })
     );
   },
   id: "extendDarkTheme",
-};
+});

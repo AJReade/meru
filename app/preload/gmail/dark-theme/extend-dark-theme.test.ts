@@ -12,9 +12,10 @@ import {
 } from "../../../core/engines/dark-theme.ts";
 import conversation from "../features/fixtures/conversation-dark.html?raw";
 import { mountGmail, switchesWith } from "../testing.ts";
-import { MARK, TURN_LIGHT } from "./engine.ts";
+import { TURN_LIGHT } from "./engine.ts";
 import { extendDarkTheme } from "./extend-dark-theme.ts";
 import { FakeImagePixels } from "./fake-pixels.ts";
+import { TEST_MARK } from "./testing.ts";
 
 // Node gives a test no collector to call unless one is exposed, which a fresh context can take after the flag is set.
 setFlagsFromString("--expose-gc");
@@ -36,10 +37,10 @@ const colourOf = (selector: string, property: "backgroundColor" | "color") => {
     : parseColour(getComputedStyle(element)[property]);
 };
 
-describe(extendDarkTheme.id, () => {
+describe(extendDarkTheme, () => {
   it("darkens the conversation's sheet and its message in the frame they appear in", () => {
     const page = mountGmail({
-      features: [extendDarkTheme],
+      features: [extendDarkTheme(TEST_MARK)],
       html: conversation,
       settings: on,
     });
@@ -60,7 +61,7 @@ describe(extendDarkTheme.id, () => {
 
   it("keeps the mail's button its own colour and leaves the reply being written alone", () => {
     const page = mountGmail({
-      features: [extendDarkTheme],
+      features: [extendDarkTheme(TEST_MARK)],
       html: conversation,
       settings: on,
     });
@@ -71,7 +72,7 @@ describe(extendDarkTheme.id, () => {
         .querySelector(".a3s a")
         ?.getAttribute("style")
         ?.includes("background-color: rgb(26, 115, 232);"),
-      document.querySelector(".editor")?.hasAttribute(MARK),
+      document.querySelector(".editor")?.hasAttribute(TEST_MARK),
       document.querySelector(".editor")?.getAttribute("style"),
     ]).toStrictEqual([true, false, "color: rgb(34, 34, 34)"]);
     page.app.dispose();
@@ -79,7 +80,7 @@ describe(extendDarkTheme.id, () => {
 
   it("puts every element back as the mail had it when turned off", () => {
     const page = mountGmail({
-      features: [extendDarkTheme],
+      features: [extendDarkTheme(TEST_MARK)],
       html: conversation,
       settings: on,
     });
@@ -88,26 +89,26 @@ describe(extendDarkTheme.id, () => {
 
     page.change({ switches: switchesWith() });
 
-    expect(document.querySelectorAll(`[${MARK}]`)).toHaveLength(0);
+    expect(document.querySelectorAll(`[${TEST_MARK}]`)).toHaveLength(0);
     expect(document.body.innerHTML).toBe(before);
     page.app.dispose();
   });
 
   it("leaves the conversation light while Gmail's own theme is light", () => {
     const page = mountGmail({
-      features: [extendDarkTheme],
+      features: [extendDarkTheme(TEST_MARK)],
       html: LIGHT_GMAIL,
       settings: on,
     });
     page.run();
 
-    expect(document.querySelectorAll(`[${MARK}]`)).toHaveLength(0);
+    expect(document.querySelectorAll(`[${TEST_MARK}]`)).toHaveLength(0);
     page.app.dispose();
   });
 
   it("themes the rest of a clipped message once it lands in the body", async () => {
     const page = mountGmail({
-      features: [extendDarkTheme],
+      features: [extendDarkTheme(TEST_MARK)],
       html: conversation,
       settings: on,
     });
@@ -118,7 +119,7 @@ describe(extendDarkTheme.id, () => {
     document.querySelector(".a3s")?.append(rest);
     await page.settle();
 
-    expect(rest.querySelector("p")?.hasAttribute(MARK)).toBeTruthy();
+    expect(rest.querySelector("p")?.hasAttribute(TEST_MARK)).toBeTruthy();
     page.app.dispose();
   });
 
@@ -126,7 +127,7 @@ describe(extendDarkTheme.id, () => {
     const pixels = new FakeImagePixels();
     pixels.answer("https://example.com/logo.png", [20, 20, 20, 255], 40);
     const page = mountGmail({
-      features: [extendDarkTheme],
+      features: [extendDarkTheme(TEST_MARK)],
       html: `${conversation}<style>.iY img { width: 74px; }</style>`,
       pixels,
       settings: on,
@@ -151,7 +152,7 @@ describe(extendDarkTheme.id, () => {
     }
     const shell = new DOMParser().parseFromString(conversation, "text/html");
     const page = mountGmail({
-      features: [extendDarkTheme],
+      features: [extendDarkTheme(TEST_MARK)],
       html: `${shell.querySelector("style")?.outerHTML ?? ""}<div role="main" id="main"></div>`,
       settings: on,
     });
@@ -165,7 +166,7 @@ describe(extendDarkTheme.id, () => {
       main?.append(opened);
       // oxlint-disable-next-line no-await-in-loop -- each conversation is themed before Gmail takes it away
       await page.settle();
-      expect(opened.querySelector(`.iY[${MARK}]`)).not.toBeNull();
+      expect(opened.querySelector(`.iY[${TEST_MARK}]`)).not.toBeNull();
       opened.remove();
       gone.push(new WeakRef(opened));
     }

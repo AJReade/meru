@@ -11,8 +11,20 @@ import {
 } from "../../../core/engines/dark-theme.ts";
 import type { Rgba } from "../../../core/engines/dark-theme.ts";
 
-/** Marks an element the theme wrote to, holding the `style` attribute it had before, so a release puts back exactly what the mail said. */
-export const MARK = "data-meru-dark";
+/**
+ * The attribute marking an element the theme wrote to, holding the `style` attribute it had before.
+ * Its name carries a suffix drawn afresh for each page load, so a mail cannot carry a mark of its
+ * own: one would otherwise opt an element out of the walk or hand the release a style to write.
+ */
+export const markOf = (nonce: string): string => `data-meru-dark-${nonce}`;
+
+/** A mark no mail can know in advance. */
+export const newMark = (): string =>
+  markOf(
+    Array.from(crypto.getRandomValues(new Uint8Array(6)), (byte) =>
+      byte.toString(16).padStart(2, "0")
+    ).join("")
+  );
 
 /**
  * Gmail sends an editor's markup as the mail, so an override written into one would reach the
@@ -48,6 +60,12 @@ export const TURN_LIGHT = "invert(1) hue-rotate(180deg)";
 
 /** What reads an element's computed style, which the page gives. */
 export type StyleOf = (element: Element) => CSSStyleDeclaration;
+
+/** What a walk needs of the page: the mark it writes and how to read a computed style. */
+export interface Theme {
+  readonly mark: string;
+  readonly styleOf: StyleOf;
+}
 
 interface Write {
   readonly element: HTMLElement;
@@ -202,12 +220,12 @@ const ignore: WriteTo = () => {
  * written, since a colour written on a parent changes what its children report. A light background
  * is darkened, a text colour is kept wherever it already reads on its new ground and turned until
  * it does otherwise, a border is darkened, and what sits on an image is left as the mail set it. An
- * element written to carries `MARK` with its former `style`; one already marked is not written to
+ * element written to carries the mark with its former `style`; one already marked is not written to
  * again, so a walk over a subtree a former walk covered only reaches what is new. Nothing is kept.
  */
 export const themeTree = (
   root: Element,
-  styleOf: StyleOf,
+  { mark, styleOf }: Theme,
   skip: string = EDITOR
 ): Themed => {
   const writes: Write[] = [];
@@ -230,7 +248,7 @@ export const themeTree = (
     const style = styleOf(element);
     let paint: Painted = { ...frame, text: frame.parentText };
     if (isHtml(element)) {
-      const marked = element.hasAttribute(MARK);
+      const marked = element.hasAttribute(mark);
       paint = paintElement(
         element,
         style,
@@ -267,7 +285,7 @@ export const themeTree = (
     }
   }
   for (const element of touched) {
-    element.setAttribute(MARK, element.getAttribute("style") ?? "");
+    element.setAttribute(mark, element.getAttribute("style") ?? "");
   }
   for (const { element, property, value } of writes) {
     element.style.setProperty(property, value, "important");
@@ -276,24 +294,24 @@ export const themeTree = (
 };
 
 /** Turns a dark image on a darkened ground light, marking it as the walk marks what it writes. */
-export const turnLight = (image: HTMLImageElement): void => {
-  if (!image.hasAttribute(MARK)) {
-    image.setAttribute(MARK, image.getAttribute("style") ?? "");
+export const turnLight = (image: HTMLImageElement, mark: string): void => {
+  if (!image.hasAttribute(mark)) {
+    image.setAttribute(mark, image.getAttribute("style") ?? "");
   }
   image.style.setProperty("filter", TURN_LIGHT, "important");
 };
 
 /** Puts back what the theme wrote under `root`, each element's `style` as the mail had it. */
-export const releaseTree = (root: ParentNode): number => {
-  const marked = root.querySelectorAll(`[${MARK}]`);
+export const releaseTree = (root: ParentNode, mark: string): number => {
+  const marked = root.querySelectorAll(`[${mark}]`);
   for (const element of marked) {
-    const before = element.getAttribute(MARK) ?? "";
+    const before = element.getAttribute(mark) ?? "";
     if (before === "") {
       element.removeAttribute("style");
     } else {
       element.setAttribute("style", before);
     }
-    element.removeAttribute(MARK);
+    element.removeAttribute(mark);
   }
   return marked.length;
 };

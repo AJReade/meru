@@ -27,7 +27,7 @@ export const gmailFeatures = (): readonly GmailFeature[] => [
   attachmentsToTop,
   clippedMessages,
   closeAfterSend,
-  extendDarkTheme,
+  extendDarkTheme(),
   hideGmailLogo,
   hideInboxFooter,
   hidePromoBanner,

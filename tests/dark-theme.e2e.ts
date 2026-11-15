@@ -52,8 +52,8 @@ const setTo = async (chrome: Page, value: boolean) => {
   );
 };
 
-// The sheet's ground as Chromium paints it, and how many elements carry the theme's mark.
-const STATE = `[getComputedStyle(document.querySelector(".iY")).backgroundColor, document.querySelectorAll("[data-meru-dark]").length]`;
+// The sheet's ground as Chromium paints it, and how many elements carry the theme's mark, whose name ends in a suffix drawn for the page load.
+const STATE = `[getComputedStyle(document.querySelector(".iY")).backgroundColor, [...document.querySelectorAll("*")].filter((element) => element.getAttributeNames().some((name) => name.startsWith("data-meru-dark-"))).length]`;
 const STATE_SCHEMA = z.tuple([z.string(), z.number()]);
 
 test("darkens a mail under Gmail's dark theme while the setting is on, and gives it back as it was", async ({

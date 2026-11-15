@@ -11,8 +11,15 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
 import { TEXT_CONTRAST } from "../../../core/engines/dark-theme.ts";
-import { EDITOR, MARK, releaseTree, themeTree } from "./engine.ts";
-import { corpus, mountMail, styleOf, textContrasts } from "./testing.ts";
+import { EDITOR, releaseTree, themeTree } from "./engine.ts";
+import {
+  TEST_MARK,
+  corpus,
+  mountMail,
+  styleOf,
+  textContrasts,
+  theme,
+} from "./testing.ts";
 
 // Node gives a test no collector to call unless one is exposed, which a fresh context can take after the flag is set.
 setFlagsFromString("--expose-gc");
@@ -57,9 +64,9 @@ interface Engine {
 const meru: Engine = {
   name: "4.0",
   theme: (sheet) => {
-    themeTree(sheet, styleOf, EDITOR);
+    themeTree(sheet, theme, EDITOR);
     return () => {
-      releaseTree(sheet);
+      releaseTree(sheet, TEST_MARK);
     };
   },
 };
@@ -120,7 +127,9 @@ const measureMail = (engine: Engine, html: string): Row => {
     const started = performance.now();
     const leave = engine.theme(sheet);
     times.push(performance.now() - started);
-    touched = sheet.querySelectorAll(`[${MARK}], [data-dark-theme]`).length;
+    touched = sheet.querySelectorAll(
+      `[${TEST_MARK}], [data-dark-theme]`
+    ).length;
     unreadable = textContrasts(sheet).filter(
       ({ contrast }) => contrast < TEXT_CONTRAST - 0.01
     ).length;
