@@ -131,6 +131,9 @@ const WORDED = new Set(["aria-label", "data-tooltip", "title", "alt"]);
 // A form field's name compose and search are selected by.
 const FIELD_NAMES = new Set(["bcc", "cc", "q", "subjectbox", "to"]);
 
+// The values of a mailbox address's `view` that name one of Gmail's own pages, such as the print view a clipped message links to.
+const VIEW_PARAMETERS = new Set(["lg", "om", "pt", "att", "btop", "cv"]);
+
 const TOKEN = /^[\w-]{1,24}$/u;
 // The classes and ids Gmail generates are short words; `:1a` is the shape of the ids it numbers.
 const GENERATED = /^:?[A-Za-z\d][\w-]{0,31}$/u;
@@ -138,7 +141,7 @@ const PATH_DATA = /^[\d\s.,MmLlHhVvCcSsQqTtAaZz-]+$/u;
 const PLAIN_SEGMENT = /^(?:[a-z]{1,16}|\d{1,3})$/u;
 const GOOGLE_HOST = /^(?:[\w-]+\.)*google\.com$/u;
 const ADDRESS =
-  /^(?:(?<scheme>[a-z][\w+.-]*):\/\/(?<host>[^/?#]*))?(?<path>[^?#]*)(?:\?[^#]*)?(?<hash>#.*)?$/iu;
+  /^(?:(?<scheme>[a-z][\w+.-]*):\/\/(?<host>[^/?#]*))?(?<path>[^?#]*)(?:\?(?<query>[^#]*))?(?<hash>#.*)?$/iu;
 
 const VOID_ELEMENTS = new Set([
   "area",
@@ -251,7 +254,29 @@ const originOf = (
     : ORIGIN_PLACEHOLDER;
 };
 
-/** The shape of an address: Google's origins kept and any other made one placeholder, each path segment that is not a plain word replaced, the query dropped, and the fragment as Gmail's views shape it. */
+/** What of a Google address's query names one of Gmail's own pages: its `view`, and the message a print view shows, numbered; the rest of the query is the user's. */
+const queryShape = (query: string | undefined, ids: Ids): string => {
+  // An attribute's text arrives with its ampersands still escaped.
+  const parameters = new Map(
+    (query ?? "")
+      .replaceAll("&amp;", "&")
+      .split("&")
+      .map((pair): [string, string] => {
+        const at = pair.indexOf("=");
+        return at === -1 ? [pair, ""] : [pair.slice(0, at), pair.slice(at + 1)];
+      })
+  );
+  const view = parameters.get("view");
+  if (view === undefined || !VIEW_PARAMETERS.has(view)) {
+    return "";
+  }
+  const message = parameters.get("permmsgid");
+  return message === undefined
+    ? `?view=${view}`
+    : `?view=${view}&permmsgid=${ids(message, "message")}`;
+};
+
+/** The shape of an address: Google's origins kept and any other made one placeholder, each path segment that is not a plain word replaced, the query dropped but for what names a Gmail page, and the fragment as Gmail's views shape it. */
 export const addressShape = (address: string, ids: Ids = makeIds()): string => {
   if (address.toLowerCase().startsWith("mailto:")) {
     return `mailto:${EMAIL_PLACEHOLDER}`;
@@ -260,7 +285,7 @@ export const addressShape = (address: string, ids: Ids = makeIds()): string => {
   if (parts === undefined) {
     return SEGMENT_PLACEHOLDER;
   }
-  const { scheme, host, path = "", hash } = parts;
+  const { scheme, host, path = "", query, hash } = parts;
   const origin = originOf(scheme, host);
   // A path on someone else's site says what the user visited there, so only Google's own keeps its words.
   const foreign = origin === ORIGIN_PLACEHOLDER;
@@ -272,7 +297,16 @@ export const addressShape = (address: string, ids: Ids = makeIds()): string => {
         : SEGMENT_PLACEHOLDER
     )
     .join("/");
-  return `${origin}${shapedPath}${hash === undefined ? "" : fragmentShape(hash, ids)}`;
+  const view = foreign ? "" : queryShape(query, ids);
+  return `${origin}${shapedPath}${view}${hash === undefined ? "" : fragmentShape(hash, ids)}`;
+};
+
+/** An address in mail, numbered by its domain, so senders of one domain still share it and no domain or name is kept. */
+const emailShape = (value: string, ids: Ids): string | undefined => {
+  const at = value.lastIndexOf("@");
+  return at === -1
+    ? undefined
+    : `person@${ids(value.slice(at + 1).toLowerCase(), "domain")}.example.com`;
 };
 
 const escapeAttribute = (value: string): string =>
@@ -295,7 +329,12 @@ type Keep = (value: string, ids: Ids) => string | undefined;
 const KEPT: Readonly<Record<string, Keep>> = {
   class: generatedOf,
   d: (value) => (PATH_DATA.test(value) ? value : undefined),
+  act: tokenOf,
   dir: tokenOf,
+  // An attachment's address in Gmail's `type:name:address` form, which a chip carries for a drag out; only that it has one is a marker.
+  download_url: () => SEGMENT_PLACEHOLDER,
+  email: emailShape,
+  gh: tokenOf,
   href: (value, ids) => addressShape(value, ids),
   id: (value) => (GENERATED.test(value) ? value : undefined),
   name: (value) => (FIELD_NAMES.has(value) ? value : undefined),

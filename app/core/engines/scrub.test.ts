@@ -134,6 +134,37 @@ describe(addressShape, () => {
     expect(addressShape("#secret-place")).toBe("#x");
   });
 
+  it("keeps the markers Gmail's features anchor on: a control's command and name, an attachment's address and a sender's address by its domain", () => {
+    expect(
+      scrubHtml(
+        '<div act="20" gh="cm" role="button"></div><span download_url="text/plain:biopsy.pdf:https://mail.google.com/mail/u/0/?ui=2&amp;attid=0.1"></span><span email="doctor@clinic.example"></span><span email="nurse@clinic.example"></span><span email="tim@example.org"></span>'
+      )
+    ).toBe(
+      '<div act="20" gh="cm" role="button"></div><span download_url="x"></span><span email="person@domain-1.example.com"></span><span email="person@domain-1.example.com"></span><span email="person@domain-2.example.com"></span>'
+    );
+  });
+
+  it("keeps the view of a Gmail page's address and the message it shows, such as a clipped message's print view, and nothing else of its query", () => {
+    expect(
+      addressShape(
+        "https://mail.google.com/mail/u/0?ui=2&ik=abc123&view=lg&permmsgid=msg-f:1784"
+      )
+    ).toBe("https://mail.google.com/mail/u/0?view=lg&permmsgid=message-1");
+    expect(
+      scrubHtml(
+        '<a href="https://mail.google.com/mail/u/0/?ui=2&amp;ik=abc&amp;view=lg&amp;permmsgid=msg-a:r553">x</a>'
+      )
+    ).toBe(
+      '<a href="https://mail.google.com/mail/u/0/?view=lg&amp;permmsgid=message-1">x</a>'
+    );
+    expect(addressShape("https://clinic.example/a?view=lg")).toBe(
+      "https://example.com/x"
+    );
+    expect(addressShape("https://mail.google.com/mail/u/0?view=secret")).toBe(
+      "https://mail.google.com/mail/u/0"
+    );
+  });
+
   it("makes a mailto link the placeholder address", () => {
     expect(addressShape("mailto:tim@example.org?subject=Hi")).toBe(
       "mailto:person@example.com"
