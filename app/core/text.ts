@@ -1,21 +1,13 @@
-/** The names interface text keeps capitalised after its first word: the product, Google's apps beyond the catalog's own names, the system's places and dialogs, and the acronyms. */
+/** The names interface text keeps capitalised after its first word beside the catalog's app names, which hold Google's apps: the product, Google, the system's places and the acronyms. A generic word such as Calendar or Chat passes only as a catalog app's name. */
 export const INTERFACE_NAMES: readonly string[] = [
-  "1Password",
   "CSS",
-  "Calendar",
-  "Chat",
   "File Explorer",
   "Finder",
-  "Gmail",
   "Google",
   "KB",
-  "Meet",
   "Meru",
   "Meru Pro",
-  "Save As",
-  "Touch ID",
   "URL",
-  "Windows Hello",
 ];
 
 const escape = (text: string): string =>
