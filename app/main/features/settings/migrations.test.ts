@@ -32,7 +32,7 @@ describe(renameGlobalKeys, () => {
 });
 
 describe(renameGoogleAppsKey, () => {
-  it("moves what was stored for the workspace apps key to the Google apps one, and leaves a file that never held it", () => {
+  it("moves what was stored for the workspace apps key to the Google apps one unless that is stored too, and leaves a file that never held it", () => {
     expect([
       renameGoogleAppsKey({
         global: {
@@ -40,6 +40,13 @@ describe(renameGoogleAppsKey, () => {
           "stage.zoom": 1.5,
         },
         profiles: { p1: { "stage.zoom": 2 } },
+      }),
+      renameGoogleAppsKey({
+        global: {
+          "notifications.allowFromGoogleApps": true,
+          "notifications.allowFromWorkspaceApps": false,
+        },
+        profiles: {},
       }),
       renameGoogleAppsKey({ global: { "stage.zoom": 1.5 }, profiles: {} }),
       renameGoogleAppsKey("not settings"),
@@ -51,6 +58,7 @@ describe(renameGoogleAppsKey, () => {
         },
         profiles: { p1: { "stage.zoom": 2 } },
       },
+      { global: { "notifications.allowFromGoogleApps": true }, profiles: {} },
       { global: { "stage.zoom": 1.5 }, profiles: {} },
       "not settings",
     ]);
