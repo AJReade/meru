@@ -8,13 +8,13 @@ import { FakeContextMenu } from "../../../test/fakes/context-menu.ts";
 import { strictLog } from "../../../test/fakes/log.ts";
 import { FakeShell } from "../../../test/fakes/shell.ts";
 import { unwrap } from "../../../test/result.ts";
-import { testApp, testStages } from "../../testing.ts";
+import { PRO, testApp, testStages } from "../../testing.ts";
 import { Launcher } from "../launcher/index.ts";
 import { Links } from "../links/index.ts";
 import { TabMenu } from "./tab-menu.ts";
 
 const setup = async () => {
-  const app = await testApp();
+  const app = await testApp({ entitlement: () => PRO });
   const { commands, events, profiles, registrar, settings, transport } = app;
   const { open, stages, views } = testStages(app);
   const launcher = new Launcher({
@@ -138,6 +138,19 @@ describe(TabMenu, () => {
   it("refuses a tab it does not know, showing nothing", async () => {
     const { show, shown } = await setup();
     expect(show("gone")).toMatchObject({ ok: false });
+    expect(shown()).toStrictEqual([]);
+  });
+
+  it("refuses a tab of a profile other than the selected one, whose rows the sidebar does not show", async () => {
+    const { profiles, show, shown } = await setup();
+    const other = unwrap(profiles.createProfile("Work"));
+    const tab = profiles.state.tabs.find(
+      (found) => found.profileId === other.id
+    );
+    expect(show(tab?.id ?? "")).toStrictEqual({
+      error: { kind: "failed", message: "unknownTab" },
+      ok: false,
+    });
     expect(shown()).toStrictEqual([]);
   });
 

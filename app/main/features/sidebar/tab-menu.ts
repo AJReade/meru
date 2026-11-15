@@ -36,7 +36,13 @@ const labels = (): TabMenuLabels => ({
 export interface TabMenuOptions {
   readonly profiles: Pick<
     Profiles,
-    "state" | "tab" | "closeTabs" | "focusTab" | "leaveGroup" | "letSleep"
+    | "state"
+    | "selected"
+    | "tab"
+    | "closeTabs"
+    | "focusTab"
+    | "leaveGroup"
+    | "letSleep"
   >;
   readonly stages: Pick<Stages, "address" | "reload" | "shown">;
   /** Opens the launcher for a pane of `orientation` beside the focused one in the window whose chrome page is `windowId`, as the split commands do. */
@@ -73,7 +79,7 @@ export class TabMenu {
     this.#disposables.dispose();
   }
 
-  /** Shows the menu of the tab's row over the chrome page `windowId`, at `at` or else at the pointer. */
+  /** Shows the menu of the tab's row over the chrome page `windowId`, at `at` or else at the pointer; a tab of a profile other than the selected one is refused as unknown. */
   show(
     windowId: number,
     tabId: string,
@@ -81,7 +87,8 @@ export class TabMenu {
   ): Result<undefined, "unknownTab"> {
     const { profiles, stages } = this.#options;
     const tab = profiles.tab(tabId);
-    if (tab === undefined) {
+    // The sidebar draws only the selected profile's rows, so no page has a row of another's to ask about.
+    if (tab === undefined || tab.profileId !== profiles.selected().id) {
       return err("unknownTab");
     }
     const items = tabMenuOf(profiles.state, tab, {
