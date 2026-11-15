@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { addressShape, scrubHtml } from "./scrub.ts";
+import {
+  addressShape,
+  imagePlaceholder,
+  scrubHtml,
+  scrubMail,
+} from "./scrub.ts";
 
 // A page holding everything a capture must not let through, as a signed-in Gmail draws it.
 const PRIVATE_PAGE = `<!doctype html><html><head><title>Inbox (3) - tim@example.org - Gmail</title>
@@ -168,6 +173,60 @@ describe(addressShape, () => {
   it("makes a mailto link the placeholder address", () => {
     expect(addressShape("mailto:tim@example.org?subject=Hi")).toBe(
       "mailto:person@example.com"
+    );
+  });
+});
+
+// A received message's body holding everything a corpus capture must not let through, and the look it must keep.
+const PRIVATE_BODY = `<div class="a3s aiL msg-1781843495937646038"><style>.m_-1781843495937646038hero { background: url(https://tracker.example/open?u=tim@example.org) #fff; color: #202124 }</style>
+<script>track("tim@example.org")</script>
+<table class="m_-1781843495937646038hero" bgcolor="#F8F9FA" width="600" cellpadding="16"><tr><td style="background-image:url('https://ci3.googleusercontent.com/meips/secretPath');color:#202124;border:1px solid #dadce0">Hi Tim, your results are positive.</td></tr></table>
+<img src="https://ci3.googleusercontent.com/meips/secretPhoto=s0" width="74" height="24" alt="Tim's face">
+<font color="#ff0000">Account 12345678</font>
+<a href="https://clinic.example/portal?token=abc" style="color:#1a73e8">Open the portal</a></div>`;
+
+describe(scrubMail, () => {
+  const scrubbed = scrubMail(PRIVATE_BODY);
+
+  it("leaves nothing of the user's", () => {
+    expect(
+      [
+        "tim@example.org",
+        "Tim",
+        "positive",
+        "12345678",
+        "1781843495937646038",
+        "secretPath",
+        "secretPhoto",
+        "tracker.example",
+        "clinic.example",
+        "token=abc",
+        "track(",
+      ].filter((secret) => scrubbed.includes(secret))
+    ).toStrictEqual([]);
+  });
+
+  it("keeps the colours, sizes and rules a mail's look is made of", () => {
+    expect(
+      [
+        'bgcolor="#F8F9FA"',
+        'width="600"',
+        'cellpadding="16"',
+        "color:#202124;border:1px solid #dadce0",
+        'font color="#ff0000"',
+        'style="color:#1a73e8"',
+        ".m_-0hero { background: url(",
+        "color: #202124 }",
+      ].filter((kept) => !scrubbed.includes(kept))
+    ).toStrictEqual([]);
+  });
+
+  it("makes every image a grey box of its size", () => {
+    expect(scrubbed).toContain(
+      `<img src="${imagePlaceholder(74, 24)}" width="74" height="24">`
+    );
+    expect(decodeURIComponent(imagePlaceholder(74, 24))).toContain(
+      'width="74" height="24"'
     );
   });
 });

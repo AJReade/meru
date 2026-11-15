@@ -323,7 +323,7 @@ const generatedOf = (value: string): string | undefined => {
 const wordOf = (value: string): string | undefined =>
   CONTROL_WORDS.has(value) ? value : undefined;
 
-type Keep = (value: string, ids: Ids) => string | undefined;
+type Keep = (value: string, ids: Ids, tag: Tag) => string | undefined;
 
 // Every attribute a fixture keeps, and what of its value; any other is dropped.
 const KEPT: Readonly<Record<string, Keep>> = {
@@ -360,7 +360,11 @@ const KEPT: Readonly<Record<string, Keep>> = {
   ),
 };
 
-const rewriteTag = (tag: Tag, ids: Ids): string => {
+const rewriteTag = (
+  tag: Tag,
+  ids: Ids,
+  allowed: Readonly<Record<string, Keep>> = KEPT
+): string => {
   if (tag.closing) {
     return `</${tag.raw}>`;
   }
@@ -373,8 +377,8 @@ const rewriteTag = (tag: Tag, ids: Ids): string => {
     if (raw === undefined || name === undefined) {
       continue;
     }
-    const scrubbed = Object.hasOwn(KEPT, name)
-      ? KEPT[name]?.(value, ids)
+    const scrubbed = Object.hasOwn(allowed, name)
+      ? allowed[name]?.(value, ids, tag)
       : undefined;
     if (scrubbed !== undefined) {
       kept.push(` ${raw}="${escapeAttribute(scrubbed)}"`);
@@ -412,6 +416,103 @@ export const scrubHtml = (input: string): string => {
     out += raw ? "" : placeholderOf(text);
     out += rewriteTag(tag, ids);
     raw = !tag.closing && (tag.name === "script" || tag.name === "style");
+    cursor = tag.end;
+  }
+  return out + placeholderOf(html.slice(cursor));
+};
+
+// A run of digits this long in a body's class, id or style is a message's id, which Gmail writes into the names it gives a mail's own classes (`msg-…`, `m_…`).
+// A hex colour's digits follow its `#` or a hex letter, and stay.
+const DIGIT_RUN = /(?<![#\da-f])\d{6,}/giu;
+const CSS_URL = /url\(\s*(?:"[^"]*"|'[^']*'|[^)]*)\)/giu;
+const CSS_COMMENT = /\/\*[\s\S]*?\*\//gu;
+const DIMENSION = /^\d{1,4}(?:\.\d+)?(?:%|px)?$/u;
+const COLOUR = /^#?[\da-z]{1,20}$/iu;
+const STYLE_BLOCK =
+  /(?<open><style\b(?:"[^"]*"|'[^']*'|[^>"'])*>)(?<css>[\s\S]*?)(?<close><\/style\s*>)/giu;
+const SCRIPT_BLOCK =
+  /(?<open><script\b(?:"[^"]*"|'[^']*'|[^>"'])*>)[\s\S]*?(?<close><\/script\s*>)/giu;
+
+/** A grey box of the given size, so a mail's layout keeps its images' boxes while nothing of the pictures survives. */
+export const imagePlaceholder = (width: number, height: number): string =>
+  `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="#9e9e9e"/></svg>`)}`;
+
+const UNSIZED_IMAGE = imagePlaceholder(1, 1);
+
+/** A mail's CSS with every address it loads made a placeholder image and message ids made zero. */
+const mailCss = (css: string): string =>
+  css
+    .replaceAll(CSS_COMMENT, "")
+    .replaceAll(CSS_URL, `url("${UNSIZED_IMAGE}")`)
+    .replaceAll(DIGIT_RUN, "0");
+
+const sizeOf = (tag: Tag, name: string): number => {
+  const found = new RegExp(`\\b${name}\\s*=\\s*["']?(\\d{1,4})`, "iu").exec(
+    tag.attrs
+  )?.[1];
+  return found === undefined ? 1 : Number(found);
+};
+
+const dimensionOf = (value: string): string | undefined =>
+  DIMENSION.test(value) ? value : undefined;
+
+const MAIL_KEPT: Readonly<Record<string, Keep>> = {
+  ...KEPT,
+  align: tokenOf,
+  background: () => UNSIZED_IMAGE,
+  bgcolor: (value) => (COLOUR.test(value) ? value : undefined),
+  border: dimensionOf,
+  cellpadding: dimensionOf,
+  cellspacing: dimensionOf,
+  class: (value) => generatedOf(value.replaceAll(DIGIT_RUN, "0")),
+  color: (value) => (COLOUR.test(value) ? value : undefined),
+  colspan: dimensionOf,
+  height: dimensionOf,
+  id: (value) => {
+    const shaped = value.replaceAll(DIGIT_RUN, "0");
+    return GENERATED.test(shaped) ? shaped : undefined;
+  },
+  rowspan: dimensionOf,
+  size: dimensionOf,
+  src: (_value, _ids, tag) =>
+    tag.name === "img"
+      ? imagePlaceholder(sizeOf(tag, "width"), sizeOf(tag, "height"))
+      : undefined,
+  style: mailCss,
+  valign: tokenOf,
+  width: dimensionOf,
+};
+
+/**
+ * A captured message body with nothing of the user's left, for the corpus the dark theme's tests read.
+ * It differs from `scrubHtml` only in what a mail's look is made of: inline styles, `<style>` rules
+ * and the presentational attributes (`bgcolor`, `color`, sizes, alignment) stay, every image becomes
+ * a grey placeholder of its `width` and `height`, every address CSS loads a placeholder image, and
+ * a message id written into a class, an id or a rule becomes zero. Texts, addresses and every other
+ * attribute go as `scrubHtml` takes them.
+ */
+export const scrubMail = (input: string): string => {
+  const ids = makeIds();
+  const styles: string[] = [];
+  const html = input
+    .replaceAll(COMMENT, "")
+    .replaceAll(SCRIPT_BLOCK, "")
+    .replaceAll(STYLE_BLOCK, (_match, _open, css: string) => {
+      styles.push(mailCss(css));
+      return `<style></style>`;
+    });
+  let out = "";
+  let cursor = 0;
+  let style = 0;
+  let inStyle = false;
+  for (const tag of tagsOf(html)) {
+    out += inStyle ? "" : placeholderOf(html.slice(cursor, tag.start));
+    out += rewriteTag(tag, ids, MAIL_KEPT);
+    inStyle = !tag.closing && tag.name === "style";
+    if (inStyle) {
+      out += styles[style] ?? "";
+      style += 1;
+    }
     cursor = tag.end;
   }
   return out + placeholderOf(html.slice(cursor));
