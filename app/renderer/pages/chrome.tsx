@@ -16,7 +16,7 @@ mountPage(
   chromeStores(
     client,
     <>
-      <div className="bg-chrome text-chrome-foreground flex h-full flex-col">
+      <div className="on-chrome bg-chrome text-chrome-foreground flex h-full flex-col">
         <Titlebar
           trailing={
             <>
