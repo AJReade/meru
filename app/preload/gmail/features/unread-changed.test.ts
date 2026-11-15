@@ -1,32 +1,39 @@
 import { describe, expect, it } from "vitest";
 
 import { gmail } from "../../../shared/channels/gmail.ts";
-import { mountGmail, MAILBOX } from "../testing.ts";
+import { mountGmail } from "../testing.ts";
+import inboxRows from "./fixtures/inbox-rows.html?raw";
+import { INBOX_LINK } from "./refresh.ts";
 import { unreadChanged } from "./unread-changed.ts";
 
-const navigation = (count: string) =>
-  `<div role="navigation"><div class="TO" data-tooltip="Inbox"><span class="nU n1"><a href="${MAILBOX}/#inbox" aria-label="Inbox ${count} unread">Inbox</a></span><div class="bsU">${count}</div></div></div><a href="${MAILBOX}/#inbox" aria-label="Gmail"></a>`;
+// The captured inbox's count, which Gmail draws beside the link in the row's tooltip holder.
+const shownCount = () =>
+  document
+    .querySelector(INBOX_LINK)
+    ?.closest("[data-tooltip]")
+    ?.querySelector(".bsU");
 
 describe(unreadChanged, () => {
   it("says nothing of the count the page loads with, then each time Gmail shows another", async () => {
-    const page = mountGmail({
-      features: [unreadChanged()],
-      html: navigation("3"),
-    });
+    const page = mountGmail({ features: [unreadChanged()], html: inboxRows });
     page.run();
-    expect(page.bridge.sentOn(gmail.unreadChanged)).toStrictEqual([]);
+    const count = shownCount();
+    const loaded = page.bridge.sentOn(gmail.unreadChanged);
 
-    const count = document.querySelector(".bsU");
-    if (count !== null) {
+    if (count !== null && count !== undefined) {
       count.textContent = "2";
     }
     await page.settle();
-    expect(page.bridge.sentOn(gmail.unreadChanged)).toStrictEqual([{}]);
+    expect([
+      count?.isConnected,
+      loaded,
+      page.bridge.sentOn(gmail.unreadChanged),
+    ]).toStrictEqual([true, [], [{}]]);
 
     // A change elsewhere in the page is not a change of the count.
     document.body.append(document.createElement("p"));
     await page.settle();
-    if (count !== null) {
+    if (count !== null && count !== undefined) {
       count.textContent = "";
     }
     await page.settle();
@@ -37,7 +44,7 @@ describe(unreadChanged, () => {
   it("waits for the navigation when the page has none yet, and says nothing of the count it first shows", async () => {
     const page = mountGmail({ features: [unreadChanged()], html: "" });
     page.run();
-    document.body.innerHTML = navigation("5");
+    document.body.innerHTML = inboxRows;
     await page.settle();
     expect(page.bridge.sentOn(gmail.unreadChanged)).toStrictEqual([]);
     page.app.dispose();
