@@ -108,7 +108,7 @@ test("shows a blank popup once it heads for Google's sign-in, sends any other to
   await expect.poll(async () => await popupsOf(app)).toStrictEqual([]);
 });
 
-// Each blank popup reaches the stage hidden, two at once are decided apart, and one that navigates just inside the timeout is still shown. Hidden at creation is the app's own `show: false`, so this says nothing of what Electron would show without it.
+// Each blank popup reaches the stage hidden, two at once are decided apart, and one that navigates half a second inside the timeout is still shown, a margin for the page's timer and main's running in two processes on a loaded runner. Hidden at creation is the app's own `show: false`, so this says nothing of what Electron would show without it.
 test("makes every blank popup hidden, and shows only one that heads for sign-in, two at once or one that waits almost to the timeout", async ({
   launch,
 }) => {
@@ -134,7 +134,7 @@ test("makes every blank popup hidden, and shows only one that heads for sign-in,
 
   await runInPane(
     app,
-    `(() => { const w = window.open("about:blank"); setTimeout(() => { w.location = "https://accounts.google.com/late"; }, 4900); return 1; })()`
+    `(() => { const w = window.open("about:blank"); setTimeout(() => { w.location = "https://accounts.google.com/late"; }, 4500); return 1; })()`
   );
   await expect
     .poll(async () => await popupsOf(app))

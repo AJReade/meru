@@ -75,7 +75,8 @@ export const test = base.extend<{
   userData: async ({}, provide) => {
     const userData = await mkdtemp(path.join(tmpdir(), "meru-e2e-"));
     await provide(userData);
-    await rm(userData, { force: true, recursive: true });
+    // Windows holds a file a moment after the process that had it open is gone, and refuses its removal with EBUSY meanwhile.
+    await rm(userData, { force: true, maxRetries: 5, recursive: true });
   },
 });
 
