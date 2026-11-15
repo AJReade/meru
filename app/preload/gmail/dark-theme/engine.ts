@@ -371,7 +371,7 @@ export const themeTree = (
   for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
     const { element } = frame;
     if (element.matches(skip)) {
-      if (element.matches(EDITOR) && !element.hasAttribute(mark)) {
+      if (element.matches(EDITOR) && element.getAttribute(mark) !== SKIPPED) {
         editors.push(element);
       }
       continue;
@@ -426,9 +426,7 @@ export const themeTree = (
     );
   }
   for (const editor of editors) {
-    // A reply or a forward quotes the mail's markup, marks and overrides with it, which would go out with the message.
-    releaseTree(editor, mark);
-    editor.setAttribute(mark, SKIPPED);
+    skipEditor(editor, mark);
   }
   for (const { element, property, value } of writes) {
     element.style.setProperty(property, value, "important");
@@ -508,6 +506,20 @@ export const releaseTree = (root: ParentNode, mark: string): number => {
     release(element, mark);
   }
   return marked.length;
+};
+
+/**
+ * Marks an editor skipped, putting back what the theme wrote on it and in it first: a reply or a
+ * forward quotes the mail's markup, marks and overrides with it, and an element made editable after
+ * it was themed holds the overrides it was given, either of which would go out with the message.
+ */
+export const skipEditor = (editor: Element, mark: string): void => {
+  if (editor.getAttribute(mark) === SKIPPED) {
+    return;
+  }
+  release(editor, mark);
+  releaseTree(editor, mark);
+  editor.setAttribute(mark, SKIPPED);
 };
 
 /**

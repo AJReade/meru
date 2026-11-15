@@ -115,6 +115,33 @@ describe(extendDarkTheme, () => {
     page.app.dispose();
   });
 
+  it("puts back what it wrote on an element made editable after it was themed, and gives it back to the walk once it is the mail's again", async () => {
+    const page = mountGmail({
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation,
+      settings: on,
+    });
+    const body = document.querySelector(".a3s");
+    const before = body?.innerHTML;
+    page.run();
+    const themed = body?.innerHTML !== before;
+    body?.setAttribute("contenteditable", "true");
+    await pause(0);
+    const editable = [
+      body?.getAttribute(TEST_MARK),
+      body?.innerHTML === before,
+    ];
+    body?.setAttribute("contenteditable", "false");
+    await pause(0);
+
+    expect([themed, editable, body?.hasAttribute(TEST_MARK)]).toStrictEqual([
+      true,
+      [SKIPPED, true],
+      false,
+    ]);
+    page.app.dispose();
+  });
+
   it("puts every element back as the mail had it when turned off", () => {
     const page = mountGmail({
       features: [extendDarkTheme(TEST_MARK)],

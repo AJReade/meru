@@ -7,11 +7,13 @@ import type { SelectorEntry } from "../../content/selectors.ts";
 import type { GmailFeature } from "../feature.ts";
 import {
   EDITOR,
+  SKIPPED,
   hoverSheet,
   newMark,
   release,
   releaseArrived,
   releaseTree,
+  skipEditor,
   themeAgain,
   themeTree,
   turnLight,
@@ -119,8 +121,24 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
       let dark = false;
       // Whether anything arrived outside an editor since the last batch, the only change in which a walk again finds work: typing into a reply that quotes a long mail adds nodes on every key.
       let arrived = true;
+      // An element made editable after it was themed, as when Gmail opens a reply inside a quoted body, would send what the theme wrote on it; one no longer editable is the mail's again, for the next batch to walk.
+      const editable = (node: Node) => {
+        if (!(node instanceof Element)) {
+          return;
+        }
+        if (node.matches(EDITOR)) {
+          skipEditor(node, mark);
+        } else if (node.getAttribute(mark) === SKIPPED) {
+          node.removeAttribute(mark);
+          arrived = true;
+        }
+      };
       const notice = (records: readonly MutationRecord[]) => {
         for (const record of records) {
+          if (record.type === "attributes") {
+            editable(record.target);
+            continue;
+          }
           const inEditor = insideEditor(record.target);
           arrived ||= !inEditor && record.addedNodes.length > 0;
           for (const node of record.addedNodes) {
@@ -131,7 +149,11 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
         }
       };
       const watcher = new MutationObserver(notice);
-      watcher.observe(document, { childList: true, subtree: true });
+      watcher.observe(document, {
+        attributeFilter: ["contenteditable"],
+        childList: true,
+        subtree: true,
+      });
       undo(() => {
         watcher.disconnect();
       });
