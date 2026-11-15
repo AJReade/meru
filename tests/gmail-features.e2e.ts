@@ -9,7 +9,7 @@ import type { SettingKey } from "../app/shared/settings/registry.ts";
 import { settingSet } from "../app/shared/settings/schema.ts";
 import { invokeIn } from "../scripts/lib/app.ts";
 import {
-  entitlementKindOf,
+  awaitEntitlement,
   expect,
   inspect,
   must,
@@ -103,7 +103,7 @@ test("draws sender icons, moves attachments up, loads a clipped message and mark
     const { app, chrome } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
     });
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     await turnOn(chrome, [
       "gmail.moveAttachmentsToTop",
       "gmail.loadClippedMessages",
@@ -141,7 +141,7 @@ test("opens Compose in an 800 by 600 pop-out, hides it once sent with an Undo to
     const { app, chrome } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
     });
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     await turnOn(chrome, [
       "gmail.openComposeInNewWindow",
       "gmail.closeComposeWindowAfterSend",
@@ -211,7 +211,7 @@ test("runs the Gmail preload in a pop-out and keeps it on Gmail, sending the win
     const { app } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
     });
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     await inPane(
       app,
       `window.open(location.origin + location.pathname + "?view=cm", "_blank"), null`
@@ -308,7 +308,7 @@ test("sends a blank popup's own windows and a redirect off Gmail to the browser,
     const { app } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
     });
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     await inPane(
       app,
       `window.open(location.origin + location.pathname + "?view=cm", "_blank"), null`
@@ -381,7 +381,7 @@ test("loads a hostile print view without its style sheet, script, SVG animation 
     const { app, chrome } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
     });
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     await turnOn(chrome, ["gmail.loadClippedMessages"]);
 
     await expect
@@ -440,7 +440,7 @@ for (const { printView, warning } of [
       const { app, chrome } = await launch({
         env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
       });
-      await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+      await awaitEntitlement(app, "trial");
       await turnOn(chrome, ["gmail.loadClippedMessages"]);
 
       await expect

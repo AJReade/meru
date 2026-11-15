@@ -12,7 +12,7 @@ import {
 import { settings } from "../app/shared/channels/settings.ts";
 import { settingSet } from "../app/shared/settings/schema.ts";
 import { invokeIn } from "../scripts/lib/app.ts";
-import { entitlementKindOf, expect, must, panesOf, test } from "./app.ts";
+import { awaitEntitlement, expect, must, panesOf, test } from "./app.ts";
 import { startGmailStub } from "./gmail-stub.ts";
 
 const FIXTURES = path.join(
@@ -75,7 +75,7 @@ test("darkens a mail under Gmail's dark theme while the setting is on, and gives
     const { app, chrome } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
     });
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     await expect
       .poll(async () => await inPane(app, STATE))
       .toStrictEqual(["rgb(255, 255, 255)", 0]);
@@ -175,7 +175,7 @@ test("keeps a text readable while the pointer is over it, and a batch with nothi
     const { app, chrome } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
     });
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     await expect
       .poll(async () => await inPane(app, STATE))
       .toStrictEqual(["rgb(255, 255, 255)", 0]);
@@ -297,7 +297,7 @@ test("reads CSS Color 4's colours and keeps every text over them readable", asyn
     const { app, chrome } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
     });
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     await expect
       .poll(async () => await inPane(app, STATE))
       .toStrictEqual(["rgb(255, 255, 255)", 0]);
@@ -341,7 +341,7 @@ test("turns a dark glyph light and leaves a light picture as it is, read from th
     const { app, chrome } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
     });
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     await expect
       .poll(async () => await inPane(app, FILTERS))
       .toStrictEqual(["none", "none"]);

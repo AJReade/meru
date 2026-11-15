@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  entitlementKindOf,
+  awaitEntitlement,
   expect,
   inspect,
   must,
@@ -22,7 +22,7 @@ test("shows what a Google app's page raises through Notification and its registr
     const { app, chrome } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GOOGLE_URL: page.url },
     });
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
 
     await chrome.locator("[data-launcher-button]").click();
     await pickApp(app, "Calendar");

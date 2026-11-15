@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { ENTITLEMENT_FILE } from "../app/main/features/entitlement/index.ts";
 import { mintToken } from "../scripts/entitlement/sign.ts";
-import { entitlementKindOf, entitlementOf, expect, test } from "./app.ts";
+import { awaitEntitlement, entitlementOf, expect, test } from "./app.ts";
 
 const PRO_KEY = "PRO-KEY-1";
 
@@ -59,9 +59,9 @@ test("holds the entitlement from a signed token, refreshed from the API and kept
   stub.hold();
   await run(stub.url, async (app) => {
     await expect.poll(() => stub.requests.length).toBe(1);
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("unknown");
+    await awaitEntitlement(app, "unknown");
     stub.release();
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     const entitlement = await entitlementOf(app);
     expect(entitlement).toMatchObject({ kind: "trial", source: "refreshed" });
   });
@@ -71,7 +71,7 @@ test("holds the entitlement from a signed token, refreshed from the API and kept
 
   // A token still valid starts the app with no network at all.
   await run("http://127.0.0.1:1/", async (app) => {
-    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await awaitEntitlement(app, "trial");
     const entitlement = await entitlementOf(app);
     expect(entitlement).toMatchObject({ kind: "trial", source: "stored" });
   });
@@ -79,9 +79,7 @@ test("holds the entitlement from a signed token, refreshed from the API and kept
   // A license key the token was not issued for is asked about at launch.
   await editState(userData, (data) => ({ ...data, licenseKey: PRO_KEY }));
   await run(stub.url, async (app) => {
-    await expect
-      .poll(async () => await entitlementKindOf(app))
-      .toBe("licensed");
+    await awaitEntitlement(app, "licensed");
     const entitlement = await entitlementOf(app);
     expect(entitlement).toMatchObject({ kind: "licensed", plan: "pro" });
   });
@@ -101,9 +99,7 @@ test("holds the entitlement from a signed token, refreshed from the API and kept
     token: { licenseKey: PRO_KEY, value: expired },
   }));
   await run(stub.url, async (app) => {
-    await expect
-      .poll(async () => await entitlementKindOf(app))
-      .toBe("disabled");
+    await awaitEntitlement(app, "disabled");
     const entitlement = await entitlementOf(app);
     expect(entitlement).toMatchObject({
       kind: "disabled",

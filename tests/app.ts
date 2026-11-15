@@ -5,6 +5,7 @@ import path from "node:path";
 import { test as base, expect } from "@playwright/test";
 import type { ElectronApplication, Page } from "@playwright/test";
 
+import type { Entitlement } from "../app/core/records/entitlement.ts";
 import { E2E_GLOBAL, e2eSnapshotSchema } from "../app/main/shell/e2e.ts";
 import { profiles } from "../app/shared/channels/profiles.ts";
 import { settings } from "../app/shared/channels/settings.ts";
@@ -149,9 +150,19 @@ export const entitlementOf = async (app: ElectronApplication) => {
   return entitlement;
 };
 
-export const entitlementKindOf = async (app: ElectronApplication) => {
+const entitlementKindOf = async (app: ElectronApplication) => {
   const { kind } = await entitlementOf(app);
   return kind;
+};
+
+/** Waits for the entitlement to be `kind`, longer than a plain poll: the stub answers over loopback only after the app's own start-up work, which a Windows runner does slowly. */
+export const awaitEntitlement = async (
+  app: ElectronApplication,
+  kind: Entitlement["kind"]
+) => {
+  await expect
+    .poll(async () => await entitlementKindOf(app), { timeout: 15_000 })
+    .toBe(kind);
 };
 
 export const updateOf = async (app: ElectronApplication) => {
