@@ -243,6 +243,14 @@ const paintElement = (
     // On a ground the walk cannot tell, the text stays as it shows rather than be given a colour decided against nothing.
     return { ...paint, text: shown };
   }
+  if (!paint.darkened) {
+    // A ground the walk kept, a brand's button or the sender's own dark design, looks as it does on a light page, so its text keeps the colour the sender gave it, an inherited one included rather than one written on a darkened parent.
+    const own = formatColour(colour);
+    if (own !== shown) {
+      write("color", own);
+    }
+    return { ...paint, text: own };
+  }
   const text = formatColour(darkText(colour, ground));
   // A mail's `:hover` rule that sets only a colour would paint its light page's ink over the darkened ground, on the element whose text it is even when that element inherits its colour; an inline `!important` beats every rule of a sheet.
   if (text !== shown || (paint.darkened && holdsText(element))) {

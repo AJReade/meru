@@ -45,14 +45,20 @@ describe(themeTree, () => {
   });
 
   it.each(corpus)(
-    `themes $name with every text at ${TEXT_CONTRAST} against its ground`,
+    `themes $name with every text at ${TEXT_CONTRAST} against a ground it darkened, and as it read on the light page on one it kept`,
     ({ html }) => {
       const sheet = mountMail(html);
+      const light = textContrasts(sheet);
       themeTree(sheet, theme, "#nothing");
 
-      const unreadable = textContrasts(sheet).filter(
-        ({ contrast: ratio }) => ratio < TEXT_CONTRAST - 0.01
-      );
+      const unreadable = textContrasts(sheet).filter((text, index) => {
+        const before = light[index];
+        const floor =
+          before?.ground === text.ground
+            ? Math.min(before.contrast, TEXT_CONTRAST)
+            : TEXT_CONTRAST;
+        return text.contrast < floor - 0.01;
+      });
       expect(unreadable).toStrictEqual([]);
     }
   );
@@ -104,6 +110,21 @@ describe(themeTree, () => {
           ?.includes("!important")
       )
     ).toStrictEqual([true, true, undefined, true]);
+  });
+
+  it("keeps the sender's text colour on a ground it keeps, as the light page shows it", () => {
+    const body = mount(
+      `<div class="a3s"><div style="background-color: rgb(255, 255, 255); color: rgb(34, 34, 34)"><a id="pink" style="background-color: rgb(255, 105, 180); color: rgb(255, 255, 255)">Go</a><span id="tag" style="background-color: rgb(255, 105, 180)">Tag</span></div></div>`
+    );
+    themeTree(body, theme);
+
+    expect([
+      body.querySelector("#pink")?.getAttribute("style"),
+      body.querySelector("#tag")?.getAttribute("style"),
+    ]).toStrictEqual([
+      "background-color: rgb(255, 105, 180); color: rgb(255, 255, 255)",
+      "background-color: rgb(255, 105, 180); color: rgb(34, 34, 34) !important;",
+    ]);
   });
 
   it("reaches only what is new when it walks a subtree again", () => {
