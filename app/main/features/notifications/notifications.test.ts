@@ -203,7 +203,7 @@ describe(Notifications, () => {
 
   it("shows nothing a Google app's page raised while the setting is off", async () => {
     const { events, first, port, profiles, settings } = await setup();
-    settings.set("notifications.allowFromWorkspaceApps", false);
+    settings.set("notifications.allowFromGoogleApps", false);
     const tab = unwrap(profiles.openTab(first, "calendar"));
     events.emit("page.notified", {
       appId: "calendar",

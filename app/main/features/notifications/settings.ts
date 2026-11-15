@@ -78,10 +78,10 @@ export const notificationsSettings = [
     scope: "global",
     tier: "free",
   }),
-  defineSetting("notifications.allowFromWorkspaceApps", {
+  defineSetting("notifications.allowFromGoogleApps", {
     default: true,
-    description: msg`Show notifications from Google apps such as Calendar, Meet, and Chat.`,
-    label: msg`Google app notifications`,
+    description: msg`Calendar, Meet, Chat and the other Google apps raise notifications of their own.`,
+    label: msg`Show notifications from Google apps`,
     page: "inbox",
     restart: false,
     schema: z.boolean(),

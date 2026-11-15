@@ -178,7 +178,7 @@ describe(SettingsStore, () => {
         global: { "appearance.style": "classic" },
         profiles: { work: { "stage.zoom": 2 } },
       },
-      version: 2,
+      version: 3,
     });
   });
 
@@ -202,7 +202,7 @@ describe(SettingsStore, () => {
     await store.flush();
     expect(stored(fs)).toStrictEqual({
       data: { global: {}, profiles: { home: { "stage.zoom": 1.5 } } },
-      version: 2,
+      version: 3,
     });
   });
 
@@ -362,7 +362,7 @@ describe("a Pro setting", () => {
           { key: "links.openInApp", profileId: null },
           { key: "links.excludedApps", profileId: null },
           { key: "notifications.newEmails", profileId: null },
-          { key: "notifications.allowFromWorkspaceApps", profileId: null },
+          { key: "notifications.allowFromGoogleApps", profileId: null },
         ],
       ],
     ]);
@@ -426,7 +426,7 @@ describe("a Pro setting", () => {
         { key: "links.excludedApps", profileId: null },
         { key: "notifications.newEmails", profileId: null },
         { key: "notifications.newEmails", profileId: "work" },
-        { key: "notifications.allowFromWorkspaceApps", profileId: null },
+        { key: "notifications.allowFromGoogleApps", profileId: null },
       ],
     ]);
   });

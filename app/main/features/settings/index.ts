@@ -47,19 +47,19 @@ import type {
   Locked,
   SettingChangeMessage,
 } from "../../../shared/settings/schema.ts";
-import { renameGlobalKeys } from "./migrations.ts";
+import { renameGlobalKeys, renameGoogleAppsKey } from "./migrations.ts";
 
 export const SETTINGS_FILE = "settings.json";
 
 export const settingsSnapshot: SnapshotSpec<Settings, Fallback> = {
-  migrations: [renameGlobalKeys],
+  migrations: [renameGlobalKeys, renameGoogleAppsKey],
   name: SETTINGS_FILE,
   recover: (data) => {
     const { settings, fallbacks } = parseSettings(registry, data);
     return { fallbacks, value: settings };
   },
   schema: settingsSchema,
-  version: 2,
+  version: 3,
 };
 
 type SettingsListener = (

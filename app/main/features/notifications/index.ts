@@ -168,7 +168,7 @@ export class Notifications {
   }: AppEventMap["page.notified"]): void {
     const { clock, notifications, platform, profiles, settings } =
       this.#options;
-    if (!settings.get("notifications.allowFromWorkspaceApps")) {
+    if (!settings.get("notifications.allowFromGoogleApps")) {
       return;
     }
     const profile = profiles.profile(profileId);

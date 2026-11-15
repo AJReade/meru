@@ -50,7 +50,7 @@ describe("the settings registry", () => {
       | "links.openInApp"
       | "meet.globalShortcuts"
       | "notifications.actions"
-      | "notifications.allowFromWorkspaceApps"
+      | "notifications.allowFromGoogleApps"
       | "notifications.downloadCompleted"
       | "notifications.enabled"
       | "notifications.newEmails"

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renameGlobalKeys } from "./migrations.ts";
+import { renameGlobalKeys, renameGoogleAppsKey } from "./migrations.ts";
 
 describe(renameGlobalKeys, () => {
   it("moves the badge and tray keys to their new names, the menu bar's value winning, and leaves the rest", () => {
@@ -26,6 +26,32 @@ describe(renameGlobalKeys, () => {
         profiles: { p1: { "stage.zoom": 2 } },
       },
       { global: { "tray.icon": false }, profiles: {} },
+      "not settings",
+    ]);
+  });
+});
+
+describe(renameGoogleAppsKey, () => {
+  it("moves what was stored for the workspace apps key to the Google apps one, and leaves a file that never held it", () => {
+    expect([
+      renameGoogleAppsKey({
+        global: {
+          "notifications.allowFromWorkspaceApps": false,
+          "stage.zoom": 1.5,
+        },
+        profiles: { p1: { "stage.zoom": 2 } },
+      }),
+      renameGoogleAppsKey({ global: { "stage.zoom": 1.5 }, profiles: {} }),
+      renameGoogleAppsKey("not settings"),
+    ]).toStrictEqual([
+      {
+        global: {
+          "notifications.allowFromGoogleApps": false,
+          "stage.zoom": 1.5,
+        },
+        profiles: { p1: { "stage.zoom": 2 } },
+      },
+      { global: { "stage.zoom": 1.5 }, profiles: {} },
       "not settings",
     ]);
   });

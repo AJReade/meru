@@ -24,3 +24,24 @@ export const renameGlobalKeys: Migration = (data) => {
   }
   return { ...data, global };
 };
+
+// 3.x's key as well as version 2's, so an imported 3.x configuration carries over with it.
+const WORKSPACE_APPS = "notifications.allowFromWorkspaceApps";
+
+/** Version 2 to 3: the setting for the notifications Google apps raise under the glossary's word for them. */
+export const renameGoogleAppsKey: Migration = (data) => {
+  if (!isPlainObject(data) || !isPlainObject(data.global)) {
+    return data;
+  }
+  if (!Object.hasOwn(data.global, WORKSPACE_APPS)) {
+    return data;
+  }
+  const global: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data.global)) {
+    if (key !== WORKSPACE_APPS) {
+      global[key] = value;
+    }
+  }
+  global["notifications.allowFromGoogleApps"] = data.global[WORKSPACE_APPS];
+  return { ...data, global };
+};
