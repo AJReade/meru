@@ -8,17 +8,17 @@ import type { GmailFeature } from "../feature.ts";
 import {
   EDITOR,
   SKIPPED,
-  hoverSheet,
   newMark,
-  release,
   releaseArrived,
   releaseTree,
+  settle,
   skipEditor,
+  themeAfresh,
   themeAgain,
-  themeTree,
+  themeSheet,
   turnLight,
 } from "./engine.ts";
-import type { StyleOf, Theme } from "./engine.ts";
+import type { StyleOf, Theme, Themed } from "./engine.ts";
 
 // An image larger than this is a photograph or a banner, which darkening would only spoil.
 const LARGEST_ICON = 512 * 512;
@@ -43,6 +43,26 @@ const readable = (image: HTMLImageElement, origin: string): boolean => {
 const DARK_PAGE = 0.2;
 
 const MESSAGE = "[data-message-id]";
+
+// The attributes Gmail changes an element's state by: a starred star, a selected row, an open toggle, a hover class, and a colour it writes into the style attribute itself.
+const STATES = [
+  "class",
+  "style",
+  "aria-checked",
+  "aria-expanded",
+  "aria-pressed",
+  "aria-selected",
+];
+
+// What of a style attribute Gmail writes is a state the walk decided from; a position or a size written on every frame of an animation is not.
+const STATE_COLOURS = [
+  "background",
+  "background-color",
+  "background-image",
+  "box-shadow",
+  "border-color",
+  "color",
+];
 
 const conversationEntry: SelectorEntry = {
   anchor: "h2[data-legacy-thread-id]",
@@ -119,7 +139,8 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
         style("");
         return;
       }
-      const styleOf: StyleOf = (element) => view.getComputedStyle(element);
+      const styleOf: StyleOf = (element, pseudo) =>
+        view.getComputedStyle(element, pseudo);
       const theme: Theme = {
         colourOf: (text) => parseColour(text) ?? canvas.colour(text),
         mark,
@@ -148,27 +169,71 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
           arrived = true;
         }
       };
+      // What arrived in an element a walk marked, which the next batch walks wherever it is: Gmail builds a menu inside a message, moves it to the body and only then fills it, out of reach of every root.
+      const landed = new Set<Element>();
+      // Marked elements whose state Gmail changed since the last batch, which the next batch decides again.
+      const changed = new Set<Element>();
+      const restyled = (record: MutationRecord, target: Element) => {
+        if (record.attributeName !== "style") {
+          return true;
+        }
+        const before = document.createElement("div").style;
+        before.cssText = record.oldValue ?? "";
+        const now = target.getAttribute("style") ?? "";
+        const after = document.createElement("div").style;
+        after.cssText = now;
+        return STATE_COLOURS.some(
+          (property) =>
+            before.getPropertyValue(property) !==
+            after.getPropertyValue(property)
+        );
+      };
       const notice = (records: readonly MutationRecord[]) => {
         for (const record of records) {
+          const { target } = record;
           if (record.type === "attributes") {
-            editable(record.target);
+            if (record.attributeName === "contenteditable") {
+              editable(target);
+            } else if (
+              target instanceof Element &&
+              target.hasAttribute(mark) &&
+              target.getAttribute(mark) !== SKIPPED &&
+              !insideEditor(target) &&
+              restyled(record, target)
+            ) {
+              changed.add(target);
+              scheduler.request();
+            }
             continue;
           }
-          const inEditor = insideEditor(record.target);
+          const inEditor = insideEditor(target);
           arrived ||= !inEditor && record.addedNodes.length > 0;
+          const into =
+            !inEditor &&
+            target instanceof Element &&
+            target.hasAttribute(mark) &&
+            target.getAttribute(mark) !== SKIPPED;
           for (const node of record.addedNodes) {
             if (node instanceof Element) {
               releaseArrived(node, mark, inEditor);
+              if (into) {
+                landed.add(node);
+              }
             }
           }
         }
       };
       const watcher = new MutationObserver(notice);
       watcher.observe(document, {
-        attributeFilter: ["contenteditable"],
+        attributeFilter: ["contenteditable", ...STATES],
+        attributeOldValue: true,
         childList: true,
         subtree: true,
       });
+      // What the theme writes is not a change of Gmail's: the records its own writes left are dropped, which no change of Gmail's can be among, since none runs while the theme does.
+      const own = () => {
+        watcher.takeRecords();
+      };
       undo(() => {
         watcher.disconnect();
       });
@@ -205,9 +270,19 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
           }
         }
       };
+      // Every write of the theme's goes through here, so Gmail's changes before it are heard and its own are not.
+      const writing = (root: Element, write: () => Themed) => {
+        notice(watcher.takeRecords());
+        const themed = write();
+        if (themed.touched > 0) {
+          settle(root);
+        }
+        own();
+        look(themed.images);
+      };
       const walk = (root: Element, skip: string) => {
         if (dark) {
-          look(themeAgain(root, theme, skip).images);
+          writing(root, () => themeAgain(root, theme, skip));
         }
       };
       // An image the walk marked is looked at again whenever it loads, the first time or after its address changed, from what the mail set: one listener for the page rather than one per image.
@@ -218,9 +293,31 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
           image instanceof HTMLImageElement &&
           image.hasAttribute(mark)
         ) {
-          release(image, mark);
-          look(themeTree(image, theme).images);
+          writing(image, () => themeAfresh(image, theme));
         }
+      };
+      const held = (element: Element) => {
+        for (const root of roots.keys()) {
+          if (root.contains(element)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      // A state Gmail changed is decided again with the messages in it, since a sheet's walk that passes over them leaves them taken back and unwalked.
+      const redecide = () => {
+        for (const element of changed) {
+          if (dark && element.isConnected) {
+            writing(element, () => themeAfresh(element, theme));
+          }
+        }
+        changed.clear();
+        for (const element of landed) {
+          if (element.isConnected && !held(element)) {
+            walk(element, EDITOR);
+          }
+        }
+        landed.clear();
       };
       document.addEventListener("load", loaded, true);
       document.addEventListener("error", loaded, true);
@@ -233,7 +330,7 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
         follow();
         walk(root, skip);
       };
-      style(hoverSheet(mark));
+      style(themeSheet(mark));
       undo(() => {
         roots.clear();
         // The page goes back as the mail had it unless the apply that follows in the same turn keeps the theme on.
@@ -269,6 +366,7 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
               walk(root, skip);
             }
           }
+          redecide();
         })
       );
     },

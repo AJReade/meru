@@ -3,6 +3,7 @@ import {
   darkBackground,
   darkBorder,
   darkGradient,
+  darkShadow,
   darkText,
   formatColour,
   luminance,
@@ -38,28 +39,26 @@ const SIDES = ["top", "right", "bottom", "left"] as const;
 // A ground this dark hides dark artwork drawn for a light page.
 const DARK_GROUND = 0.2;
 
-// Gmail draws its own icons in a conversation as dark glyphs on transparent images under these addresses, which a cross-origin image cannot be read to tell; 3.x's list.
-const DARK_ICON_PREFIXES = [
-  "https://www.gstatic.com/images/icons/material/system_gm/",
-  "https://ssl.gstatic.com/ui/v1/icons/mail/gm3/",
-];
-// Of those, the ones drawn in colour or already light, which turning over would spoil.
-const COLOURED_ICONS = [
-  "star_googyellow500",
-  "archive_white",
-  "schedule_send_googblue",
-  "label_important_fill_googyellow500",
-];
+// Gmail's icons are cross-origin images, which a canvas cannot read, but each name says its colour (`star_border_black_20dp`, `reply_baseline_nv700_20dp`, `gm_grey-24dp`); only the dark ones are turned, since a white or coloured one is already drawn for a dark ground.
+const DARK_ICON =
+  /gstatic\.com\/[^"')]*icons\/[^"')]*[_/](?:gm_)?(?:black|grey|grey[6-9]00|nv[6-9]00|n900|p900)[_-]\d+dp/u;
 
-const isDarkIcon = (image: string): boolean =>
-  DARK_ICON_PREFIXES.some((prefix) => image.includes(prefix)) &&
-  !COLOURED_ICONS.some((name) => image.includes(name));
+export const isDarkIcon = (image: string): boolean => DARK_ICON.test(image);
+
+/** The pseudo-elements Gmail draws an icon on, as a `content` image or a `background-image`. */
+export const PSEUDOS = ["::before", "::after"] as const;
 
 // Turns a dark glyph light while keeping its hues where it has any.
 export const TURN_LIGHT = "invert(1) hue-rotate(180deg)";
 
-/** What reads an element's computed style, which the page gives. */
-export type StyleOf = (element: Element) => CSSStyleDeclaration;
+// Gmail's own ink in an editor on its light page, which an editor turned over shows light; an editor would otherwise inherit the light ink the walk wrote on its container and show it dark.
+const EDITOR_INK = "rgb(34, 34, 34)";
+
+/** What reads an element's computed style, or one of its pseudo-elements', which the page gives. */
+export type StyleOf = (
+  element: Element,
+  pseudo?: (typeof PSEUDOS)[number]
+) => CSSStyleDeclaration;
 
 /** What reads a computed colour, `parseColour` for `rgb()` and the page's canvas for the rest of CSS Color 4, or undefined for one it cannot read. */
 export type ColourOf = (text: string) => Rgba | undefined;
@@ -240,6 +239,13 @@ const paintBorders = (
       }
     }
   }
+  const shadow = style.boxShadow;
+  if (shadow !== "" && shadow !== "none") {
+    const dark = darkShadow(shadow);
+    if (dark !== shadow) {
+      write("box-shadow", dark);
+    }
+  }
 };
 
 /** Whether the element holds text of its own, rather than only boxes that hold it. */
@@ -342,6 +348,23 @@ const rootFrame = (root: Element, theme: Theme): Frame => ({
   parentText: "",
 });
 
+/** Notes what on a darkened ground may be dark artwork: an image to sample, and a pseudo-element drawing one of Gmail's dark icons. */
+const lookAtIcons = (
+  element: HTMLElement,
+  ground: Rgba,
+  styleOf: StyleOf,
+  images: HTMLImageElement[],
+  turns: [Element, string][]
+): void => {
+  if (element instanceof HTMLImageElement && luminance(ground) < DARK_GROUND) {
+    images.push(element);
+  }
+  const pseudos = darkPseudos(element, styleOf);
+  if (pseudos !== "") {
+    turns.push([element, pseudos]);
+  }
+};
+
 const writtenValue = (flag: string, element: Element): string => {
   const style = element.getAttribute("style");
   return style === null ? `${flag}${NO_STYLE}` : `${flag}${HAD_STYLE}${style}`;
@@ -367,6 +390,7 @@ export const themeTree = (
   const touched = new Set<Element>();
   const looked = new Map<Element, string>();
   const editors: Element[] = [];
+  const turns: [Element, string][] = [];
   const stack: Frame[] = [rootFrame(root, theme)];
   for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
     const { element } = frame;
@@ -392,14 +416,8 @@ export const themeTree = (
             },
         colourOf
       );
-      if (
-        element instanceof HTMLImageElement &&
-        !marked &&
-        paint.darkened &&
-        paint.ground !== undefined &&
-        luminance(paint.ground) < DARK_GROUND
-      ) {
-        images.push(element);
+      if (!marked && paint.darkened && paint.ground !== undefined) {
+        lookAtIcons(element, paint.ground, styleOf, images, turns);
       }
     }
     if (!marked) {
@@ -428,11 +446,26 @@ export const themeTree = (
   for (const editor of editors) {
     skipEditor(editor, mark);
   }
+  for (const [element, pseudos] of turns) {
+    element.setAttribute(turnedOf(mark), pseudos);
+  }
   for (const { element, property, value } of writes) {
     element.style.setProperty(property, value, "important");
   }
   return { images, touched: touched.size };
 };
+
+/** The attribute naming the pseudo-elements of a marked element whose dark icon the feature's sheet turns light, since no inline style reaches a pseudo-element. */
+export const turnedOf = (mark: string): string => `${mark}-turn`;
+
+/** The pseudo-elements of an element that draw one of Gmail's dark icons, by name without the colons. */
+const darkPseudos = (element: Element, styleOf: StyleOf): string =>
+  PSEUDOS.filter((pseudo) => {
+    const style = styleOf(element, pseudo);
+    return isDarkIcon(style.content) || isDarkIcon(style.backgroundImage);
+  })
+    .map((pseudo) => pseudo.slice(2))
+    .join(" ");
 
 const NOTHING: Themed = { images: [], touched: 0 };
 
@@ -478,6 +511,53 @@ export const themeAgain = (
   return { images, touched };
 };
 
+/**
+ * Decides `element` and what it holds again, from the style Gmail gives them now: a class or an
+ * ARIA state Gmail swapped, a star starred or a row selected, changes the ground and the ink the
+ * walk decided from, and what inherits from the element was decided against it. What the walk
+ * wrote is taken back first, then the subtree is walked as new; an editor in it stays skipped.
+ */
+export const themeAfresh = (
+  element: Element,
+  theme: Theme,
+  skip: string = EDITOR
+): Themed => {
+  const { mark } = theme;
+  if (element.getAttribute(mark) === SKIPPED) {
+    return NOTHING;
+  }
+  release(element, mark);
+  for (const marked of element.querySelectorAll(
+    `[${mark}]:not([${mark}="${SKIPPED}"])`
+  )) {
+    release(marked, mark);
+  }
+  settle(element);
+  return themeTree(element, theme, skip);
+};
+
+const COLOUR_TRANSITION = /color|background|shadow/u;
+
+/**
+ * Ends at once every colour transition under `root`. Gmail eases its states' colours (a reply
+ * box's border over 0.15 s), and a computed style read during one answers the colour it starts
+ * from, which the walk would decide from and the state then leave behind; an override eased in
+ * would show Gmail's light colour fading out.
+ */
+export const settle = (root: Element): void => {
+  if (!("getAnimations" in root) || typeof CSSTransition === "undefined") {
+    return;
+  }
+  for (const animation of root.getAnimations({ subtree: true })) {
+    if (
+      animation instanceof CSSTransition &&
+      COLOUR_TRANSITION.test(animation.transitionProperty)
+    ) {
+      animation.finish();
+    }
+  }
+};
+
 /** Turns a dark image on a darkened ground light, marking it as the walk marks what it writes. */
 export const turnLight = (image: HTMLImageElement, mark: string): void => {
   const value = image.getAttribute(mark);
@@ -487,16 +567,65 @@ export const turnLight = (image: HTMLImageElement, mark: string): void => {
   image.style.setProperty("filter", TURN_LIGHT, "important");
 };
 
+// What a walk writes, each with `!important`; nothing else in a style attribute is the theme's.
+const WRITTEN = [
+  "background-color",
+  "background-image",
+  "box-shadow",
+  "color",
+  "filter",
+  ...SIDES.map((side) => `border-${side}-color`),
+];
+
+const declarationsOf = (style: CSSStyleDeclaration): string =>
+  Array.from(
+    style,
+    (property) =>
+      `${property}:${style.getPropertyValue(property)}:${style.getPropertyPriority(property)}`
+  )
+    .toSorted()
+    .join(";");
+
+/**
+ * Takes back what a walk wrote on `element`, from the `style` attribute it had (`had`, undefined
+ * for none), leaving whatever Gmail wrote there since, such as a menu's position: a declaration
+ * of the theme's is `!important`, and Gmail's own writes replace one rather than add to it. When
+ * nothing else changed, the attribute is put back to the very text it had, so a body Gmail quotes
+ * into a reply goes out as the mail wrote it.
+ */
+const takeBack = (element: HTMLElement, had: string | undefined): void => {
+  const before = element.ownerDocument.createElement("div").style;
+  before.cssText = had ?? "";
+  const { style } = element;
+  for (const property of WRITTEN) {
+    if (style.getPropertyPriority(property) === "important") {
+      const was = before.getPropertyValue(property);
+      if (was === "") {
+        style.removeProperty(property);
+      } else {
+        style.setProperty(property, was, before.getPropertyPriority(property));
+      }
+    }
+  }
+  if (declarationsOf(style) !== declarationsOf(before)) {
+    return;
+  }
+  if (had === undefined) {
+    element.removeAttribute("style");
+  } else {
+    element.setAttribute("style", had);
+  }
+};
+
 /** Puts back what the theme wrote on `element`, its `style` as the mail had it, and takes its mark off. */
 export const release = (element: Element, mark: string): void => {
   const value = element.getAttribute(mark) ?? "";
   const kind = value.charAt(1);
-  if (kind === NO_STYLE) {
-    element.removeAttribute("style");
-  } else if (kind === HAD_STYLE) {
-    element.setAttribute("style", value.slice(2));
+  if ((kind === NO_STYLE || kind === HAD_STYLE) && isHtml(element)) {
+    takeBack(element, kind === HAD_STYLE ? value.slice(2) : undefined);
   }
   element.removeAttribute(mark);
+  element.removeAttribute(turnedOf(mark));
 };
 
 /** Puts back what the theme wrote under `root`, each element's `style` as the mail had it, and takes its marks off. */
@@ -545,11 +674,24 @@ export const releaseArrived = (
 };
 
 /**
- * The feature's style sheet: an element the walk left without a ground of its own, on a ground it
- * darkened, keeps that ground while the pointer is over it. A mail's own `:hover` rule would paint
- * its light hover ground under the text the walk lightened; the walk cannot see a `:hover` rule,
- * and a ground it darkened is held already by its inline `!important`. The layer is what lets this
- * rule's `!important` beat a mail's own `!important` whatever its selector's weight.
+ * The feature's style sheet, in a layer, which is what lets its `!important` beat a mail's own
+ * `!important` whatever its selector's weight. An element the walk left without a ground of its
+ * own, on a ground it darkened, keeps that ground while the pointer is over it: a mail's own
+ * `:hover` rule would paint its light hover ground under the text the walk lightened, the walk
+ * cannot see a `:hover` rule, and a ground it darkened is held already by its inline `!important`.
+ * A pseudo-element's dark icon is turned light here, since no inline style reaches it. An editor
+ * the walk reached is turned over whole, its pictures turned back, since Gmail sends what the
+ * editor holds as the mail and no override may be written into it: Gmail's own dark ink turned
+ * over reads light, a colour the writer picked keeps its hue, and the ground stays clear so the
+ * darkened one shows through.
  */
-export const hoverSheet = (mark: string): string =>
-  `@layer meru-dark { :is(.a3s, [data-meru-clipped]) [${mark}^="${HOLD}"]:hover { background-color: transparent !important; } }`;
+export const themeSheet = (mark: string): string => {
+  const turned = turnedOf(mark);
+  const editor = `${EDITOR}[${mark}="${SKIPPED}"]`;
+  return `@layer meru-dark {
+:is(.a3s, [data-meru-clipped]) [${mark}^="${HOLD}"]:hover { background-color: transparent !important; }
+[${turned}~="before"]::before, [${turned}~="after"]::after { filter: ${TURN_LIGHT} !important; }
+${editor} { background-color: transparent !important; caret-color: ${EDITOR_INK} !important; color: ${EDITOR_INK} !important; filter: ${TURN_LIGHT} !important; }
+${editor} :is(img, video) { filter: ${TURN_LIGHT} !important; }
+}`;
+};

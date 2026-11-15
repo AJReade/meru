@@ -401,3 +401,135 @@ test("turns a dark glyph light and leaves a light picture as it is, read from th
     await gmail.stop();
   }
 });
+
+// Gmail's own controls in the conversation's sheet, as the live account draws them under its dark theme: an icon on a pseudo-element named dark and one named white, a menu Gmail builds in a message and fills once it has moved it to the page, an inline reply's editor holding a picture, and a reply bar that sticks below a long mail with a light shadow while mail is left below it, which Gmail turns on and off by a class as the conversation scrolls.
+const ICON = "https://www.gstatic.com/images/icons/material/system_gm/1x";
+const SHEET_PAGE = `<!doctype html><title>Gmail</title><style>
+  body { background-color: rgb(17, 17, 17); margin: 0; }
+  .iY { background-color: rgb(255, 255, 255); color: rgb(32, 33, 36); }
+  .icon::before { content: none; background-image: url("${ICON}/star_border_black_20dp.png"); }
+  .icon.white::before { background-image: url("${ICON}/star_border_white_20dp.png"); }
+  .menu { background-color: rgb(255, 255, 255); position: absolute; top: 0; right: 0; }
+  .menu li { color: rgb(31, 31, 31); }
+  .bar { position: sticky; bottom: 0; background-color: rgb(255, 255, 255); height: 120px; }
+  .bar.stuck { box-shadow: rgb(232, 234, 237) 0px -3px 2px -2px; }
+</style><div role="main"><div class="nH"><div class="nH a98 iY"><h2 class="hP" data-legacy-thread-id="thread-1">Subject</h2><span class="icon dark">a</span><span class="icon white">b</span><div role="list"><div role="listitem" class="adn ads" data-message-id="m1"><div class="gs"><div class="ii gt"><div class="a3s aiL"><div style="background-color: #ffffff; color: #222222">${Array.from(
+  { length: 300 },
+  (_, index) => `<p>row ${index}</p>`
+).join(
+  ""
+)}</div></div></div></div></div></div><div class="bar"><div contenteditable="true" role="textbox" style="color: rgb(34, 34, 34)">A reply <img alt="" width="8" height="8" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'/%3E"></div></div></div></div></div><script>
+  const bar = document.querySelector(".bar");
+  const stick = () => bar.classList.toggle("stuck", scrollY + innerHeight < document.documentElement.scrollHeight - 2);
+  addEventListener("scroll", stick);
+  stick();
+</script>`;
+
+// Builds a menu inside the message, moves it to the page in the next frame and fills it in the one after, as Gmail opens a message's More menu, and answers once two more frames have passed.
+const OPEN_MENU = `new Promise((resolve) => {
+  const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
+  const menu = document.createElement("div");
+  menu.className = "menu";
+  const list = document.createElement("ul");
+  list.setAttribute("role", "menu");
+  menu.append(list);
+  document.querySelector("[data-message-id]").append(menu);
+  frame().then(async () => {
+    document.body.append(menu);
+    await frame();
+    for (const label of ["Reply", "Forward", "Delete"]) {
+      const item = document.createElement("li");
+      item.setAttribute("role", "menuitem");
+      item.textContent = label;
+      list.append(item);
+    }
+    await frame();
+    await frame();
+    resolve(true);
+  });
+})`;
+
+// What the theme made of each: the two icons' filters, each menu label's ink on the menu's ground, the editor's and its picture's filters, and whether the bar sticks with the first colour of its shadow.
+const SHEET_STATE = `(() => {
+  const style = (selector, pseudo) => getComputedStyle(document.querySelector(selector), pseudo);
+  const menu = document.querySelector(".menu");
+  const bar = document.querySelector(".bar");
+  return {
+    icons: [style(".icon.dark", "::before").filter, style(".icon.white", "::before").filter],
+    menu: menu === null ? [] : [...menu.querySelectorAll("li")].map((item) => [getComputedStyle(item).color, getComputedStyle(menu).backgroundColor]),
+    editor: [style('[contenteditable="true"]').filter, style('[contenteditable="true"] img').filter],
+    bar: [bar.classList.contains("stuck"), getComputedStyle(bar).boxShadow.split(" 0px")[0]],
+  };
+})()`;
+const SHEET_SCHEMA = z.object({
+  bar: z.tuple([z.boolean(), z.string()]),
+  editor: z.tuple([z.string(), z.string()]),
+  icons: z.tuple([z.string(), z.string()]),
+  menu: z.array(z.tuple([z.string(), z.string()])),
+});
+
+const TURNED = "invert(1) hue-rotate(180deg)";
+
+const isDark = (colour: string) =>
+  (parseColour(colour)?.r ?? 255) < 128 && (parseColour(colour)?.a ?? 0) > 0;
+
+test("themes Gmail's own controls in the sheet: pseudo-element icons, a menu on its first open, the reply's editor and the reply bar's shadow as it scrolls", async ({
+  launch,
+  stub,
+}) => {
+  const gmail = await startGmailStub(SHEET_PAGE);
+  try {
+    const { app, chrome } = await launch({
+      env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
+    });
+    await awaitEntitlement(app, "trial");
+    await expect
+      .poll(async () => await inPane(app, STATE))
+      .toStrictEqual(["rgb(255, 255, 255)", 0]);
+    await framed(app);
+    await setTo(chrome, true);
+    await expect
+      .poll(async () => {
+        const [ground] = STATE_SCHEMA.parse(await inPane(app, STATE));
+        return ground !== "rgb(255, 255, 255)";
+      })
+      .toBe(true);
+
+    await inPane(app, OPEN_MENU);
+    const opened = SHEET_SCHEMA.parse(await inPane(app, SHEET_STATE));
+    const labels = opened.menu.map(([ink, ground]) =>
+      contrast(
+        must(parseColour(ink), "a label's ink"),
+        must(parseColour(ground), "the menu's ground")
+      )
+    );
+
+    await inPane(app, `scrollTo(0, document.documentElement.scrollHeight)`);
+    await expect
+      .poll(async () => SHEET_SCHEMA.parse(await inPane(app, SHEET_STATE)).bar)
+      .toStrictEqual([false, "none"]);
+    await inPane(app, `scrollTo(0, 0)`);
+    await expect
+      .poll(
+        async () => SHEET_SCHEMA.parse(await inPane(app, SHEET_STATE)).bar[0]
+      )
+      .toBe(true);
+    const scrolled = SHEET_SCHEMA.parse(await inPane(app, SHEET_STATE));
+
+    console.log(JSON.stringify({ labels, opened, scrolled }));
+    expect({
+      bar: [opened.bar[0], isDark(opened.bar[1]), isDark(scrolled.bar[1])],
+      editor: opened.editor,
+      icons: opened.icons,
+      labels:
+        labels.length === 3 && labels.every((ratio) => ratio >= TEXT_CONTRAST),
+    }).toStrictEqual({
+      bar: [true, true, true],
+      editor: [TURNED, TURNED],
+      icons: [TURNED, "none"],
+      labels: true,
+    });
+  } finally {
+    await gmail.stop();
+  }
+});

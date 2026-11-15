@@ -9,9 +9,10 @@ import {
 import type { Rgba } from "../../../core/engines/dark-theme.ts";
 import { isHtmlElement, queryAll } from "../../content/query.ts";
 import { markOf } from "./engine.ts";
-import type { Theme } from "./engine.ts";
+import type { StyleOf, Theme } from "./engine.ts";
 
-export const styleOf = (element: Element) => getComputedStyle(element);
+export const styleOf: StyleOf = (element, pseudo) =>
+  getComputedStyle(element, pseudo);
 
 /** The mark a test's walks write, fixed so a test can look for it. */
 export const TEST_MARK = markOf("test");
