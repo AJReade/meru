@@ -132,8 +132,8 @@ describe(SettingsWindow, () => {
     await settings.open();
     settings.recolour("dark");
     expect([created[0]?.background, created[0]?.overlay?.color]).toStrictEqual([
-      "#1d1d24",
-      "#1d1d24",
+      "#1f1f1f",
+      "#1f1f1f",
     ]);
   });
 });

@@ -12,7 +12,7 @@ describe(titleBarOf, () => {
     expect(
       titleBarOf({ linuxControls: false, platform: "darwin", theme: "dark" })
     ).toStrictEqual({
-      overlay: { color: "#1d1d24", height: 39, symbolColor: "#e2e2ea" },
+      overlay: { color: "#1f1f1f", height: 39, symbolColor: "#e4e4e4" },
       style: "hiddenInset",
       trafficLights: { x: 12, y: 14 },
     });
@@ -23,9 +23,9 @@ describe(titleBarOf, () => {
       titleBarOf({ linuxControls: false, platform: "win32", theme: "light" })
     ).toStrictEqual({
       overlay: {
-        color: "#ececf1",
+        color: "#ebebeb",
         height: TITLEBAR_HEIGHT - 1,
-        symbolColor: "#2a2a30",
+        symbolColor: "#262626",
       },
       style: "hidden",
       trafficLights: null,
@@ -33,7 +33,7 @@ describe(titleBarOf, () => {
     expect(
       titleBarOf({ linuxControls: false, platform: "win32", theme: "dark" })
         .overlay?.color
-    ).toBe("#1d1d24");
+    ).toBe("#1f1f1f");
   });
 
   it("overlays them on Linux only when the user turned them on", () => {

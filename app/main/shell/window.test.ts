@@ -71,7 +71,7 @@ describe(MainWindow, () => {
 
   it("opens with the chrome's ground and tells the page its platform and theme", async () => {
     const { specs, window } = await open("darwin");
-    expect(specs[0]?.background).toBe("#1d1d24");
+    expect(specs[0]?.background).toBe("#1f1f1f");
     expect(specs[0]?.titleBar.style).toBe("hiddenInset");
     expect(window.loaded).toBe(
       `${pathToFileURL(path.join("/dist/renderer", "chrome.html")).href}?platform=darwin&theme=dark`
@@ -107,15 +107,15 @@ describe(MainWindow, () => {
   it("recolours the window and its controls in another theme", async () => {
     const { main, window } = await open("win32");
     main.recolour("light");
-    expect(window.background).toBe("#ececf1");
-    expect(window.overlay?.color).toBe("#ececf1");
-    expect(window.overlay?.symbolColor).toBe("#2a2a30");
+    expect(window.background).toBe("#ebebeb");
+    expect(window.overlay?.color).toBe("#ebebeb");
+    expect(window.overlay?.symbolColor).toBe("#262626");
   });
 
   it("leaves the traffic lights to macOS", async () => {
     const { main, window } = await open("darwin");
     main.recolour("light");
-    expect(window.background).toBe("#ececf1");
+    expect(window.background).toBe("#ebebeb");
     expect(window.overlay).toBeUndefined();
   });
 });

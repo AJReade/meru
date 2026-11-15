@@ -14,11 +14,11 @@ interface ChromeColors {
   readonly foreground: string;
 }
 
-/** The chrome's ground and ink, as hex, which is all a window's background and its title bar overlay take: a neutral grey either way, which the panes, white or near-black as Google draws them, sit on. */
+/** The chrome's ground and ink, as hex, which is all a window's background and its title bar overlay take: greys of no chroma, oklch(0.24 0 0) with (0.92 0 0) dark and (0.94 0 0) with (0.27 0 0) light, apart from the white or near-black Google draws the panes in so a pane's edge still shows. */
 export const chromeColors = (theme: Theme): ChromeColors =>
   theme === "dark"
-    ? { background: "#1d1d24", foreground: "#e2e2ea" }
-    : { background: "#ececf1", foreground: "#2a2a30" };
+    ? { background: "#1f1f1f", foreground: "#e4e4e4" }
+    : { background: "#ebebeb", foreground: "#262626" };
 
 // `hiddenInset` pins the lights 11px from the top and skips the centring `titleBarOverlay.height` would do, so centring them on a taller row takes an explicit position; x repeats Electron's own inset, so only the height moves.
 const TRAFFIC_LIGHT_HEIGHT = 12;
