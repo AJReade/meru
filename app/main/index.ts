@@ -260,13 +260,9 @@ const start = async () => {
 
   // The suite asserts on what the app would put on the desktop and puts nothing there.
   const recorded = recordingDesktop();
-  // A native menu cannot be read, and would wait on the desktop the suite shares, so the suite reads the one the app would show and clicks it here.
-  const recordedMenus = recordingContextMenu(ports.contextMenu);
   const desktop = e2e ? recorded : ports;
   // The end-to-end suite asserts on the links that would leave for the browser and the files it would open, and opens none.
   const externalLinks = new RecordingShell();
-  // The suite copies through the app's menus, which would otherwise write the clipboard of the Mac it runs on.
-  const recordedClipboard = recordingClipboard();
   const shell = e2e ? externalLinks : ports.shell;
   // A run from the repository can read a stand-in feed; the suite and a measure read none unless given one, so no test run asks Google.
   const gmailOverride = ports.lifecycle.packaged
@@ -340,6 +336,29 @@ const start = async () => {
     settings,
   });
   google.start();
+  // A native menu cannot be read, and would wait on the desktop the suite shares, so the suite reads the one the app would show and clicks it here.
+  const recordedMenus = recordingContextMenu(ports.contextMenu);
+  // The suite copies through the app's menus, which would otherwise write the clipboard of the Mac it runs on.
+  const recordedClipboard = recordingClipboard();
+  // Built ahead of the stages, whose panes and pop-outs it attaches to; the downloads and the links come after the stages they need, and the menu reaches them only on a click.
+  const contextMenu = new ContextMenu({
+    clipboard: e2e ? recordedClipboard : ports.clipboard,
+    contextMenu: e2e ? recordedMenus : ports.contextMenu,
+    development: !ports.lifecycle.packaged,
+    downloads: {
+      saveAs: (contentsId, url) => {
+        downloads.saveAs(contentsId, url);
+      },
+    },
+    links: {
+      openExternal: (url) => {
+        links.openExternal(url);
+      },
+    },
+    log: log.scoped("contextMenu"),
+    mailbox,
+    platform: ports.lifecycle.platform,
+  });
   const overlayUrl = (
     kind: OverlayKind,
     query: Readonly<Record<string, string>>
@@ -444,16 +463,6 @@ const start = async () => {
   });
   await downloads.open();
   downloads.start();
-  const contextMenu = new ContextMenu({
-    clipboard: e2e ? recordedClipboard : ports.clipboard,
-    contextMenu: e2e ? recordedMenus : ports.contextMenu,
-    development: !ports.lifecycle.packaged,
-    downloads,
-    links,
-    log: log.scoped("contextMenu"),
-    mailbox,
-    platform: ports.lifecycle.platform,
-  });
 
   const updater = new Updater({
     lifecycle: ports.lifecycle,
