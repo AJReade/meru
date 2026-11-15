@@ -60,9 +60,6 @@ export const WAKE_TIMEOUT = 5000;
 /** How long a sent message's pop-out stays, hidden, for its Undo, as 3.x keeps it; Gmail's own longest undo period is 30 seconds. */
 export const SENT_UNDO_WINDOW = 30_000;
 
-// The least time between two refreshes of one page, as Gmail's own list takes a moment to fetch and a burst of callers, such as several notifications' actions, wants one.
-export const REFRESH_INTERVAL = 3000;
-
 // A page reports each change of the count it shows, and reading a message can change it twice in quick succession, so the feed is read once the changes stop.
 export const UNREAD_SETTLE = 1000;
 
@@ -157,8 +154,6 @@ export class Gmail {
   >();
   /** Whoever waits for a tab to get a page, by tab id. */
   readonly #waking = new Map<string, Set<(contentsId: number) => void>>();
-  /** When each page was last asked to refresh, by its web contents id. */
-  readonly #refreshed = new Map<number, number>();
   /** The feed read each profile waits for while its page's count settles, by profile id. */
   readonly #unread = new Map<
     string,
@@ -365,7 +360,6 @@ export class Gmail {
         );
         return () => {
           unassign();
-          this.#refreshed.delete(contentsId);
           if (this.#pages.get(tab.id)?.contentsId === contentsId) {
             this.#pages.delete(tab.id);
           }
@@ -418,7 +412,7 @@ export class Gmail {
     return this.#notActed(acted === undefined ? "silent" : "refused", tabId);
   }
 
-  /** Has each of the profile's Gmail pages fetch its list again, at most once per `REFRESH_INTERVAL` a page; a profile with no page loaded has nothing to refresh. */
+  /** Has each of the profile's Gmail pages fetch its list again, which each page does at most once per its `REFRESH_INTERVAL`; a profile with no page loaded has nothing to refresh. */
   refresh(profileId: string): void {
     this.#refreshPages((owner) => owner === profileId);
   }
@@ -427,15 +421,10 @@ export class Gmail {
     this.#refreshPages(() => true);
   }
 
+  // The page keeps the interval, since only it knows whether a refresh found anything to press: one pushed while Gmail is still loading presses nothing and must not hold back the next.
   #refreshPages(of: (profileId: string) => boolean): void {
-    const now = this.#options.clock.now();
     for (const { contentsId, profileId } of this.#pages.values()) {
-      const last = this.#refreshed.get(contentsId);
-      if (
-        of(profileId) &&
-        (last === undefined || now - last >= REFRESH_INTERVAL)
-      ) {
-        this.#refreshed.set(contentsId, now);
+      if (of(profileId)) {
         this.#options.registrar.push(contentsId, gmailPushes.refresh, {});
       }
     }

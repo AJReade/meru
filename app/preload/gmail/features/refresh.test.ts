@@ -2,34 +2,42 @@ import { describe, expect, it } from "vitest";
 
 import { gmailPushes } from "../../../shared/channels/gmail.ts";
 import { mountGmail, MAILBOX } from "../testing.ts";
-import { refresh } from "./refresh.ts";
+import attachments from "./fixtures/attachments.html?raw";
+import inboxRows from "./fixtures/inbox-rows.html?raw";
+import {
+  INBOX_LINK,
+  REFRESH_BUTTON,
+  REFRESH_INTERVAL,
+  refresh,
+} from "./refresh.ts";
 
-// Gmail's own markup for the two, as a signed-in inbox shows them.
-const NAVIGATION = `<div role="navigation"><div class="TO" data-tooltip="Inbox"><span class="nU n1"><a href="${MAILBOX}/#inbox" aria-label="Inbox 1 unread">Inbox</a></span><div class="bsU">1</div></div></div>`;
-const REFRESH = `<div class="T-I J-J5-Ji nu T-I-ax7 L3" act="20" role="button" tabindex="0" aria-label="Refresh" data-tooltip="Refresh"></div>`;
+const withoutRefresh = (html: string) =>
+  html.replaceAll('act="20"', 'act="none"');
 
 const clicksOn = (selector: string): string[] => {
   const seen: string[] = [];
   for (const type of ["mousedown", "mouseup", "click"]) {
-    document.querySelector(selector)?.addEventListener(type, () => {
+    document.querySelector(selector)?.addEventListener(type, (event) => {
+      // happy-dom would follow the inbox link's address.
+      event.preventDefault();
       seen.push(type);
     });
   }
   return seen;
 };
 
-describe(refresh.id, () => {
-  it("presses Gmail's Refresh as a pointer would and leaves the focus where it was", () => {
+describe(refresh, () => {
+  it("presses Refresh on the captured inbox as a pointer would and leaves the focus where it was", () => {
     const page = mountGmail({
-      features: [refresh],
-      html: `${NAVIGATION}${REFRESH}<textarea></textarea>`,
+      features: [refresh()],
+      html: `${inboxRows}<textarea></textarea>`,
     });
-    const pressed = clicksOn('[act="20"]');
-    const followed = clicksOn('a[href$="#inbox"]');
+    const pressed = clicksOn(REFRESH_BUTTON);
+    const followed = clicksOn(INBOX_LINK);
     const reply = document.querySelector("textarea");
     reply?.focus();
     document
-      .querySelector<HTMLElement>('[act="20"]')
+      .querySelector<HTMLElement>(REFRESH_BUTTON)
       ?.addEventListener("mousedown", (event) => {
         if (event.currentTarget instanceof HTMLElement) {
           event.currentTarget.focus();
@@ -50,13 +58,31 @@ describe(refresh.id, () => {
     page.app.dispose();
   });
 
-  it("follows the inbox's link where Gmail shows no Refresh, such as an open message in the inbox", () => {
+  it("presses at most once an interval, a push that found nothing to press while Gmail loads not counting", () => {
+    let now = 0;
+    const page = mountGmail({ features: [refresh(() => now)], html: "" });
+
+    page.bridge.push(gmailPushes.refresh, {});
+    document.body.innerHTML = inboxRows;
+    const pressed = clicksOn(REFRESH_BUTTON);
+    now = 1;
+    page.bridge.push(gmailPushes.refresh, {});
+    now = REFRESH_INTERVAL;
+    page.bridge.push(gmailPushes.refresh, {});
+    const withinInterval = pressed.length;
+    now = REFRESH_INTERVAL + 1;
+    page.bridge.push(gmailPushes.refresh, {});
+
+    expect([withinInterval, pressed.length]).toStrictEqual([3, 6]);
+    page.app.dispose();
+  });
+
+  it("follows the inbox's link on the captured inbox's list when Gmail shows no Refresh", () => {
     const page = mountGmail({
-      features: [refresh],
-      href: `${MAILBOX}/#inbox/abc123`,
-      html: NAVIGATION,
+      features: [refresh()],
+      html: withoutRefresh(inboxRows),
     });
-    const followed = clicksOn('a[href$="#inbox"]');
+    const followed = clicksOn(INBOX_LINK);
 
     page.bridge.push(gmailPushes.refresh, {});
 
@@ -64,17 +90,21 @@ describe(refresh.id, () => {
     page.app.dispose();
   });
 
-  it("leaves a page outside the inbox with no Refresh where it is", () => {
-    const page = mountGmail({
-      features: [refresh],
-      href: `${MAILBOX}/#label/Work/abc123`,
-      html: NAVIGATION,
-    });
-    const followed = clicksOn('a[href$="#inbox"]');
+  it("leaves a captured open message open, and a page outside the inbox where it is, when Gmail shows no Refresh", () => {
+    const followed = [`${MAILBOX}/#inbox/FMfcgz`, `${MAILBOX}/#label/Work`].map(
+      (href) => {
+        const page = mountGmail({
+          features: [refresh()],
+          href,
+          html: withoutRefresh(attachments),
+        });
+        const clicks = clicksOn(INBOX_LINK);
+        page.bridge.push(gmailPushes.refresh, {});
+        page.app.dispose();
+        return clicks;
+      }
+    );
 
-    page.bridge.push(gmailPushes.refresh, {});
-
-    expect(followed).toStrictEqual([]);
-    page.app.dispose();
+    expect(followed).toStrictEqual([[], []]);
   });
 });

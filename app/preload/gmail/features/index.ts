@@ -38,7 +38,7 @@ export const gmailFeatures = (): readonly GmailFeature[] => [
   needsSignIn,
   outOfOffice(),
   popOuts,
-  refresh,
+  refresh(),
   reverseConversation,
   senderIcons,
   sentToast(),

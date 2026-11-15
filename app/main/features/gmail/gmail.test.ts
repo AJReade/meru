@@ -24,7 +24,6 @@ import {
   Gmail,
   NAVIGATE_TIMEOUT,
   NUDGE_MAX_WAIT,
-  REFRESH_INTERVAL,
   SENT_UNDO_WINDOW,
   UNREAD_SETTLE,
   USER_STYLES_FILE,
@@ -290,7 +289,7 @@ describe(Gmail, () => {
   });
 
   it("refreshes the profile's page after an action Gmail took, and not after one it refused", async () => {
-    const { app, feature, pushed, request, tab } = await setup();
+    const { feature, pushed, request, tab } = await setup();
     const refused = feature.act(tab.id, "FMfcg", "archive");
     unwrap(request(gmail.mailActed, { acted: false, id: 0 }));
     await refused;
@@ -300,29 +299,16 @@ describe(Gmail, () => {
     unwrap(request(gmail.mailActed, { acted: true, id: 1 }));
     await acted;
     expect(pushed(gmailPushes.refresh)).toStrictEqual([{}]);
-
-    // A second action in quick succession is covered by the first refresh.
-    app.clock.advance(REFRESH_INTERVAL - 1);
-    const again = feature.act(tab.id, "FMfcg", "markRead");
-    unwrap(request(gmail.mailActed, { acted: true, id: 2 }));
-    await again;
-    expect(pushed(gmailPushes.refresh)).toHaveLength(1);
   });
 
-  it("refreshes the profile's page when its feed has new mail, on resume and when the network returns, at most once an interval", async () => {
+  it("refreshes the profile's page when its feed has new mail, on resume and when the network returns, leaving the interval to the page", async () => {
     const { app, online, power, pushed, tab } = await setup();
     app.events.emit("mail.arrived", { entries: [], profileId: "elsewhere" });
     expect(pushed(gmailPushes.refresh)).toStrictEqual([]);
 
     app.events.emit("mail.arrived", { entries: [], profileId: tab.profileId });
     power.resume();
-    expect(pushed(gmailPushes.refresh)).toHaveLength(1);
-
-    app.clock.advance(REFRESH_INTERVAL);
-    power.resume();
-    app.clock.advance(REFRESH_INTERVAL);
     online.set(false);
-    expect(pushed(gmailPushes.refresh)).toHaveLength(2);
     online.set(true);
     expect(pushed(gmailPushes.refresh)).toHaveLength(3);
   });
