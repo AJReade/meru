@@ -121,7 +121,9 @@ export class TabMenu {
       stages.reload(tabId);
     } else if (action.kind === "split") {
       // The launcher's pick goes beside the focused pane, so the row's tab is focused first.
-      if (profiles.focusTab(tabId).ok) {
+      const focused = profiles.focusTab(tabId);
+      this.#refused(focused);
+      if (focused.ok) {
         split(windowId, action.orientation);
       }
     } else if (action.kind === "leaveGroup") {
