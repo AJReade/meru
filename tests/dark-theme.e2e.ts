@@ -70,7 +70,7 @@ test("darkens a mail under Gmail's dark theme while the setting is on, and gives
   launch,
   stub,
 }) => {
-  const gmail = await startGmailStub(await mailbox("21-receipt.html"));
+  const gmail = await startGmailStub(await mailbox("receipt.html"));
   try {
     const { app, chrome } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
@@ -361,7 +361,7 @@ test("turns a dark glyph light and leaves a light picture as it is, read from th
   launch,
   stub,
 }) => {
-  const gmail = await startGmailStub(await mailbox("37-data-images.html"));
+  const gmail = await startGmailStub(await mailbox("data-images.html"));
   try {
     const { app, chrome } = await launch({
       env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },

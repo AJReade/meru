@@ -23,6 +23,7 @@ import { z } from "zod";
 
 import { scrubHtml, scrubMail } from "../../app/core/engines/scrub.ts";
 import { launch } from "../lib/app.ts";
+import { corpusFileName } from "./corpus-name.ts";
 
 const root = path.join(import.meta.dirname, "..", "..");
 const FIXTURES = path.join(root, "app/preload/gmail/features/fixtures");
@@ -259,7 +260,7 @@ const BODY = `(async () => {
   const subject = document.querySelector("h2[data-legacy-thread-id]")?.textContent ?? "";
   const named = /^Corpus ([a-z-]+)$/.exec(subject.trim())?.[1];
   const shape = body.querySelector("table") !== null ? "table-layout" : body.querySelector("img") !== null ? "images" : body.querySelector("[style*=color]") !== null ? "styled" : "plain-text";
-  return JSON.stringify({ kind: named ?? shape, named: named !== undefined, probe: /^Meru /.test(subject.trim()), html: body.outerHTML });
+  return JSON.stringify({ kind: named ?? shape, named: named !== undefined, probe: /^Meru /.test(subject.trim()), clipped: body.querySelector(".iX") !== null, empty: body.textContent.trim() === "", html: body.outerHTML });
 })()`;
 
 /** How long a thread of the corpus is given to show its body; a thread holding only a draft never does. */
@@ -283,6 +284,8 @@ const shows = async (
 };
 
 const corpusEntry = z.object({
+  clipped: z.boolean(),
+  empty: z.boolean(),
   html: z.string(),
   kind: z.string().regex(/^[a-z-]+$/u),
   named: z.boolean(),
@@ -389,8 +392,8 @@ const captureCorpus = async (app: ElectronApplication) => {
       continue;
     }
     const entry = corpusEntry.parse(JSON.parse(body));
-    // What a session sent the account to test a feature, such as the clipped message or a one-word body, is no mail's shape.
-    if (entry.probe) {
+    // What a session sent the account to test a feature is no mail's shape, and neither is a body Gmail clipped, which repeats one paragraph up to its clipping size and ends in its own link, nor one with no text, such as a lone line break.
+    if (entry.probe || entry.clipped || entry.empty) {
       continue;
     }
     const seen = shapes.get(entry.kind) ?? 0;
@@ -399,12 +402,15 @@ const captureCorpus = async (app: ElectronApplication) => {
     if (entry.named ? seen > 0 : seen >= PER_SHAPE) {
       continue;
     }
-    const name = `${String(written.length + 1).padStart(2, "0")}-${entry.kind}.html`;
-    const file = path.join(CORPUS, name);
+    const scrubbed = scrubMail(entry.html);
+    const file = path.join(
+      CORPUS,
+      corpusFileName(entry.kind, entry.named, scrubbed)
+    );
     // oxlint-disable-next-line no-await-in-loop -- one thread is open at a time
     await writeFile(
       file,
-      `<!-- Corpus: ${entry.kind}. Captured by scripts/gmail/capture.ts --corpus and scrubbed by app/core/engines/scrub.ts's scrubMail. -->\n${scrubMail(entry.html)}\n`
+      `<!-- Corpus: ${entry.kind}. Captured by scripts/gmail/capture.ts --corpus and scrubbed by app/core/engines/scrub.ts's scrubMail. -->\n${scrubbed}\n`
     );
     written.push(path.relative(root, file));
   }
