@@ -206,6 +206,19 @@ const paintBorders = (
   }
 };
 
+/** Whether the element holds text of its own, rather than only boxes that hold it. */
+const holdsText = (element: Element): boolean => {
+  for (let node = element.firstChild; node !== null; node = node.nextSibling) {
+    if (
+      node.nodeType === node.TEXT_NODE &&
+      (node.nodeValue ?? "").trim() !== ""
+    ) {
+      return true;
+    }
+  }
+  return false;
+};
+
 /** Writes what the element's own style needs on the dark page, and answers the ground and the text colour it leaves for its children. */
 const paintElement = (
   element: HTMLElement,
@@ -231,7 +244,8 @@ const paintElement = (
     return { ...paint, text: shown };
   }
   const text = formatColour(darkText(colour, ground));
-  if (text !== shown) {
+  // A mail's `:hover` rule that sets only a colour would paint its light page's ink over the darkened ground, on the element whose text it is even when that element inherits its colour; an inline `!important` beats every rule of a sheet.
+  if (text !== shown || (paint.darkened && holdsText(element))) {
     write("color", text);
   }
   paintBorders(style, ground, write, colourOf);

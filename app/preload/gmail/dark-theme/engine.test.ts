@@ -84,6 +84,22 @@ describe(themeTree, () => {
     ]);
   });
 
+  it("holds the colour of every text on a darkened ground, inherited or its own, against a mail's hover rule", () => {
+    const body = mount(
+      `<div class="a3s"><div style="background-color: rgb(255, 255, 255); color: rgb(34, 34, 34)"><a id="inherits">Inherits</a><a id="own" style="color: rgb(51, 51, 51)">Own</a><div id="boxes"><span>Held by the span</span></div></div></div>`
+    );
+    themeTree(body, theme);
+
+    expect(
+      ["#inherits", "#own", "#boxes", "#boxes span"].map((selector) =>
+        body
+          .querySelector(selector)
+          ?.getAttribute("style")
+          ?.includes("!important")
+      )
+    ).toStrictEqual([true, true, undefined, true]);
+  });
+
   it("reaches only what is new when it walks a subtree again", () => {
     const body = mount(
       `<div class="a3s"><p style="color: rgb(51, 51, 51)">Old</p></div>`

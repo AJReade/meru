@@ -120,7 +120,8 @@ const HOVERED = `(() => {
 })()`;
 const HOVERED_SCHEMA = z.tuple([z.boolean(), z.string(), z.string()]);
 
-const HOVER_MAIL = `<div class="a3s aiL"><style>.lit:hover { background-color: #ffffff } .lit-important:hover { background-color: #ffffff !important }</style><div style="background-color: #ffffff; color: #222222">${[
+// Each case's id, the hover rule's class and its own style: four hover rules that light the ground and four that set only the colour, on a text that inherits its colour and on one with its own.
+const HOVER_CASES = [
   ["darkened", "lit", "background-color: #f4f4f4; color: #333333"],
   [
     "darkened-important",
@@ -129,12 +130,16 @@ const HOVER_MAIL = `<div class="a3s aiL"><style>.lit:hover { background-color: #
   ],
   ["clear", "lit", "color: #333333"],
   ["clear-important", "lit-important", "color: #333333"],
-]
-  .map(
-    ([id, name, style]) =>
-      `<a id="${id}" class="${name}" style="display: block; height: 60px; ${style}">${id}</a>`
-  )
-  .join("")}</div></div>`;
+  ["ink-inherited", "ink", ""],
+  ["ink-inherited-important", "ink-important", ""],
+  ["ink-own", "ink", "color: #333333"],
+  ["ink-own-important", "ink-important", "color: #333333"],
+] as const;
+
+const HOVER_MAIL = `<div class="a3s aiL"><style>.lit:hover { background-color: #ffffff } .lit-important:hover { background-color: #ffffff !important } .ink:hover { color: #000000 } .ink-important:hover { color: #000000 !important }</style><div style="background-color: #ffffff; color: #222222">${HOVER_CASES.map(
+  ([id, name, style]) =>
+    `<a id="${id}" class="${name}" style="display: block; height: 60px; ${style}">${id}</a>`
+).join("")}</div></div>`;
 
 // About 5,000 elements, the size of a long marketing mail.
 const LONG_MAIL = `<div class="a3s aiL"><div style="background-color: #ffffff">${Array.from(
@@ -190,12 +195,7 @@ test("keeps a text readable while the pointer is over it, and a batch with nothi
     const [pane] = await panesOf(app);
     const { contentsId } = must(pane, "a pane");
     const readings: Record<string, number> = {};
-    for (const id of [
-      "darkened",
-      "darkened-important",
-      "clear",
-      "clear-important",
-    ]) {
+    for (const [id] of HOVER_CASES) {
       // oxlint-disable-next-line no-await-in-loop -- one case is under the pointer at a time
       const point = await inPane(
         app,
