@@ -6,6 +6,7 @@ import type {
 } from "../records/context-menu.ts";
 import type { Platform } from "../records/platform.ts";
 import {
+  SEARCH_QUERY_LIMIT,
   contextMenuOf,
   emailAddressOf,
   lookUpName,
@@ -97,6 +98,14 @@ const MISSPELLED = {
   selectionText: "Mreu",
 };
 
+/** The address Search with Google opens for the selection, or null when it is not offered. */
+const searchOf = (selectionText: string) => {
+  const item = itemOf(menu({ selectionText }), "searchWithGoogle");
+  return item?.kind === "item" && item.action?.kind === "openExternal"
+    ? item.action.url
+    : null;
+};
+
 describe(contextMenuOf, () => {
   it("offers only Select All on a page with nothing under the click, outside macOS, and nothing on macOS", () => {
     expect([
@@ -157,6 +166,23 @@ describe(contextMenuOf, () => {
         url: "https://www.google.com/search?q=Fish%20%26%20Chips",
       },
     });
+  });
+
+  it("searches Google for at most SEARCH_QUERY_LIMIT graphemes of the selection, in an address Windows will open, never splitting one", () => {
+    const search = "https://www.google.com/search?q=";
+    const emoji = encodeURIComponent("😀");
+    const long = searchOf("é".repeat(1000)) ?? "";
+    expect([
+      searchOf("a".repeat(10_000)),
+      searchOf(`${"a".repeat(SEARCH_QUERY_LIMIT - 1)}😀b`),
+      long.length <= 2081 && long.length > 2070,
+      long.endsWith(encodeURIComponent("é")),
+    ]).toStrictEqual([
+      `${search}${"a".repeat(SEARCH_QUERY_LIMIT)}`,
+      `${search}${"a".repeat(SEARCH_QUERY_LIMIT - 1)}${emoji}`,
+      true,
+      true,
+    ]);
   });
 
   it("offers neither Look Up nor Search with Google for a selection of only space", () => {

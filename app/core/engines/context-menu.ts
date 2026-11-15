@@ -122,9 +122,33 @@ export const emailAddressOf = (link: string): string => {
   }
 };
 
-// Core compiles without the DOM's or Node's URL types, so the query is escaped by hand.
-const googleSearch = (text: string): string =>
-  `https://www.google.com/search?q=${encodeURIComponent(text)}`;
+/** The most graphemes of a selection Search with Google sends, as many as Google reads of a query. */
+export const SEARCH_QUERY_LIMIT = 500;
+
+const SEARCH = "https://www.google.com/search?q=";
+
+// Windows' `shell.openExternal` refuses an address past 2081 characters, which a few hundred characters outside ASCII reach once escaped.
+const OPEN_EXTERNAL_LIMIT = 2081;
+
+// Core compiles without the DOM's or Node's URL types, so the query is escaped by hand; it is cut by whole graphemes, so a surrogate pair or an emoji sequence is never split.
+const googleSearch = (text: string): string => {
+  let query = "";
+  let count = 0;
+  for (const { segment } of new Intl.Segmenter(undefined, {
+    granularity: "grapheme",
+  }).segment(text)) {
+    const escaped = encodeURIComponent(segment);
+    if (
+      count === SEARCH_QUERY_LIMIT ||
+      SEARCH.length + query.length + escaped.length > OPEN_EXTERNAL_LIMIT
+    ) {
+      break;
+    }
+    query += escaped;
+    count += 1;
+  }
+  return `${SEARCH}${query}`;
+};
 
 type Section = readonly ContextMenuItem[];
 
