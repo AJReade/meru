@@ -57,6 +57,11 @@ const clippedEntry: SelectorEntry = {
   id: "extendDarkThemeClipped",
 };
 
+/** Whether a node is an editor's or inside one. */
+const insideEditor = (node: Node): boolean =>
+  ((node instanceof Element ? node : node.parentElement)?.closest(EDITOR) ??
+    null) !== null;
+
 /** Whether Gmail's own dark theme is on. */
 export const isGmailDark = (document: Document, styleOf: StyleOf): boolean => {
   const ground = parseColour(styleOf(document.body).backgroundColor);
@@ -111,12 +116,33 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
       // Each root with what its walk passes over.
       const roots = new Map<Element, string>();
       let dark = false;
+      // Whether anything arrived outside an editor since the last batch, the only change in which a walk again finds work: typing into a reply that quotes a long mail adds nodes on every key.
+      let arrived = true;
+      const notice = (records: readonly MutationRecord[]) => {
+        for (const record of records) {
+          if (
+            !arrived &&
+            record.addedNodes.length > 0 &&
+            !insideEditor(record.target)
+          ) {
+            arrived = true;
+          }
+        }
+      };
+      const watcher = new MutationObserver(notice);
+      watcher.observe(document, { childList: true, subtree: true });
+      undo(() => {
+        watcher.disconnect();
+      });
       // Gmail can turn its theme by any change to a sheet, a rewritten text among them, which nothing short of reading the body's ground tells; one computed colour a batch costs microseconds.
       const follow = () => {
         const was = dark;
         dark = isGmailDark(document, styleOf);
         if (was && !dark) {
           releaseTree(document, mark);
+        }
+        if (dark && !was) {
+          arrived = true;
         }
       };
       const look = (images: readonly HTMLImageElement[]) => {
@@ -187,12 +213,15 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
       undo(scheduler.register(clippedEntry, found(EDITOR)));
       undo(
         scheduler.everyBatch(() => {
+          notice(watcher.takeRecords());
           follow();
+          const due = arrived;
+          arrived = false;
           for (const [root, skip] of roots) {
-            if (root.isConnected) {
-              walk(root, skip);
-            } else {
+            if (!root.isConnected) {
               roots.delete(root);
+            } else if (due) {
+              walk(root, skip);
             }
           }
         })

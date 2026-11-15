@@ -13,7 +13,7 @@ import {
 import type { Rgba } from "../../../core/engines/dark-theme.ts";
 import conversation from "../features/fixtures/conversation-dark.html?raw";
 import { mountGmail, switchesWith } from "../testing.ts";
-import { TURN_LIGHT } from "./engine.ts";
+import { SKIPPED, TURN_LIGHT } from "./engine.ts";
 import { extendDarkTheme } from "./extend-dark-theme.ts";
 import { FakeCanvas } from "./fake-canvas.ts";
 import { TEST_MARK } from "./testing.ts";
@@ -90,9 +90,9 @@ describe(extendDarkTheme, () => {
         .querySelector(".a3s a")
         ?.getAttribute("style")
         ?.includes("background-color: rgb(26, 115, 232);"),
-      document.querySelector(".editor")?.hasAttribute(TEST_MARK),
+      document.querySelector(".editor")?.getAttribute(TEST_MARK),
       document.querySelector(".editor")?.getAttribute("style"),
-    ]).toStrictEqual([true, false, "color: rgb(34, 34, 34)"]);
+    ]).toStrictEqual([true, SKIPPED, "color: rgb(34, 34, 34)"]);
     page.app.dispose();
   });
 

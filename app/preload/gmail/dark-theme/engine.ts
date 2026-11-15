@@ -268,8 +268,9 @@ const ignore: WriteTo = () => {
   // An element a former walk wrote to keeps what it was given.
 };
 
-// A mark's value is a flag, a kind and, for an element written to, the `style` attribute it had: the flag says whether its hover ground is held (`HOLD`) or not (`PLAIN`), the kind whether the walk only looked at it (`LOOKED`), wrote to an element that had no `style` attribute (`NO_STYLE`) or wrote over the one that follows (`HAD_STYLE`).
+// A mark's value is a flag, a kind and, for an element written to, the `style` attribute it had: the flag says whether its hover ground is held (`HOLD`) or not (`PLAIN`), the kind whether the walk only looked at it (`LOOKED`), wrote to an element that had no `style` attribute (`NO_STYLE`) or wrote over the one that follows (`HAD_STYLE`). An editor's mark is `SKIPPED` alone.
 const HOLD = "t";
+export const SKIPPED = "s";
 const PLAIN = "-";
 const LOOKED = ".";
 const NO_STYLE = "0";
@@ -299,6 +300,7 @@ export const themeTree = (
   const images: HTMLImageElement[] = [];
   const touched = new Set<Element>();
   const looked = new Map<Element, string>();
+  const editors: Element[] = [];
   const stack: Frame[] = [
     {
       darkened: true,
@@ -311,6 +313,9 @@ export const themeTree = (
   for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
     const { element } = frame;
     if (element.matches(skip)) {
+      if (element.matches(EDITOR) && !element.hasAttribute(mark)) {
+        editors.push(element);
+      }
       continue;
     }
     const style = styleOf(element);
@@ -362,6 +367,9 @@ export const themeTree = (
       touched.has(element) ? writtenValue(flag, element) : `${flag}${LOOKED}`
     );
   }
+  for (const editor of editors) {
+    editor.setAttribute(mark, SKIPPED);
+  }
   for (const { element, property, value } of writes) {
     element.style.setProperty(property, value, "important");
   }
@@ -369,6 +377,10 @@ export const themeTree = (
 };
 
 const NOTHING: Themed = { images: [], touched: 0 };
+
+/** What the query for unmarked elements matches: the elements without the mark, none of them inside an editor the walk marked skipped, so a batch never goes through what an editor holds. */
+const freshOf = (mark: string): string =>
+  `:not([${mark}]):not([${mark}="${SKIPPED}"] *)`;
 
 /**
  * Themes what arrived under `root` since it was walked: one query for the elements without the
@@ -384,7 +396,7 @@ export const themeAgain = (
   if (!root.hasAttribute(theme.mark)) {
     return themeTree(root, theme, skip);
   }
-  const fresh = root.querySelectorAll(`:not([${theme.mark}])`);
+  const fresh = root.querySelectorAll(freshOf(theme.mark));
   if (fresh.length === 0) {
     return NOTHING;
   }
@@ -392,8 +404,12 @@ export const themeAgain = (
   let touched = 0;
   let top: Element | undefined;
   for (const element of fresh) {
-    // In document order an element's descendants follow it, so one walk from the top takes them all; an editor is never marked, so what it holds is passed over here rather than walked.
-    if (top?.contains(element) === true || element.closest(skip) !== null) {
+    // In document order an element's descendants follow it, so one walk from the top takes them all; what an element the walk skips holds is passed over, while the element itself is walked, which marks an editor skipped.
+    const skipped = element.closest(skip);
+    if (
+      top?.contains(element) === true ||
+      (skipped !== null && skipped !== element)
+    ) {
       continue;
     }
     top = element;

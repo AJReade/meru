@@ -6,7 +6,13 @@ import {
   contrast,
   parseColour,
 } from "../../../core/engines/dark-theme.ts";
-import { newMark, releaseTree, themeTree } from "./engine.ts";
+import {
+  SKIPPED,
+  newMark,
+  releaseTree,
+  themeAgain,
+  themeTree,
+} from "./engine.ts";
 import { FakeCanvas } from "./fake-canvas.ts";
 import {
   TEST_MARK,
@@ -114,17 +120,21 @@ describe(themeTree, () => {
     ]);
   });
 
-  it("leaves an editor alone, since Gmail sends its markup", () => {
+  it("leaves an editor alone, since Gmail sends its markup, marking it skipped once so a walk again passes what it holds", () => {
     const body = mount(
-      `<div class="a3s"><div contenteditable="true" style="color: rgb(34, 34, 34)"><p style="background-color: rgb(255, 255, 255)">Draft</p></div></div>`
+      `<div class="a3s"><div id="editor" contenteditable="true" style="color: rgb(34, 34, 34)"><p style="background-color: rgb(255, 255, 255)">Draft</p></div></div>`
     );
     themeTree(body, theme);
+    const editor = body.querySelector("#editor");
+    editor?.append(document.createElement("p"));
+    const again = themeAgain(body, theme);
 
-    expect(
-      document.querySelectorAll(
-        `[contenteditable] [${TEST_MARK}], [contenteditable][${TEST_MARK}]`
-      )
-    ).toHaveLength(0);
+    expect([
+      editor?.getAttribute(TEST_MARK),
+      editor?.getAttribute("style"),
+      document.querySelectorAll(`[contenteditable] [${TEST_MARK}]`).length,
+      again.touched,
+    ]).toStrictEqual([SKIPPED, "color: rgb(34, 34, 34)", 0, 0]);
   });
 
   it("keeps a background under a picture and decides its text against it", () => {
