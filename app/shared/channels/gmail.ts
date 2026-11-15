@@ -28,6 +28,7 @@ export type GmailStyles = z.infer<typeof gmailStylesSchema>;
 /** The Gmail page's features that change its markup or how it behaves, each by its setting's name under `gmail.`. */
 export const gmailSwitchesSchema = z.object({
   closeComposeWindowAfterSend: z.boolean(),
+  extendDarkTheme: z.boolean(),
   loadClippedMessages: z.boolean(),
   moveAttachmentsToTop: z.boolean(),
   openComposeInNewWindow: z.boolean(),

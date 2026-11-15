@@ -9,6 +9,7 @@ import type { DomScheduler } from "../content/scheduler.ts";
 import type { SelectorEntry } from "../content/selectors.ts";
 import { cssOf } from "../content/styles.ts";
 import type { StyleRule } from "../content/styles.ts";
+import type { ImagePixels } from "./dark-theme/pixels.ts";
 import type { GmailHttp, GmailRpc } from "./rpc.ts";
 
 /** Where the page is and how to move it, which Gmail navigates itself. */
@@ -27,6 +28,8 @@ export interface FeatureContext {
   readonly rpc: GmailRpc;
   /** Gmail's own pages, fetched in the page's session. */
   readonly http: GmailHttp;
+  /** Samples an image the page shows, which the page's own copy is too tainted to give. */
+  readonly pixels: ImagePixels;
   /** Replaces this feature's style sheet, or takes it down when the CSS is empty. */
   readonly style: (css: string) => void;
   /** True the first time this page load asks for the key, so a report main needs once is sent once. */

@@ -31,6 +31,7 @@ describe("the settings registry", () => {
       | "downloads.openFolderWhenDone"
       | "downloads.saveAs"
       | "gmail.closeComposeWindowAfterSend"
+      | "gmail.extendDarkTheme"
       | "gmail.hideGmailLogo"
       | "gmail.hideInboxFooter"
       | "gmail.hideOutOfOfficeBanner"

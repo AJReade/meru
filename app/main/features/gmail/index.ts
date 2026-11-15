@@ -585,6 +585,7 @@ export class Gmail {
         closeComposeWindowAfterSend: settings.get(
           "gmail.closeComposeWindowAfterSend"
         ),
+        extendDarkTheme: settings.get("gmail.extendDarkTheme"),
         loadClippedMessages: settings.get("gmail.loadClippedMessages"),
         moveAttachmentsToTop: settings.get("gmail.moveAttachmentsToTop"),
         openComposeInNewWindow: settings.get("gmail.openComposeInNewWindow"),

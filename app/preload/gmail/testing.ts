@@ -12,6 +12,7 @@ import { isHtmlElement, queryAll } from "../content/query.ts";
 import type { StyleRule } from "../content/styles.ts";
 import { startGmail } from "./app.ts";
 import type { GmailApp } from "./app.ts";
+import { FakeImagePixels } from "./dark-theme/fake-pixels.ts";
 import { FakeGmailHttp } from "./fake-http.ts";
 import type { GmailFeature } from "./feature.ts";
 
@@ -33,6 +34,7 @@ export const testSettings: GmailPageSettings = {
   },
   switches: {
     closeComposeWindowAfterSend: false,
+    extendDarkTheme: false,
     loadClippedMessages: false,
     moveAttachmentsToTop: false,
     openComposeInNewWindow: false,
@@ -94,6 +96,7 @@ export const mountGmail = (options: {
   grace?: number;
   /** The page's cookies, which carry Gmail's action token. */
   cookie?: string;
+  pixels?: FakeImagePixels;
 }): MountedGmail => {
   document.head.innerHTML = "";
   document.body.innerHTML = options.html ?? "";
@@ -125,6 +128,7 @@ export const mountGmail = (options: {
       },
     },
     now: options.now,
+    pixels: (options.pixels ?? new FakeImagePixels()).pixels,
     requestFrame: (task) => {
       tasks.push(task);
     },

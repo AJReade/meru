@@ -22,6 +22,7 @@ const settings = {
   },
   switches: {
     closeComposeWindowAfterSend: false,
+    extendDarkTheme: false,
     loadClippedMessages: false,
     moveAttachmentsToTop: false,
     openComposeInNewWindow: false,

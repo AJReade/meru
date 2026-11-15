@@ -1,3 +1,4 @@
+import { extendDarkTheme } from "../dark-theme/extend-dark-theme.ts";
 import type { GmailFeature } from "../feature.ts";
 import { attachmentsToTop } from "./attachments-to-top.ts";
 import { clippedMessages } from "./clipped-messages.ts";
@@ -26,6 +27,7 @@ export const gmailFeatures = (): readonly GmailFeature[] => [
   attachmentsToTop,
   clippedMessages,
   closeAfterSend,
+  extendDarkTheme,
   hideGmailLogo,
   hideInboxFooter,
   hidePromoBanner,

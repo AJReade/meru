@@ -157,6 +157,17 @@ export const gmailSettings = [
     section: msg`Conversation`,
     tier: "pro",
   }),
+  defineSetting("gmail.extendDarkTheme", {
+    default: false,
+    description: msg`While Gmail's own dark theme is on, darken the emails it leaves light, keeping images and brand colours.`,
+    label: msg`Extend dark theme to emails`,
+    page: gmailPage.id,
+    restart: false,
+    schema: z.boolean(),
+    scope: "global",
+    section: msg`Conversation`,
+    tier: "pro",
+  }),
   defineSetting("gmail.labelColors", {
     default: [],
     label: msg`Label colors`,
