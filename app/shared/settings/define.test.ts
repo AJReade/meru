@@ -60,7 +60,7 @@ describe(defineSetting, () => {
     ).toStrictEqual({ a: "A", b: "B" });
   });
 
-  it("takes the platform's wording in the place of the label and the description", () => {
+  it("takes the platform's wording in the place of the label, the description and the section, each it gives", () => {
     const setting = defineSetting("tray.icon", {
       ...entry,
       description: msg`Show the icon in the system tray.`,
@@ -69,20 +69,31 @@ describe(defineSetting, () => {
         darwin: {
           description: msg`Show the icon in the menu bar.`,
           label: msg`Show icon in menu bar`,
+          section: msg`Menu bar`,
         },
+        win32: { section: msg`Taskbar` },
       },
+      section: msg`System tray`,
     });
     expect({
       linux: wordedFor(setting, "linux"),
       mac: wordedFor(setting, "darwin"),
+      windows: wordedFor(setting, "win32"),
     }).toMatchObject({
       linux: {
         description: "Show the icon in the system tray.",
         label: "Show icon in system tray",
+        section: "System tray",
       },
       mac: {
         description: "Show the icon in the menu bar.",
         label: "Show icon in menu bar",
+        section: "Menu bar",
+      },
+      windows: {
+        description: "Show the icon in the system tray.",
+        label: "Show icon in system tray",
+        section: "Taskbar",
       },
     });
   });

@@ -211,23 +211,42 @@ describe(SettingsWindow, () => {
     }).toStrictEqual({ linux: true, mac: null });
   });
 
-  it("words the tray icon for the platform, the menu bar on macOS and the system tray elsewhere", () => {
+  it("words the tray icon and its section for the platform, the menu bar on macOS and the system tray elsewhere", () => {
+    const headings = () => [
+      ...new Set(
+        ["tray.icon", "tray.unreadCount", "tray.iconColor", "tray.selectUnread"]
+          .map((key) =>
+            field(key)?.closest("section")?.getAttribute("aria-label")
+          )
+          .filter((heading) => heading !== undefined)
+      ),
+    ];
     const onMac = mount({ page: "inbox" });
     const mac = field("tray.icon")?.textContent;
     const macSelectUnread = field("tray.selectUnread");
+    const macHeadings = headings();
     onMac.unmount();
+    const onWindows = mount({ page: "inbox", platform: "win32" });
+    const windowsHeadings = headings();
+    onWindows.unmount();
     mount({ page: "inbox", platform: "linux" });
     expect({
       linux: field("tray.icon")?.textContent,
+      linuxHeadings: headings(),
       linuxSelectUnread: field("tray.selectUnread"),
       mac,
+      macHeadings,
       macSelectUnread: macSelectUnread !== null,
+      windowsHeadings,
     }).toStrictEqual({
       linux:
         "Show icon in system trayShow the application icon in the system tray.",
+      linuxHeadings: ["System tray"],
       linuxSelectUnread: null,
       mac: "Show icon in menu barShow the application icon in the menu bar.",
+      macHeadings: ["Menu bar"],
       macSelectUnread: true,
+      windowsHeadings: ["System tray"],
     });
   });
 
