@@ -12,16 +12,20 @@ import { expect, inspect, must, panesOf, test } from "./app.ts";
 
 const CONTENT = "%PDF-1.4 a report";
 
-/** Serves attachments on loopback, as Gmail serves a file to download: `/attachment` whole, and `/cut` stopping a tenth of the way in, as a dropped connection does. */
+/** Serves attachments on loopback, as Gmail serves a file to download: `/attachment` whole, `/cut` stopping a tenth of the way in, as a dropped connection does, and `/slow` sending a tenth and then nothing, so the download stays under way until it is called off. */
 const startAttachments = async () => {
   const server = createServer((request, response) => {
+    const slow = request.url === "/slow";
     const cut = request.url === "/cut";
+    const name = (slow && "slow") || (cut && "cut") || "report";
     response.writeHead(200, {
-      "Content-Disposition": `attachment; filename="${cut ? "cut" : "report"}.pdf"`,
-      "Content-Length": cut ? 1000 : Buffer.byteLength(CONTENT),
+      "Content-Disposition": `attachment; filename="${name}.pdf"`,
+      "Content-Length": cut || slow ? 1000 : Buffer.byteLength(CONTENT),
       "Content-Type": "application/pdf",
     });
-    if (cut) {
+    if (slow) {
+      response.write(Buffer.alloc(100));
+    } else if (cut) {
       response.write(Buffer.alloc(100));
       setTimeout(() => {
         response.socket?.destroy();
@@ -41,7 +45,8 @@ const startAttachments = async () => {
       server.close();
       await once(server, "close");
     },
-    url: (route: "attachment" | "cut") => `http://127.0.0.1:${port}/${route}`,
+    url: (route: "attachment" | "cut" | "slow") =>
+      `http://127.0.0.1:${port}/${route}`,
   };
 };
 
@@ -85,6 +90,37 @@ test("saves a download into the Downloads folder, lists it in the overlay, and o
         return files;
       })
       .toStrictEqual([saved]);
+  } finally {
+    await attachments.stop();
+  }
+});
+
+test("lists a download under way with its progress and calls it off from the overlay", async ({
+  launch,
+  userData,
+}) => {
+  const attachments = await startAttachments();
+  try {
+    const { app, chrome } = await launch();
+    await download(app, attachments.url("slow"));
+    await sendIn(chrome, downloads.open, {});
+    const overlay = await pageOf(app, "kind=downloads");
+    const row = overlay.locator("[data-active-id]");
+    await expect(row).toContainText("slow.pdf");
+    await expect(row.locator("progress")).toHaveCount(1);
+    await row.getByRole("button", { name: "Cancel download" }).click();
+    await expect
+      .poll(async () => {
+        const answer = await invokeIn(overlay, downloads.snapshot, {});
+        return answer.ok ? answer.value : answer;
+      })
+      .toMatchObject({
+        active: [],
+        items: [{ exists: false, fileName: "slow.pdf", state: "cancelled" }],
+      });
+    await expect
+      .poll(async () => await readdir(path.join(userData, "Downloads")))
+      .toStrictEqual([]);
   } finally {
     await attachments.stop();
   }
