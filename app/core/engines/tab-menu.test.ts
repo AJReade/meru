@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Group } from "../records/group.ts";
+import type { ProfilesState } from "../records/profiles-state.ts";
 import type { Tab } from "../records/tab.ts";
 import { tabMenuOf } from "./tab-menu.ts";
 import type { TabMenuContext, TabMenuItem, TabMenuLabels } from "./tab-menu.ts";
@@ -60,10 +61,22 @@ const context = (overrides: Partial<TabMenuContext> = {}): TabMenuContext => ({
   ...overrides,
 });
 
-const items = (menu: readonly TabMenuItem[] | undefined) =>
-  (menu ?? []).flatMap((entry) => (entry.kind === "item" ? [entry] : []));
+const menuOf = (
+  menuState: Pick<ProfilesState, "tabs" | "groups">,
+  tabId: string,
+  menuContext: TabMenuContext
+) => {
+  const found = menuState.tabs.find(({ id }) => id === tabId);
+  if (found === undefined) {
+    throw new Error(`No tab ${tabId}`);
+  }
+  return tabMenuOf(menuState, found, menuContext);
+};
 
-const byId = (menu: readonly TabMenuItem[] | undefined, id: string) => {
+const items = (menu: readonly TabMenuItem[]) =>
+  menu.flatMap((entry) => (entry.kind === "item" ? [entry] : []));
+
+const byId = (menu: readonly TabMenuItem[], id: string) => {
   const found = items(menu).find((entry) => entry.id === id);
   if (found === undefined) {
     throw new Error(`No item ${id}`);
@@ -71,7 +84,7 @@ const byId = (menu: readonly TabMenuItem[] | undefined, id: string) => {
   return found;
 };
 
-const enabled = (menu: readonly TabMenuItem[] | undefined) =>
+const enabled = (menu: readonly TabMenuItem[]) =>
   Object.fromEntries(items(menu).map((entry) => [entry.id, entry.enabled]));
 
 // Gmail, then a and b side by side, then c and d each alone.
@@ -82,7 +95,7 @@ const state = { groups, tabs };
 describe(tabMenuOf, () => {
   it("lays the items out in 3.x's order, sections apart by a separator", () => {
     expect(
-      tabMenuOf(state, "c", context())?.map((entry) =>
+      menuOf(state, "c", context())?.map((entry) =>
         entry.kind === "item" ? entry.label : "-"
       )
     ).toStrictEqual([
@@ -102,17 +115,13 @@ describe(tabMenuOf, () => {
     ]);
   });
 
-  it("answers nothing for a tab the state does not hold", () => {
-    expect(tabMenuOf(state, "gone", context())).toBeUndefined();
-  });
-
   it("reloads and splits only a tab a pane shows", () => {
-    expect(enabled(tabMenuOf(state, "c", context()))).toMatchObject({
+    expect(enabled(menuOf(state, "c", context()))).toMatchObject({
       reload: false,
       splitHorizontal: false,
       splitVertical: false,
     });
-    const menu = tabMenuOf(state, "c", context({ shown: new Set(["c"]) }));
+    const menu = menuOf(state, "c", context({ shown: new Set(["c"]) }));
     expect(enabled(menu)).toMatchObject({
       reload: true,
       splitHorizontal: true,
@@ -126,10 +135,10 @@ describe(tabMenuOf, () => {
 
   it("leaves a group only from a group of several", () => {
     expect(
-      byId(tabMenuOf(state, "a", context()), "leaveGroup").enabled
+      byId(menuOf(state, "a", context()), "leaveGroup").enabled
     ).toBeTruthy();
     expect(
-      byId(tabMenuOf(state, "c", context()), "leaveGroup").enabled
+      byId(menuOf(state, "c", context()), "leaveGroup").enabled
     ).toBeFalsy();
   });
 
@@ -138,7 +147,7 @@ describe(tabMenuOf, () => {
       groups: [pair("gmail", "a"), single("b"), single("c"), single("d")],
       tabs,
     };
-    const menu = tabMenuOf(joined, "gmail", context());
+    const menu = menuOf(joined, "gmail", context());
     expect(enabled(menu)).toMatchObject({
       close: false,
       closeBelow: true,
@@ -159,15 +168,13 @@ describe(tabMenuOf, () => {
         found.id === "d" ? tab("d", "drive", true) : found
       ),
     };
-    const sleeping = byId(tabMenuOf(asleep, "d", context()), "sleepWhenIdle");
+    const sleeping = byId(menuOf(asleep, "d", context()), "sleepWhenIdle");
     expect(sleeping).toMatchObject({
       action: { kind: "letSleep", sleeps: false },
       checked: true,
       enabled: true,
     });
-    expect(
-      byId(tabMenuOf(state, "d", context()), "sleepWhenIdle")
-    ).toMatchObject({
+    expect(byId(menuOf(state, "d", context()), "sleepWhenIdle")).toMatchObject({
       action: { kind: "letSleep", sleeps: true },
       checked: false,
     });
@@ -175,22 +182,22 @@ describe(tabMenuOf, () => {
 
   it("closes the closeable tabs below the row in sidebar order, a group's in its layout's order", () => {
     expect(
-      byId(tabMenuOf(state, "a", context()), "closeBelow").action
+      byId(menuOf(state, "a", context()), "closeBelow").action
     ).toStrictEqual({
       kind: "close",
       tabIds: ["b", "c", "d"],
     });
     expect(
-      byId(tabMenuOf(state, "c", context()), "closeOthers").action
+      byId(menuOf(state, "c", context()), "closeOthers").action
     ).toStrictEqual({ kind: "close", tabIds: ["a", "b", "d"] });
     expect(
-      byId(tabMenuOf(state, "d", context()), "closeBelow").enabled
+      byId(menuOf(state, "d", context()), "closeBelow").enabled
     ).toBeFalsy();
   });
 
   it("disables Close on a profile's one tab and Close Other Tabs when every other is pinned", () => {
     const alone = { groups: [single("a")], tabs: [tab("a")] };
-    expect(enabled(tabMenuOf(alone, "a", context()))).toMatchObject({
+    expect(enabled(menuOf(alone, "a", context()))).toMatchObject({
       close: false,
       closeBelow: false,
       closeOthers: false,
@@ -199,7 +206,7 @@ describe(tabMenuOf, () => {
       groups: [single("gmail"), single("a")],
       tabs: [tab("gmail", "gmail"), tab("a")],
     };
-    expect(enabled(tabMenuOf(withGmail, "a", context()))).toMatchObject({
+    expect(enabled(menuOf(withGmail, "a", context()))).toMatchObject({
       close: true,
       closeBelow: false,
       closeOthers: false,
@@ -207,7 +214,7 @@ describe(tabMenuOf, () => {
   });
 
   it("copies the page's address and opens only a web one in the browser", () => {
-    const menu = tabMenuOf(state, "c", context());
+    const menu = menuOf(state, "c", context());
     expect(byId(menu, "copyUrl").action).toStrictEqual({
       kind: "copyUrl",
       url: "https://example.com/now",
@@ -218,7 +225,7 @@ describe(tabMenuOf, () => {
     });
     expect(
       byId(
-        tabMenuOf(state, "c", context({ url: "about:blank" })),
+        menuOf(state, "c", context({ url: "about:blank" })),
         "openInDefaultBrowser"
       ).enabled
     ).toBeFalsy();
@@ -231,7 +238,7 @@ describe(tabMenuOf, () => {
       tabs: [...tabs, other],
     };
     expect(
-      byId(tabMenuOf(mixed, "a", context()), "closeOthers").action
+      byId(menuOf(mixed, "a", context()), "closeOthers").action
     ).toStrictEqual({
       kind: "close",
       tabIds: ["b", "c", "d"],

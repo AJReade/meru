@@ -35,7 +35,7 @@ const labels = (): TabMenuLabels => ({
 export interface TabMenuOptions {
   readonly profiles: Pick<
     Profiles,
-    "state" | "closeTab" | "focusTab" | "leaveGroup" | "letSleep"
+    "state" | "tab" | "closeTab" | "focusTab" | "leaveGroup" | "letSleep"
   >;
   readonly stages: Pick<Stages, "address" | "reload" | "shown">;
   /** Opens the launcher for a pane of `orientation` beside the focused one in the window whose chrome page is `windowId`, as the split commands do. */
@@ -75,21 +75,16 @@ export class TabMenu {
   /** Shows the menu of the tab's row over the chrome page `windowId`. */
   show(windowId: number, tabId: string): Result<undefined, "unknownTab"> {
     const { profiles, stages } = this.#options;
-    const { state } = profiles;
-    const url =
-      stages.address(tabId) ?? state.tabs.find(({ id }) => id === tabId)?.url;
-    const items =
-      url === undefined
-        ? undefined
-        : tabMenuOf(state, tabId, {
-            labels: labels(),
-            shown: stages.shown(),
-            singleInstance: isSingleInstanceId,
-            url,
-          });
-    if (items === undefined) {
+    const tab = profiles.tab(tabId);
+    if (tab === undefined) {
       return err("unknownTab");
     }
+    const items = tabMenuOf(profiles.state, tab, {
+      labels: labels(),
+      shown: stages.shown(),
+      singleInstance: isSingleInstanceId,
+      url: stages.address(tabId) ?? tab.url,
+    });
     this.#options.contextMenu.popup(
       windowId,
       items.map((item): ContextMenuEntry => {

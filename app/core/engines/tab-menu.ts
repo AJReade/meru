@@ -1,6 +1,7 @@
 import type { TabMenuItemId } from "../records/context-menu.ts";
 import type { Orientation } from "../records/layout.ts";
 import type { ProfilesState } from "../records/profiles-state.ts";
+import type { Tab } from "../records/tab.ts";
 import { isWebAddress } from "./context-menu.ts";
 import { groupOf, orderedTabs, rowTabs } from "./ordering.ts";
 import { isPinned } from "./pinned.ts";
@@ -40,16 +41,13 @@ export interface TabMenuContext {
   readonly labels: TabMenuLabels;
 }
 
-/** The menu a right-click on the tab's sidebar row opens, in 3.x's order for what the app has; an item that would do nothing is disabled rather than left out, as 3.x shows it. Undefined for a tab the state does not hold. */
+/** The menu a right-click on the tab's sidebar row opens, in 3.x's order for what the app has; an item that would do nothing is disabled rather than left out, as 3.x shows it. */
 export const tabMenuOf = (
   state: Pick<ProfilesState, "tabs" | "groups">,
-  tabId: string,
+  tab: Tab,
   { shown, url, singleInstance, labels }: TabMenuContext
-): TabMenuItem[] | undefined => {
-  const tab = state.tabs.find((found) => found.id === tabId);
-  if (tab === undefined) {
-    return undefined;
-  }
+): TabMenuItem[] => {
+  const tabId = tab.id;
   const closeable = (id: string) => canClose(state, id, singleInstance).ok;
   const order = orderedTabs(
     state.tabs,
