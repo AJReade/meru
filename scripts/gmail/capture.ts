@@ -1,6 +1,6 @@
 // Writes the Gmail fixtures the preload's tests read, from a signed-in profile, each document scrubbed of everything personal:
 // MERU_TEST_PROFILE_DIR=<a user data directory signed in to Gmail> node scripts/gmail/capture.ts [--in-place] [--corpus | --out-of-office], after pnpm build and once the account has sent itself the two messages named below, then vp fmt; --in-place runs on the directory itself, for one that is a copy already.
-// --corpus writes the message bodies the dark theme's tests read instead, one per thread of All Mail.
+// --corpus writes the message bodies the dark theme's tests read instead, the mails subjected "Corpus <kind>" first and then All Mail's, a few of each shape.
 // --out-of-office writes only out-of-office.html, from the inbox once Gmail shows the out-of-office banner, so the account's reply is turned on in Gmail's settings first and off again after.
 // The scrub keeps what the features anchor on and nothing a person wrote: roles, ARIA states and the ids they point at, Gmail's generated classes and ids, `gh`, `act`, `role`, field names, icon path data, Gmail's control words in `aria-label` and `data-tooltip`, thread and message ids as counters, an address's shape (`email`, and `href` down to the view and the print view's `view` and `permmsgid`), and that a chip has a `download_url`.
 import { existsSync } from "node:fs";
@@ -244,9 +244,9 @@ const capture = async (app: ElectronApplication) => {
   return [...inbox, ...thread, ...clipped];
 };
 
-// Evaluated in the thread's page: the last message's body, each image's box stamped on it as its width and height so its placeholder keeps the size, and the kind the subject or the body's shape names.
+// Evaluated in the thread's page: the last message's body, each image's box stamped on it as its width and height so its placeholder keeps the size, the kind the subject or the body's shape names, and whether a session sent it to probe a feature.
 const BODY = `(async () => {
-  const bodies = document.querySelectorAll(".a3s");
+  const bodies = [...document.querySelectorAll(".a3s")].filter((body) => body.offsetParent !== null);
   const body = bodies[bodies.length - 1];
   if (body === undefined) return "";
   const images = [...body.querySelectorAll("img")];
@@ -259,7 +259,7 @@ const BODY = `(async () => {
   const subject = document.querySelector("h2[data-legacy-thread-id]")?.textContent ?? "";
   const named = /^Corpus ([a-z-]+)$/.exec(subject.trim())?.[1];
   const shape = body.querySelector("table") !== null ? "table-layout" : body.querySelector("img") !== null ? "images" : body.querySelector("[style*=color]") !== null ? "styled" : "plain-text";
-  return JSON.stringify({ kind: named ?? shape, named: named !== undefined, html: body.outerHTML });
+  return JSON.stringify({ kind: named ?? shape, named: named !== undefined, probe: /^Meru /.test(subject.trim()), html: body.outerHTML });
 })()`;
 
 /** How long a thread of the corpus is given to show its body; a thread holding only a draft never does. */
@@ -286,43 +286,117 @@ const corpusEntry = z.object({
   html: z.string(),
   kind: z.string().regex(/^[a-z-]+$/u),
   named: z.boolean(),
+  probe: z.boolean(),
 });
 
-const threadsOf = async (app: ElectronApplication, contentsId: number) => {
-  const ids = await readPane(
+// The thread of each row of the list showing, in order; Gmail keeps the list it replaces in the document, hidden.
+const ROWS = `JSON.stringify([...document.querySelectorAll('[role="main"] tr.zA')].filter((row) => row.offsetParent !== null).map((row) => row.querySelector("[data-legacy-thread-id]")?.getAttribute("data-legacy-thread-id") ?? ""))`;
+
+const rowsOf = async (
+  app: ElectronApplication,
+  contentsId: number,
+  hash: string
+): Promise<readonly string[]> => {
+  await goTo(app, contentsId, hash);
+  // The list the hash replaces stays drawn for a moment.
+  await pause(1500);
+  const until = Date.now() + THREAD_READY;
+  while (Date.now() < until) {
+    const rows = z
+      .array(z.string())
+      // oxlint-disable-next-line no-await-in-loop -- polled until the list shows
+      .parse(JSON.parse(await readPane(app, contentsId, ROWS)));
+    if (rows.length > 0) {
+      return rows;
+    }
+    // oxlint-disable-next-line no-await-in-loop -- polled until the list shows
+    await pause(250);
+  }
+  return [];
+};
+
+/** Opens a thread by a click on its row of the list showing: Gmail opens a thread from its list, not from an address naming its legacy id. */
+const openRow = async (
+  app: ElectronApplication,
+  contentsId: number,
+  thread: string
+): Promise<boolean> =>
+  (await readPane(
     app,
     contentsId,
-    'JSON.stringify([...new Set([...document.querySelectorAll("tr.zA [data-legacy-thread-id]")].map((row) => row.getAttribute("data-legacy-thread-id")))])'
-  );
-  return z.array(z.string().regex(/^[\da-f]+$/u)).parse(JSON.parse(ids));
+    `(() => { const row = [...document.querySelectorAll('[role="main"] tr.zA')].find((found) => found.offsetParent !== null && found.querySelector(${quote(`[data-legacy-thread-id="${thread}"]`)}) !== null); if (row === undefined) { return ""; } for (const type of ["mousedown", "mouseup", "click"]) { row.dispatchEvent(new MouseEvent(type, { bubbles: true })); } return "opened"; })()`
+  )) === "opened";
+
+// The mails sent to fill a kind first, then All Mail, a page at a time.
+const CORPUS_LISTS = [
+  `search/${encodeURIComponent('subject:"Corpus"')}`,
+  "all",
+];
+const LIST_PAGES = 20;
+
+/** The threads of each page of each list, in order, each once, with the page that lists it. */
+const corpusThreads = async (app: ElectronApplication, contentsId: number) => {
+  const threads = new Map<string, string>();
+  for (const list of CORPUS_LISTS) {
+    let previous = "";
+    for (let page = 1; page <= LIST_PAGES; page += 1) {
+      const hash = page === 1 ? list : `${list}/p${page}`;
+      // oxlint-disable-next-line no-await-in-loop -- one list is open at a time
+      const rows = await rowsOf(app, contentsId, hash);
+      // A page past the last leaves the last one showing.
+      if (rows.length === 0 || rows.join(",") === previous) {
+        break;
+      }
+      previous = rows.join(",");
+      for (const thread of rows) {
+        if (thread !== "" && !threads.has(thread)) {
+          threads.set(thread, hash);
+        }
+      }
+    }
+  }
+  return [...threads].map(([thread, hash]) => ({ hash, thread }));
 };
 
 const captureCorpus = async (app: ElectronApplication) => {
   const pane = await gmailPane(app);
   await waitFor(app, pane, '[role="main"]', "Gmail's inbox");
-  await goTo(app, pane, "all");
-  await waitFor(app, pane, "tr.zA", "All Mail");
   await mkdir(CORPUS, { recursive: true });
   const shapes = new Map<string, number>();
   const written: string[] = [];
-  for (const thread of await threadsOf(app, pane)) {
+  for (const { hash, thread } of await corpusThreads(app, pane)) {
     if (written.length >= CORPUS_SIZE) {
       break;
     }
     // oxlint-disable-next-line no-await-in-loop -- one thread is open at a time
-    await goTo(app, pane, `all/${thread}`);
-    // oxlint-disable-next-line no-await-in-loop -- one thread is open at a time
-    if (!(await shows(app, pane, ".a3s"))) {
+    await rowsOf(app, pane, hash);
+    const opened =
+      // oxlint-disable-next-line no-await-in-loop -- one thread is open at a time
+      (await openRow(app, pane, thread)) &&
+      // oxlint-disable-next-line no-await-in-loop -- one thread is open at a time
+      (await shows(app, pane, `h2[data-legacy-thread-id="${thread}"]`)) &&
+      // oxlint-disable-next-line no-await-in-loop -- one thread is open at a time
+      (await shows(app, pane, ".a3s"));
+    if (!opened) {
       console.log(`Skipped a thread whose body did not render`);
       continue;
     }
-    const entry = corpusEntry.parse(
-      // oxlint-disable-next-line no-await-in-loop -- one thread is open at a time
-      JSON.parse(await readPane(app, pane, BODY))
-    );
+    // oxlint-disable-next-line no-await-in-loop -- one thread is open at a time
+    const body = await readPane(app, pane, BODY);
+    // A body Gmail took away while it was read answers nothing.
+    if (body === "") {
+      console.log(`Skipped a thread whose body went`);
+      continue;
+    }
+    const entry = corpusEntry.parse(JSON.parse(body));
+    // What a session sent the account to test a feature, such as the clipped message or a one-word body, is no mail's shape.
+    if (entry.probe) {
+      continue;
+    }
     const seen = shapes.get(entry.kind) ?? 0;
     shapes.set(entry.kind, seen + 1);
-    if (!entry.named && seen >= PER_SHAPE) {
+    // A kind sent to fill a gap is taken once, and any other shape a few times.
+    if (entry.named ? seen > 0 : seen >= PER_SHAPE) {
       continue;
     }
     const name = `${String(written.length + 1).padStart(2, "0")}-${entry.kind}.html`;
