@@ -671,7 +671,7 @@ describe(Downloads, () => {
     ]);
   });
 
-  it("looks for the files it lists again when a drag is refused, so a file that has gone is marked", async () => {
+  it("drags out no file that has gone, and marks its row gone instead", async () => {
     const { feature, log, port, registrar } = await setup();
     const { id, path: saved } = port.start({ suggestedName: "report.pdf" });
     port.complete(id);
@@ -683,6 +683,6 @@ describe(Downloads, () => {
       port.dragged,
       feature.snapshot().items.map((item) => item.exists),
       log.at("warn"),
-    ]).toStrictEqual([[], [false], ["A download could not be dragged out"]]);
+    ]).toStrictEqual([[], [false], []]);
   });
 });

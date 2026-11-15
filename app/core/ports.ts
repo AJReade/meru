@@ -469,7 +469,7 @@ export interface DownloadPort {
   readonly cancel: (id: string) => void;
   /** Downloads `url` in the session of the page `contentsId`, as a link to it would; false when the page has gone, so nothing starts. */
   readonly download: (contentsId: number, url: string) => boolean;
-  /** Starts a drag of the file out of the page `contentsId`, under the icon the system gives its type, so whatever it is dropped on takes the file; rejects when the page has gone or the system will not draw the icon. */
+  /** Starts a drag of the file out of the page `contentsId`, under the icon the system gives its type, so whatever it is dropped on takes the file; does nothing when the page has gone, and rejects when the system will not draw the icon. The system starts a drag of a path that has gone as readily, so a caller looks first. */
   readonly dragOut: (contentsId: number, path: string) => Promise<void>;
   /** Whether anything is at the path, answered at once since a download's path is decided before `handle`'s callback returns; the disk's own rule says whether names differing in case are one. */
   readonly occupied: (path: string) => boolean;

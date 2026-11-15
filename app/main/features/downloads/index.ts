@@ -310,8 +310,12 @@ export class Downloads {
     return ok(null);
   }
 
-  /** Hands the file to the system's drag, looking again for the files the overlay lists when the drag is refused, since a file that has gone is the likeliest refusal. */
+  /** Hands the file to the system's drag once it is there, looking again for the files the overlay lists when it is not, so the row is marked gone rather than dragging out a path to nothing. */
   async #dragOut(contentsId: number, file: string) {
+    if (!(await this.#options.downloads.exists(file))) {
+      await this.recheck();
+      return;
+    }
     try {
       await this.#options.downloads.dragOut(contentsId, file);
     } catch (error) {

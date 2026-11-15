@@ -15,7 +15,7 @@ export class FakeDownloads implements DownloadPort {
   readonly stuck = new Set<string>();
   /** Each download under way, by id, with where it is being written. */
   readonly active = new Map<string, string>();
-  /** Pages that have closed, which a download cannot start from. */
+  /** Pages that have closed, which neither a download nor a drag can start from. */
   readonly closedPages = new Set<number>();
   /** Every address a page was asked to download, in order. */
   readonly requested: { contentsId: number; url: string }[] = [];
@@ -102,12 +102,12 @@ export class FakeDownloads implements DownloadPort {
     return true;
   };
 
+  // Electron draws an icon for a path that has gone as readily as for a file, so a drag of a missing file starts all the same.
   readonly dragOut = async (contentsId: number, path: string) => {
     await Promise.resolve();
-    if (!this.files.has(path)) {
-      throw new Error(`ENOENT: ${path}`);
+    if (!this.closedPages.has(contentsId)) {
+      this.dragged.push({ contentsId, path });
     }
-    this.dragged.push({ contentsId, path });
   };
 
   readonly occupied = (path: string) => {
