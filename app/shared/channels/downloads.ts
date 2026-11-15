@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { downloadSchema } from "../../core/records/download.ts";
+import {
+  activeDownloadSchema,
+  downloadSchema,
+} from "../../core/records/download.ts";
 import { idSchema } from "../../core/records/id.ts";
 import {
   defineChannels,
@@ -12,8 +15,9 @@ import {
   sync,
 } from "./define.ts";
 
-/** The download history, newest first. */
+/** The downloads under way and the history, each newest first. */
 const downloadsSnapshotSchema = z.object({
+  active: z.array(activeDownloadSchema),
   items: z.array(downloadSchema),
 });
 
@@ -30,6 +34,8 @@ export const downloads = defineChannels("downloads", {
   /** Opens a download's file in the application the system gives its type. */
   openFile: invoke(byId, z.null()),
   showInFolder: invoke(byId, z.null()),
+  /** Calls off a download under way, which is then recorded as cancelled. */
+  cancel: invoke(byId, z.null()),
   /** Takes a download off the history, leaving its file. */
   remove: invoke(byId, z.null()),
   clear: invoke(noPayload, z.null()),

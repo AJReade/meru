@@ -17,7 +17,7 @@ export const DownloadsClientProvider = downloadsClient.Provider;
 
 export const useDownloadsClient = downloadsClient.use;
 
-const NO_DOWNLOADS: DownloadsSnapshot = { items: [] };
+const NO_DOWNLOADS: DownloadsSnapshot = { active: [], items: [] };
 
 /** The page's copy of the download history, empty until main first answers. */
 export const createDownloadsStore = (
@@ -37,6 +37,6 @@ export const DownloadsContext = createContext<
   Store<DownloadsSnapshot> | undefined
 >(undefined);
 
-/** The download history as main last pushed it, newest first. */
+/** The downloads under way and the history as main last pushed them, each newest first. */
 export const useDownloads = (): DownloadsSnapshot =>
   useWholeStore(DownloadsContext, "useDownloads");

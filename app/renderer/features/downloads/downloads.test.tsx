@@ -1,7 +1,10 @@
 import { act } from "react";
 import { describe, expect, it } from "vitest";
 
-import type { Download } from "../../../core/records/download.ts";
+import type {
+  ActiveDownload,
+  Download,
+} from "../../../core/records/download.ts";
 import {
   downloads,
   downloadsPushes,
@@ -22,9 +25,29 @@ const item = (id: string, more: Partial<Download> = {}): Download => ({
   ...more,
 });
 
-const mount = (items: readonly Download[]) =>
+const running = (
+  id: string,
+  more: Partial<ActiveDownload> = {}
+): ActiveDownload => ({
+  fileName: `${id}.pdf`,
+  id,
+  received: 40,
+  total: 100,
+  ...more,
+});
+
+const snapshot = (
+  items: readonly Download[],
+  active: readonly ActiveDownload[] = []
+) => ({ active: [...active], items: [...items] });
+
+const mount = (
+  items: readonly Download[],
+  active: readonly ActiveDownload[] = []
+) =>
   mountOverlay(<Downloads />, [
-    answer(downloads.snapshot, { items: [...items] }),
+    answer(downloads.snapshot, snapshot(items, active)),
+    answer(downloads.cancel, null),
     answer(downloads.openFile, null),
     answer(downloads.showInFolder, null),
     answer(downloads.remove, null),
@@ -132,11 +155,11 @@ describe(Downloads, () => {
     press("ArrowDown");
     press("Delete");
     await settle();
-    push(downloadsPushes.changed, { items: [item("a"), item("c")] });
+    push(downloadsPushes.changed, snapshot([item("a"), item("c")]));
     const afterFirst = document.activeElement === rowButton("c");
     press("Delete");
     await settle();
-    push(downloadsPushes.changed, { items: [item("a")] });
+    push(downloadsPushes.changed, snapshot([item("a")]));
     const afterLast = document.activeElement === rowButton("a");
     press("Delete");
     await settle();
@@ -150,8 +173,44 @@ describe(Downloads, () => {
   it("follows the history main pushes, and says so when it is empty", () => {
     const { push } = mount([]);
     const empty = document.body.textContent.includes("No downloads yet");
-    push(downloadsPushes.changed, { items: [item("new")] });
+    push(downloadsPushes.changed, snapshot([item("new")]));
     expect([empty, row("new") === null]).toStrictEqual([true, false]);
+  });
+
+  it("lists a download under way with its progress, and one of unknown size without", () => {
+    mount([], [running("report"), running("big", { total: 0 })]);
+    const texts = ["report", "big"].map(
+      (id) =>
+        document.querySelector<HTMLElement>(`[data-active-id="${id}"]`)
+          ?.textContent
+    );
+    const bars = document.querySelectorAll("progress");
+    expect([
+      texts,
+      [...bars].map((bar) => bar.getAttribute("value")),
+    ]).toStrictEqual([
+      ["report.pdf40%", "big.pdfDownloading\u2026"],
+      ["40", null],
+    ]);
+  });
+
+  it("calls a download under way off by its id, and drops its row once main says it has gone", async () => {
+    const { push, sentOn } = mount([], [running("report")]);
+    click(
+      document.querySelector(
+        '[data-active-id="report"] [aria-label="Cancel download"]'
+      )
+    );
+    await settle();
+    push(
+      downloadsPushes.changed,
+      snapshot([item("report", { exists: false, state: "cancelled" })])
+    );
+    expect([
+      sentOn(downloads.cancel),
+      document.querySelector('[data-active-id="report"]') === null,
+      row("report")?.textContent?.includes("Cancelled"),
+    ]).toStrictEqual([[{ id: "report" }], true, true]);
   });
 
   it("closes on a click on the backdrop", async () => {

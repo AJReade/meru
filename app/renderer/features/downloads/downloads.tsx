@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
 import { SHOWN_DOWNLOADS } from "../../../core/engines/downloads.ts";
-import type { Download } from "../../../core/records/download.ts";
+import type {
+  ActiveDownload,
+  Download,
+} from "../../../core/records/download.ts";
 import { downloads } from "../../../shared/channels/downloads.ts";
 import { msg } from "../../../shared/msg.ts";
 import { Button } from "../../ui/button.tsx";
@@ -112,6 +115,49 @@ const Row = ({
   );
 };
 
+/** A download still arriving: its name, how far it has got, and a button that calls it off. Its size is unknown until the server says, which leaves the bar undetermined. */
+const ActiveRow = ({ item }: { readonly item: ActiveDownload }) => {
+  const client = useDownloadsClient();
+  const share = item.total > 0 ? item.received / item.total : null;
+  const percent = share === null ? null : Math.round(share * 100);
+  return (
+    <li
+      className="flex items-center gap-1 rounded-lg pr-1"
+      data-active-id={item.id}
+    >
+      <span className="flex min-w-0 flex-1 items-center gap-3 px-2 py-1.5">
+        <FileIcon
+          aria-hidden="true"
+          className="text-muted-foreground size-4 shrink-0"
+        />
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="truncate">{item.fileName}</span>
+          <progress
+            aria-label={msg`Download progress`}
+            className="bg-muted h-1 w-full appearance-none overflow-hidden rounded-full [&::-webkit-progress-bar]:bg-transparent [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-current"
+            max={100}
+            value={percent ?? undefined}
+          />
+          <span className="text-muted-foreground truncate text-xs">
+            {percent === null ? msg`Downloading…` : `${percent}%`}
+          </span>
+        </span>
+      </span>
+      <Button
+        aria-label={msg`Cancel download`}
+        onClick={() => {
+          void client.invoke(downloads.cancel, { id: item.id });
+        }}
+        size="icon-sm"
+        title={msg`Cancel download`}
+        variant="ghost"
+      >
+        <XIcon />
+      </Button>
+    </li>
+  );
+};
+
 const STEPS = {
   ArrowDown: (at: number, last: number) => Math.min(at + 1, last),
   ArrowUp: (at: number) => Math.max(at - 1, 0),
@@ -122,10 +168,10 @@ const STEPS = {
 const isStep = (key: string): key is keyof typeof STEPS =>
   Object.hasOwn(STEPS, key);
 
-/** The download history over the panes: the newest downloads with how long ago each started, a click opening the file, each row showing it in its folder or taking it off the list, a file that has gone struck through, and Clear all. The arrows and Home and End move through the rows, Enter opens one and Delete takes it off; Escape, a click outside and the window losing focus close it. */
+/** The downloads over the panes: those still arriving with their progress and a button to call each off, then the newest finished downloads with how long ago each started, a click opening the file, each row showing it in its folder or taking it off the list, a file that has gone struck through, and Clear all. The arrows and Home and End move through the rows, Enter opens one and Delete takes it off; Escape, a click outside and the window losing focus close it. */
 export const Downloads = () => {
   const client = useDownloadsClient();
-  const { items } = useDownloads();
+  const { active: running, items } = useDownloads();
   const shown = items.slice(0, SHOWN_DOWNLOADS);
   const now = useNow();
   const [active, setActive] = useState(0);
@@ -211,7 +257,17 @@ export const Downloads = () => {
             {msg`Clear all`}
           </Button>
         </div>
-        {shown.length === 0 ? (
+        {running.length === 0 ? null : (
+          <ul
+            aria-label={msg`Downloads in progress`}
+            className="flex flex-col gap-0.5 border-b p-1"
+          >
+            {running.map((item) => (
+              <ActiveRow item={item} key={item.id} />
+            ))}
+          </ul>
+        )}
+        {shown.length === 0 && running.length === 0 ? (
           <div className="flex flex-col items-center gap-1 px-4 py-10 text-center">
             <p className="font-medium">{msg`No downloads yet`}</p>
             <DialogDescription>

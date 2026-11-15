@@ -67,6 +67,7 @@ export const downloadsSurface = defineSurface({
   pushes: [downloadsPushes, themePushes],
   requests: [
     {
+      cancel: downloads.cancel,
       clear: downloads.clear,
       close: downloads.close,
       openFile: downloads.openFile,

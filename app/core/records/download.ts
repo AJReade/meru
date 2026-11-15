@@ -16,3 +16,13 @@ export const downloadSchema = z.object({
 });
 
 export type Download = z.infer<typeof downloadSchema>;
+
+/** A download under way: what it will be called, and how much of it has arrived of how much, `total` being zero while the server has not said how big it is. */
+export const activeDownloadSchema = z.object({
+  fileName: z.string(),
+  id: idSchema,
+  received: z.number(),
+  total: z.number(),
+});
+
+export type ActiveDownload = z.infer<typeof activeDownloadSchema>;

@@ -26,9 +26,13 @@ import type {
   NotificationPort,
   ProgressPort,
   ShellPort,
+  Unsubscribe,
 } from "../../../core/ports.ts";
 import { downloadSchema } from "../../../core/records/download.ts";
-import type { Download } from "../../../core/records/download.ts";
+import type {
+  ActiveDownload,
+  Download,
+} from "../../../core/records/download.ts";
 import type { Platform } from "../../../core/records/platform.ts";
 import { err, ok } from "../../../core/result.ts";
 import type { Result } from "../../../core/result.ts";
@@ -73,6 +77,9 @@ const historySnapshot: SnapshotSpec<History, "items"> = {
   schema: historySchema,
   version: 1,
 };
+
+/** How often at most the pages hear what the downloads under way have received: Chromium reports every chunk it writes, which is many times a second on a fast network. */
+export const PROGRESS_INTERVAL = 500;
 
 /** How long a Save Image As waits for its download to arrive before it is forgotten. */
 export const SAVE_AS_LIFETIME = 60_000;
@@ -149,6 +156,7 @@ export class Downloads {
   #settledBytes = 0;
   #pendingSaves: { readonly url: string; readonly expiresAt: number }[] = [];
   #asking: Promise<void> = Promise.resolve();
+  #progressDue: Unsubscribe | undefined;
 
   constructor(options: DownloadsOptions) {
     this.#options = options;
@@ -190,6 +198,7 @@ export class Downloads {
           void this.#chooseFolder();
           return ok(null);
         },
+        cancel: ({ id }) => this.cancel(id),
         clear: () => {
           this.#write([]);
           return ok(null);
@@ -210,11 +219,36 @@ export class Downloads {
   }
 
   dispose(): void {
+    this.#progressDue?.();
+    this.#progressDue = undefined;
     this.#disposables.dispose();
   }
 
   snapshot(): DownloadsSnapshot {
-    return { items: [...this.#items] };
+    return { active: this.#activeDownloads(), items: [...this.#items] };
+  }
+
+  /** The downloads still arriving, newest first; one whose bytes are all in waits only on its dialog or its move, so it is no longer among them. */
+  #activeDownloads(): ActiveDownload[] {
+    return [...this.#active.values()]
+      .filter(({ done }) => !done)
+      .toSorted((a, b) => b.createdAt - a.createdAt)
+      .map((active) => ({
+        fileName: path.basename(pathOf(active.destination)),
+        id: active.id,
+        received: countedOf(active),
+        total: active.total,
+      }));
+  }
+
+  /** Calls off a download under way; its record arrives as cancelled once the session has let it go. */
+  cancel(id: string): Result<null, DownloadError> {
+    const active = this.#active.get(id);
+    if (active === undefined || active.done) {
+      return err("unknownDownload");
+    }
+    this.#options.downloads.cancel(id);
+    return ok(null);
   }
 
   /** Shows the history over the panes of the window whose chrome page is `windowId`, having looked again for the files it lists. */
@@ -372,6 +406,7 @@ export class Downloads {
       this.#enqueue(start.id, target);
     }
     this.#showProgress();
+    this.#broadcast();
     return { kind: "save", path: written };
   }
 
@@ -457,6 +492,7 @@ export class Downloads {
       this.#settledBytes += countedOf(active);
     }
     this.#showProgress();
+    this.#broadcast();
   }
 
   #follow(event: DownloadEvent) {
@@ -471,11 +507,13 @@ export class Downloads {
       active.received = event.received;
       active.total = event.total;
       this.#showProgress();
+      this.#pushProgress();
     } else if (event.kind === "done") {
       active.received = event.received;
       this.#settledBytes += event.received;
       active.done = true;
       this.#showProgress();
+      this.#broadcast();
       if (active.destination.kind === "known") {
         void this.#complete(active);
       }
@@ -637,7 +675,24 @@ export class Downloads {
   #write(items: readonly Download[]) {
     this.#items = pruneHistory(items, this.#options.clock.now());
     this.#store.write({ items: [...this.#items] });
+    this.#broadcast();
+  }
+
+  /** Tells the pages what the overlay shows, dropping any progress push waiting its turn. */
+  #broadcast() {
+    this.#progressDue?.();
+    this.#progressDue = undefined;
     this.#options.registrar.broadcast(downloadsPushes.changed, this.snapshot());
+  }
+
+  #pushProgress() {
+    this.#progressDue ??= this.#options.clock.schedule(
+      PROGRESS_INTERVAL,
+      () => {
+        this.#progressDue = undefined;
+        this.#broadcast();
+      }
+    );
   }
 
   async #chooseFolder() {

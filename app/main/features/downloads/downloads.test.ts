@@ -6,7 +6,11 @@ import { HISTORY_LIMIT } from "../../../core/engines/downloads.ts";
 import type { Platform } from "../../../core/records/platform.ts";
 import { WRITE_DELAY } from "../../../core/snapshot.ts";
 import { wireName } from "../../../shared/channels/define.ts";
-import { downloads as channels } from "../../../shared/channels/downloads.ts";
+import {
+  downloads as channels,
+  downloadsPushes,
+} from "../../../shared/channels/downloads.ts";
+import { downloadsSurface } from "../../../shared/channels/surfaces.ts";
 import { FakeClock } from "../../../test/fakes/clock.ts";
 import { FakeDialogs } from "../../../test/fakes/dialogs.ts";
 import { FakeDownloads } from "../../../test/fakes/downloads.ts";
@@ -16,11 +20,18 @@ import { FakeNotifications } from "../../../test/fakes/notifications.ts";
 import { FakeProgress } from "../../../test/fakes/progress.ts";
 import { FakeShell } from "../../../test/fakes/shell.ts";
 import { testApp, testStages } from "../../testing.ts";
-import { DOWNLOADS_FILE, Downloads, SAVE_AS_LIFETIME } from "./index.ts";
+import {
+  DOWNLOADS_FILE,
+  Downloads,
+  PROGRESS_INTERVAL,
+  SAVE_AS_LIFETIME,
+} from "./index.ts";
 
 const DOWNLOADS = path.join(path.sep, "Users", "me", "Downloads");
 const PENDING = path.join(path.sep, "Users", "me", "Meru", "pending");
 const START = 1_800_000_000_000;
+/** A page of the downloads overlay, which alone is pushed what it lists. */
+const OVERLAY = 777;
 
 /** Lets the feature's awaits on the fakes settle. */
 const settle = async () => {
@@ -70,8 +81,14 @@ const setup = async ({
   });
   await feature.open();
   feature.start();
+  app.registrar.assign(OVERLAY, downloadsSurface);
+  const pushed = () =>
+    app.transport.sent
+      .filter((sent) => sent.channel === wireName(downloadsPushes.changed))
+      .map((sent) => downloadsPushes.changed.payload.parse(sent.payload));
   return {
     ...app,
+    pushed,
     clock,
     closed,
     dialogs,
@@ -560,5 +577,57 @@ describe(Downloads, () => {
     expect(settings.get("downloads.location")).toBe(
       path.join(path.sep, "Volumes", "Files")
     );
+  });
+
+  it("lists a download under way with what has arrived of it, and drops it once it is whole", async () => {
+    const { feature, port } = await setup();
+    const { id } = port.start({ suggestedName: "report.pdf", totalBytes: 200 });
+    port.progress(id, 50, 200);
+    expect(feature.snapshot().active).toStrictEqual([
+      { fileName: "report.pdf", id, received: 50, total: 200 },
+    ]);
+    port.complete(id, 200);
+    await settle();
+    expect(feature.snapshot().active).toStrictEqual([]);
+  });
+
+  it("calls a download under way off through the port and records it as cancelled, and refuses an id nothing is downloading", async () => {
+    const { feature, port, registrar } = await setup();
+    const { id } = port.start({ suggestedName: "report.pdf" });
+    port.progress(id, 30);
+    const refused = registrar.dispatch(OVERLAY, wireName(channels.cancel), {
+      id: "elsewhere",
+    });
+    expect(
+      registrar.dispatch(OVERLAY, wireName(channels.cancel), { id }).ok
+    ).toBeTruthy();
+    await settle();
+    expect([refused.ok, feature.snapshot().active]).toStrictEqual([false, []]);
+    expect(feature.snapshot().items).toStrictEqual([
+      {
+        createdAt: START,
+        exists: false,
+        fileName: "report.pdf",
+        filePath: at("report.pdf"),
+        id,
+        state: "cancelled",
+      },
+    ]);
+  });
+
+  it("tells the overlay at once when a download starts or ends, and its progress at most once an interval", async () => {
+    const { clock, port, pushed } = await setup();
+    const { id } = port.start({ suggestedName: "report.pdf", totalBytes: 200 });
+    expect(pushed()).toHaveLength(1);
+    port.progress(id, 20, 200);
+    port.progress(id, 40, 200);
+    expect(pushed()).toHaveLength(1);
+    clock.advance(PROGRESS_INTERVAL);
+    expect(pushed().at(-1)?.active).toStrictEqual([
+      { fileName: "report.pdf", id, received: 40, total: 200 },
+    ]);
+    port.complete(id, 200);
+    await settle();
+    expect(pushed().at(-1)?.active).toStrictEqual([]);
   });
 });
