@@ -148,7 +148,7 @@ const LONG_MAIL = `<div class="a3s aiL"><div style="background-color: #ffffff">$
     `<p style="color: #${String(index % 9).repeat(3)}"><span>row ${index}</span></p>`
 ).join("")}</div></div>`;
 
-// What a batch of the feature does once nothing new has arrived, timed over the page's own roots: the body's key and one query under each root for what the mark is missing from.
+// What a batch of the feature does once nothing new has arrived, timed over the page's own roots: the body's ground and one query under each root for what the mark is missing from, each round the mean of 50 batches, since the page's clock steps in tenths of a millisecond.
 const IDLE_BATCH = `(() => {
   const sheet = document.querySelector(".iY");
   const mark = sheet.getAttributeNames().find((name) => name.startsWith("data-meru-dark-"));
@@ -157,12 +157,14 @@ const IDLE_BATCH = `(() => {
   let fresh = 0;
   for (let round = 0; round < 21; round += 1) {
     const started = performance.now();
-    const key = document.body.className + document.body.getAttribute("style") + document.styleSheets.length;
-    for (const root of roots) {
-      fresh += root.querySelectorAll(":not([" + mark + "])").length;
+    for (let batch = 0; batch < 50; batch += 1) {
+      const ground = getComputedStyle(document.body).backgroundColor;
+      for (const root of roots) {
+        fresh += root.querySelectorAll(":not([" + mark + "])").length;
+      }
+      fresh += ground === "" ? 1 : 0;
     }
-    times.push(performance.now() - started);
-    fresh += key === null ? 1 : 0;
+    times.push((performance.now() - started) / 50);
   }
   times.sort((a, b) => a - b);
   return [document.querySelectorAll("*").length, fresh, times[10]];

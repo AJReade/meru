@@ -111,15 +111,8 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
       // Each root with what its walk passes over.
       const roots = new Map<Element, string>();
       let dark = false;
-      let looked: string | undefined;
-      // Gmail turns its theme by the body's class or style, or by a style sheet arriving, so the body's ground is read again only when one of those changed.
+      // Gmail can turn its theme by any change to a sheet, a rewritten text among them, which nothing short of reading the body's ground tells; one computed colour a batch costs microseconds.
       const follow = () => {
-        const { body } = document;
-        const key = `${body.className}\n${body.getAttribute("style") ?? ""}\n${document.styleSheets.length}`;
-        if (key === looked) {
-          return;
-        }
-        looked = key;
         const was = dark;
         dark = isGmailDark(document, styleOf);
         if (was && !dark) {

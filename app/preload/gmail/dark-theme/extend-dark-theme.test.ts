@@ -145,6 +145,28 @@ describe(extendDarkTheme, () => {
     page.app.dispose();
   });
 
+  it("follows a theme swapped by rewriting a style sheet's text", async () => {
+    const page = mountGmail({
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation,
+      settings: on,
+    });
+    page.run();
+    const themed = marked();
+    const sheet = document.createElement("style");
+    sheet.textContent = "body { background-color: rgb(17, 17, 17); }";
+    document.body.append(sheet);
+    document.body.append(document.createElement("p"));
+    await page.settle();
+
+    sheet.textContent = "body { background-color: rgb(255, 255, 255); }";
+    document.body.append(document.createElement("p"));
+    await page.settle();
+
+    expect([themed > 0, marked()]).toStrictEqual([true, 0]);
+    page.app.dispose();
+  });
+
   it("themes the conversation once Gmail's dark style sheet arrives after it", async () => {
     const page = mountGmail({
       features: [extendDarkTheme(TEST_MARK)],
