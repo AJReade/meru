@@ -42,7 +42,7 @@ test("tiles classic panes edge to edge from settings.json", async ({
       stageSize(launched),
     ]);
     expect(views).toStrictEqual([{ ...size, ...TOP }]);
-  }).toPass({ timeout: 5000 });
+  }).toPass();
 
   // The split's Calendar tab shows the sidebar, narrow because no app has two tabs.
   await runCommand(chrome, "stage.splitVertical");
@@ -61,7 +61,7 @@ test("tiles classic panes edge to edge from settings.json", async ({
     expect(right).toMatchObject({ height: size.height, y: TOP.y });
     expect(left.width + seam + right.width).toBe(size.width - sidebar);
     expect(right.x).toBe(sidebar + left.width + seam);
-  }).toPass({ timeout: 5000 });
+  }).toPass();
 });
 
 test("zooms a profile's panes by its override of stage.zoom", async ({

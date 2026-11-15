@@ -1,6 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
+  // A CI runner starts the app several times slower than a Mac, Windows slowest, so every wait gets one bound on every platform, well past a Mac's.
+  expect: { timeout: 15_000, toPass: { timeout: 15_000 } },
   forbidOnly: Boolean(process.env.CI),
   globalSetup: "./tests/global-setup.ts",
   reporter: process.env.CI === undefined ? "list" : "github",

@@ -155,14 +155,12 @@ const entitlementKindOf = async (app: ElectronApplication) => {
   return kind;
 };
 
-/** Waits for the entitlement to be `kind`, longer than a plain poll: the stub answers over loopback only after the app's own start-up work, which a Windows runner does slowly. */
+/** Waits for the entitlement to be `kind`, which the stub answers over loopback only after the app's own start-up work. */
 export const awaitEntitlement = async (
   app: ElectronApplication,
   kind: Entitlement["kind"]
 ) => {
-  await expect
-    .poll(async () => await entitlementKindOf(app), { timeout: 15_000 })
-    .toBe(kind);
+  await expect.poll(async () => await entitlementKindOf(app)).toBe(kind);
 };
 
 export const updateOf = async (app: ElectronApplication) => {

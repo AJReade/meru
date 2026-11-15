@@ -67,7 +67,7 @@ test("splits with the app picked in the launcher, drags the divider across the p
     expect(views).toHaveLength(2);
     expect(views).toStrictEqual(panes.map((pane) => pane.rect));
     split = views;
-  }).toPass({ timeout: 5000 });
+  }).toPass();
   const [left, right] = split;
   expect(
     overlap(must(left, "The left pane"), must(right, "The right pane"))
