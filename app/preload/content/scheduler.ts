@@ -111,6 +111,11 @@ export class DomScheduler {
     };
   }
 
+  /** Asks for a batch though nothing was added, for a feature that watches a change the scheduler does not, such as an attribute. */
+  request(): void {
+    this.#schedule();
+  }
+
   dispose(): void {
     this.#disposed = true;
     this.#batchTasks.clear();
