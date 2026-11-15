@@ -1,6 +1,7 @@
 // Writes the Gmail fixtures the preload's tests read, from a signed-in profile, each document scrubbed of everything personal:
-// MERU_TEST_PROFILE_DIR=<a user data directory signed in to Gmail> node scripts/gmail/capture.ts [--in-place] [--corpus | --out-of-office], after pnpm build and once the account has sent itself the two messages named below, then vp fmt; --in-place runs on the directory itself, for one that is a copy already.
+// MERU_TEST_PROFILE_DIR=<a user data directory signed in to Gmail> node scripts/gmail/capture.ts [--in-place] [--corpus | --out-of-office | --thread], after pnpm build and once the account has sent itself the two messages named below, then vp fmt; --in-place runs on the directory itself, for one that is a copy already.
 // --corpus writes the message bodies the dark theme's tests read instead, the mails subjected "Corpus <kind>" first and then All Mail's, a few of each shape.
+// --thread writes only thread-replying.html, from the conversation subjected "Test Email", two messages the account was sent, with the inline reply and a message's More menu open.
 // --out-of-office writes only out-of-office.html, from the inbox once Gmail shows the out-of-office banner, so the account's reply is turned on in Gmail's settings first and off again after.
 // The scrub keeps what the features anchor on and nothing a person wrote: roles, ARIA states and the ids they point at, Gmail's generated classes and ids, `gh`, `act`, `role`, field names, icon path data, Gmail's control words in `aria-label` and `data-tooltip`, thread and message ids as counters, an address's shape (`email`, and `href` down to the view and the print view's `view` and `permmsgid`), and that a chip has a `download_url`.
 import { existsSync } from "node:fs";
@@ -101,12 +102,16 @@ const FROM_THREAD = ["attachments.html"];
 const FROM_CLIPPED = ["clipped.html"];
 // Taken from the inbox while the account's out-of-office reply is on, under --out-of-office.
 const FROM_OUT_OF_OFFICE = ["out-of-office.html"];
+// Taken under --thread from a conversation of two messages, the first collapsed, with the inline reply open and the second message's More menu open over it: the sheet's own controls, which the dark theme's tests read.
+const FROM_REPLYING = ["thread-replying.html"];
 // The bar above Google's header, which Gmail leaves empty while no notice shows; looser than the feature's anchor, which the fixture is there to test.
 const NOTICE_BAR = 'div:has(+ h1 > header[role="banner"]):not(:empty)';
 
 /** The subjects of the two messages the account is sent before a capture, which the capture opens by searching for them. */
 const ATTACHMENT_SUBJECT = "Meru capture attachment";
 const CLIPPED_SUBJECT = "Meru capture clipped";
+/** The subject of the conversation of two messages --thread opens, which the account holds before it runs. */
+const THREAD_SUBJECT = "Test Email";
 
 /** How long a document of the real Gmail is given to render. */
 const READY = 120_000;
@@ -224,6 +229,30 @@ const captureOutOfOffice = async (app: ElectronApplication) => {
   await waitFor(app, pane, '[role="main"]', "Gmail's inbox");
   await waitFor(app, pane, NOTICE_BAR, "The out-of-office banner");
   return await writeAll(FROM_OUT_OF_OFFICE, await documentOf(app, pane));
+};
+
+const press = (selector: string) =>
+  `(() => { const found = [...document.querySelectorAll(${quote(selector)})].find((element) => element.offsetParent !== null); for (const type of ["mousedown", "mouseup", "click"]) { found?.dispatchEvent(new MouseEvent(type, { bubbles: true })); } return found === undefined ? "" : "pressed"; })()`;
+
+const captureReplying = async (app: ElectronApplication) => {
+  const pane = await gmailPane(app);
+  await waitFor(app, pane, '[role="main"]', "Gmail's inbox");
+  await openBySubject(app, pane, THREAD_SUBJECT, "[data-message-id] .a3s");
+  // Reply is the first of the reply bar's links, as the pop-outs feature finds it; More message options is named by Gmail's English label, which the capture account uses.
+  await readPane(app, pane, press(".amn span.ams"));
+  await waitFor(
+    app,
+    pane,
+    '[role="main"] [contenteditable="true"][role="textbox"]',
+    "The inline reply"
+  );
+  await readPane(
+    app,
+    pane,
+    press('[data-message-id] [aria-label="More message options"]')
+  );
+  await waitFor(app, pane, '[role="menu"] [role="menuitem"]', "The menu");
+  return await writeAll(FROM_REPLYING, await documentOf(app, pane));
 };
 
 const capture = async (app: ElectronApplication) => {
@@ -417,11 +446,12 @@ const captureCorpus = async (app: ElectronApplication) => {
 
 const run = async () => {
   if (
-    process.argv.includes("--corpus") &&
-    process.argv.includes("--out-of-office")
+    ["--corpus", "--out-of-office", "--thread"].filter((flag) =>
+      process.argv.includes(flag)
+    ).length > 1
   ) {
     throw new Error(
-      "--corpus and --out-of-office capture from different states of the account; run them one at a time"
+      "--corpus, --out-of-office and --thread capture from different states of the account; run them one at a time"
     );
   }
   const profile = process.env.MERU_TEST_PROFILE_DIR;
@@ -458,6 +488,8 @@ const run = async () => {
     taken = captureCorpus;
   } else if (outOfOffice) {
     taken = captureOutOfOffice;
+  } else if (process.argv.includes("--thread")) {
+    taken = captureReplying;
   }
   // MERU_E2E blanks every pane, so the capture turns off what the end-to-end launch sets; a window that may never be on screen is throttled by Chromium until Gmail stops drawing an opened thread.
   const { app, close } = await launch({

@@ -328,6 +328,8 @@ type Keep = (value: string, ids: Ids, tag: Tag) => string | undefined;
 // Every attribute a fixture keeps, and what of its value; any other is dropped.
 const KEPT: Readonly<Record<string, Keep>> = {
   class: generatedOf,
+  // Which element is an editor, which the dark theme leaves to a sheet of its own.
+  contenteditable: tokenOf,
   d: (value) => (PATH_DATA.test(value) ? value : undefined),
   act: tokenOf,
   dir: tokenOf,
