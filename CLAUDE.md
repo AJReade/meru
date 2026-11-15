@@ -42,6 +42,10 @@ No `vi.mock` anywhere. A feature's test assembles it as `index.ts` does, over th
 
 A comment says only what the code cannot: an outside constraint, such as Electron, Chromium, Gmail, a platform or a tool, or why the obvious approach was rejected. Never what the code does, and never a reference to a principle.
 
+## Interface text
+
+Every string a user sees is sentence case: menu items, command and setting labels, options, section headings, page and dialog titles, buttons, notification actions, tooltips and placeholders. The first word is capitalised, and after it only names, which `core/text.ts`'s `INTERFACE_NAMES` lists beside the catalog's app names: Meru, Meru Pro, Gmail, Google's apps such as Calendar and Meet, Finder, File Explorer, 1Password, Touch ID, the Save As dialog and acronyms such as URL; `Hide Gmail logo`, not `Hide Gmail Logo`. macOS's own items, such as Services, Writing Tools, Share and the Edit menu's roles, keep what the system gives, while the app relabels the two roles of its app menu Electron title-cases, Hide others and Show all. A description that names a control spells it as the control reads. `shared/interface-text.test.ts` holds every command, section, page, setting and option label of the registries to it through `capitalsOutOfPlace`.
+
 ## Commits
 
 One commit per logical change. The subject says what changed in at most 72 characters; after a blank line, a body of a few sentences says why: the constraint, the approach rejected, what moved. A port from 3.x takes its behaviour, never the shape of its code: read 3.x for what it does and for what it does badly, such as tangled responsibilities, hidden state, unbounded retries, untested DOM pokes or comments that lie, and let the port fix each.
