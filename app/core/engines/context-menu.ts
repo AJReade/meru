@@ -1,5 +1,6 @@
 import type {
   ContextMenuItem,
+  EditCommand,
   ContextMenuParams,
 } from "../records/context-menu.ts";
 import type { Platform } from "../records/platform.ts";
@@ -201,10 +202,7 @@ const edit = (
 ): Section => {
   const { editFlags, isEditable, selectionText } = params;
   const hasText = selectionText !== "";
-  const item = (
-    id: "cut" | "copy" | "paste" | "pasteAndMatchStyle" | "selectAll",
-    enabled: boolean
-  ): ContextMenuItem => ({
+  const item = (id: EditCommand, enabled: boolean): ContextMenuItem => ({
     action: { action: { command: id, kind: "edit" }, kind: "page" },
     enabled,
     id,

@@ -31,17 +31,17 @@ export interface ContextMenuParams {
   };
 }
 
+/** The page's own edit commands, each an item of the menu by the same id. */
+export type EditCommand =
+  | "cut"
+  | "copy"
+  | "paste"
+  | "pasteAndMatchStyle"
+  | "selectAll";
+
 /** What an item does to the page it was opened over. */
 export type PageAction =
-  | {
-      readonly kind: "edit";
-      readonly command:
-        | "cut"
-        | "copy"
-        | "paste"
-        | "pasteAndMatchStyle"
-        | "selectAll";
-    }
+  | { readonly kind: "edit"; readonly command: EditCommand }
   | { readonly kind: "replaceMisspelling"; readonly word: string }
   | { readonly kind: "learnSpelling"; readonly word: string }
   | { readonly kind: "lookUp" }
