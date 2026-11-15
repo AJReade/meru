@@ -26,8 +26,16 @@ const mount = (html: string): HTMLElement => {
 };
 
 describe(themeTree, () => {
-  it("has a corpus of real mails' shapes to theme", () => {
-    expect(corpus.length).toBeGreaterThanOrEqual(25);
+  it("has a corpus of real mails' shapes to theme, each headed by where it came from and no date", () => {
+    expect([
+      corpus.length >= 25,
+      corpus.flatMap(({ html, name }) =>
+        /^<!-- Corpus: [\s\S]*?-->/u.test(html) &&
+        !/\d{4}-\d{2}-\d{2}/u.test(html.slice(0, html.indexOf("-->")))
+          ? []
+          : [name]
+      ),
+    ]).toStrictEqual([true, []]);
   });
 
   it.each(corpus)(

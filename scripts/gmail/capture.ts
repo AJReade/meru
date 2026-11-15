@@ -291,7 +291,6 @@ const captureCorpus = async (app: ElectronApplication) => {
   await goTo(app, pane, "all");
   await waitFor(app, pane, "tr.zA", "All Mail");
   await mkdir(CORPUS, { recursive: true });
-  const day = new Date().toISOString().slice(0, 10);
   const shapes = new Map<string, number>();
   const written: string[] = [];
   for (const thread of await threadsOf(app, pane)) {
@@ -319,7 +318,7 @@ const captureCorpus = async (app: ElectronApplication) => {
     // oxlint-disable-next-line no-await-in-loop -- one thread is open at a time
     await writeFile(
       file,
-      `<!-- Corpus: ${entry.kind}. Captured by scripts/gmail/capture.ts --corpus and scrubbed by app/core/engines/scrub.ts's scrubMail on ${day}. -->\n${scrubMail(entry.html)}\n`
+      `<!-- Corpus: ${entry.kind}. Captured by scripts/gmail/capture.ts --corpus and scrubbed by app/core/engines/scrub.ts's scrubMail. -->\n${scrubMail(entry.html)}\n`
     );
     written.push(path.relative(root, file));
   }
