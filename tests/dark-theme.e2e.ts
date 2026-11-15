@@ -329,3 +329,33 @@ test("reads CSS Color 4's colours and keeps every text over them readable", asyn
     await gmail.stop();
   }
 });
+
+const FILTERS = `["img.glyph", "img.tile"].map((selector) => getComputedStyle(document.querySelector(selector)).filter)`;
+
+test("turns a dark glyph light and leaves a light picture as it is, read from the images themselves", async ({
+  launch,
+  stub,
+}) => {
+  const gmail = await startGmailStub(await mailbox("30-data-images.html"));
+  try {
+    const { app, chrome } = await launch({
+      env: { MERU_ENTITLEMENT_URL: stub.url, MERU_GMAIL_URL: gmail.url },
+    });
+    await expect.poll(async () => await entitlementKindOf(app)).toBe("trial");
+    await expect
+      .poll(async () => await inPane(app, FILTERS))
+      .toStrictEqual(["none", "none"]);
+
+    await setTo(chrome, true);
+    await expect
+      .poll(async () => await inPane(app, FILTERS))
+      .toStrictEqual(["invert(1) hue-rotate(180deg)", "none"]);
+
+    await setTo(chrome, false);
+    await expect
+      .poll(async () => await inPane(app, FILTERS))
+      .toStrictEqual(["none", "none"]);
+  } finally {
+    await gmail.stop();
+  }
+});

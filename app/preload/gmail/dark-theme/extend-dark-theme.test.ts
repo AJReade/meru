@@ -256,26 +256,75 @@ describe(extendDarkTheme, () => {
     page.app.dispose();
   });
 
-  it("turns a dark logo on a darkened ground light, and nothing it cannot read", async () => {
+  it("turns a dark logo the page may read light, and asks nothing of one it may not", () => {
     const canvas = new FakeCanvas();
     canvas.answer("https://example.com/logo.png", [20, 20, 20, 255], 40);
+    canvas.answer("https://example.com/tainted.png", [20, 20, 20, 255], 40);
     const page = mountGmail({
-      features: [extendDarkTheme(TEST_MARK)],
-      html: `${conversation}<style>.iY img { width: 74px; }</style>`,
       canvas,
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation.replace(
+        "<img",
+        '<img src="https://example.com/tainted.png" class="tainted" /><img crossorigin="anonymous"'
+      ),
       settings: on,
     });
-    const logo = document.querySelector("img.logo");
-    if (!(logo instanceof HTMLImageElement)) {
-      throw new TypeError("No logo");
-    }
     page.run();
-    logo.dispatchEvent(new Event("load"));
-    await pause(0);
+    const logo = document.querySelector("img.logo");
+    logo?.dispatchEvent(new Event("load"));
+    document.querySelector("img.tainted")?.dispatchEvent(new Event("load"));
 
-    expect([canvas.asked, logo.style.getPropertyValue("filter")]).toStrictEqual(
-      [["https://example.com/logo.png"], TURN_LIGHT]
-    );
+    expect([
+      canvas.asked,
+      document
+        .querySelector<HTMLElement>("img.logo")
+        ?.style.getPropertyValue("filter"),
+    ]).toStrictEqual([
+      ["https://example.com/logo.png", "https://example.com/logo.png"],
+      TURN_LIGHT,
+    ]);
+    page.app.dispose();
+  });
+
+  it("asks once a page load for an image it could not read", () => {
+    const canvas = new FakeCanvas();
+    const page = mountGmail({
+      canvas,
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation.replace("<img", '<img crossorigin="anonymous"'),
+      settings: on,
+    });
+    page.run();
+    document.querySelector("img.logo")?.dispatchEvent(new Event("load"));
+    document.querySelector("img.logo")?.dispatchEvent(new Event("load"));
+
+    expect(canvas.asked).toStrictEqual(["https://example.com/logo.png"]);
+    page.app.dispose();
+  });
+
+  it("gives an image back as the mail drew it once its address changes to one that is not dark", () => {
+    const canvas = new FakeCanvas();
+    canvas.answer("https://example.com/logo.png", [20, 20, 20, 255], 40);
+    canvas.answer("https://example.com/photo.png", [200, 180, 160, 255]);
+    const page = mountGmail({
+      canvas,
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation.replace("<img", '<img crossorigin="anonymous"'),
+      settings: on,
+    });
+    const logo = document.querySelector<HTMLImageElement>("img.logo");
+    const before = logo?.getAttribute("style") ?? null;
+    page.run();
+    logo?.dispatchEvent(new Event("load"));
+    const turned = logo?.style.getPropertyValue("filter");
+
+    logo?.setAttribute("src", "https://example.com/photo.png");
+    logo?.dispatchEvent(new Event("load"));
+
+    expect([turned, logo?.getAttribute("style") ?? null]).toStrictEqual([
+      TURN_LIGHT,
+      before,
+    ]);
     page.app.dispose();
   });
 

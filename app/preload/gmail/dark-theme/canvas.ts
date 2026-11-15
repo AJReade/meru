@@ -4,32 +4,30 @@ import type { Rgba } from "../../../core/engines/dark-theme.ts";
 export interface PageCanvas {
   /** A colour CSS Color 4 writes, such as `oklch()`, `lab()`, `color()` or what `color-mix()` computes to, as sRGB, or undefined when it is none. */
   readonly colour: (text: string) => Rgba | undefined;
-  /** A small image's pixels, sampled down to a few hundred, or none when the image cannot be read; nothing is kept once they are answered. */
-  readonly pixels: (source: string) => Promise<Uint8ClampedArray>;
+  /** A loaded image's pixels, drawn from the element itself at 24 by 24, or none when the image taints the canvas; nothing is kept once they are answered. */
+  readonly pixels: (image: HTMLImageElement) => Uint8ClampedArray;
 }
 
 const SIDE = 24;
 
-const sample = async (source: string): Promise<Uint8ClampedArray> => {
-  const response = await fetch(source, { mode: "cors" });
-  if (!response.ok) {
-    throw new Error(`The image answered ${response.status}`);
-  }
-  const bitmap = await createImageBitmap(await response.blob(), {
-    resizeHeight: SIDE,
-    resizeQuality: "low",
-    resizeWidth: SIDE,
-  });
-  try {
-    const context = new OffscreenCanvas(SIDE, SIDE).getContext("2d");
+const imageSampler = (): ((image: HTMLImageElement) => Uint8ClampedArray) => {
+  let context: OffscreenCanvasRenderingContext2D | null | undefined;
+  return (image) => {
+    context ??= new OffscreenCanvas(SIDE, SIDE).getContext("2d", {
+      willReadFrequently: true,
+    });
     if (context === null) {
-      throw new Error("No canvas to sample the image on");
+      return new Uint8ClampedArray(0);
     }
-    context.drawImage(bitmap, 0, 0);
-    return context.getImageData(0, 0, SIDE, SIDE).data;
-  } finally {
-    bitmap.close();
-  }
+    context.clearRect(0, 0, SIDE, SIDE);
+    try {
+      context.drawImage(image, 0, 0, SIDE, SIDE);
+      return context.getImageData(0, 0, SIDE, SIDE).data;
+    } catch {
+      // A broken image refuses to be drawn, and a canvas an image tainted refuses to be read.
+      return new Uint8ClampedArray(0);
+    }
+  };
 };
 
 // Enough for every colour a conversation's mails write; past it the answers start over rather than grow.
@@ -86,12 +84,5 @@ const colourReader = (): ((text: string) => Rgba | undefined) => {
 
 export const pageCanvas = (): PageCanvas => ({
   colour: colourReader(),
-  // Reads an image's pixels through a CORS request of its own, since the copy the page drew is tainted: Gmail's image proxy answers one, and the browser's cache usually holds what it fetched; a mail's own inline image is the mailbox's, so it goes with the session's cookies. An image the request cannot reach, such as one whose host sends no CORS header, answers no pixels and is left as it is.
-  pixels: async (source) => {
-    try {
-      return await sample(source);
-    } catch {
-      return new Uint8ClampedArray(0);
-    }
-  },
+  pixels: imageSampler(),
 });

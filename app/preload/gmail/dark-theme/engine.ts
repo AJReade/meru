@@ -399,18 +399,23 @@ export const turnLight = (image: HTMLImageElement, mark: string): void => {
   image.style.setProperty("filter", TURN_LIGHT, "important");
 };
 
+/** Puts back what the theme wrote on `element`, its `style` as the mail had it, and takes its mark off. */
+export const release = (element: Element, mark: string): void => {
+  const value = element.getAttribute(mark) ?? "";
+  const kind = value.charAt(1);
+  if (kind === NO_STYLE) {
+    element.removeAttribute("style");
+  } else if (kind === HAD_STYLE) {
+    element.setAttribute("style", value.slice(2));
+  }
+  element.removeAttribute(mark);
+};
+
 /** Puts back what the theme wrote under `root`, each element's `style` as the mail had it, and takes its marks off. */
 export const releaseTree = (root: ParentNode, mark: string): number => {
   const marked = root.querySelectorAll(`[${mark}]`);
   for (const element of marked) {
-    const value = element.getAttribute(mark) ?? "";
-    const kind = value.charAt(1);
-    if (kind === NO_STYLE) {
-      element.removeAttribute("style");
-    } else if (kind === HAD_STYLE) {
-      element.setAttribute("style", value.slice(2));
-    }
-    element.removeAttribute(mark);
+    release(element, mark);
   }
   return marked.length;
 };

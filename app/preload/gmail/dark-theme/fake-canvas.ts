@@ -28,9 +28,8 @@ export class FakeCanvas implements PageCanvas {
 
   readonly colour = (text: string): Rgba | undefined => this.#colours.get(text);
 
-  readonly pixels = async (source: string): Promise<Uint8ClampedArray> => {
-    this.asked.push(source);
-    await Promise.resolve();
-    return this.#answers.get(source) ?? new Uint8ClampedArray(0);
+  readonly pixels = (image: HTMLImageElement): Uint8ClampedArray => {
+    this.asked.push(image.currentSrc);
+    return this.#answers.get(image.currentSrc) ?? new Uint8ClampedArray(0);
   };
 }

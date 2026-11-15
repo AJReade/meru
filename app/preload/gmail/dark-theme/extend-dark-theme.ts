@@ -9,14 +9,32 @@ import {
   EDITOR,
   hoverSheet,
   newMark,
+  release,
   releaseTree,
   themeAgain,
+  themeTree,
   turnLight,
 } from "./engine.ts";
 import type { StyleOf, Theme } from "./engine.ts";
 
 // An image larger than this is a photograph or a banner, which darkening would only spoil.
 const LARGEST_ICON = 512 * 512;
+
+// Enough for every image a conversation shows; past it the failures are forgotten rather than grow.
+const FAILURES_KEPT = 256;
+
+/** Whether the canvas may read the image as the page loaded it, which it may only when the image is the page's own or was fetched with CORS; any other taints the canvas, and a second fetch to read it is not made. */
+const readable = (image: HTMLImageElement, origin: string): boolean => {
+  const source = image.currentSrc;
+  if (source.startsWith("data:") || image.crossOrigin !== null) {
+    return true;
+  }
+  try {
+    return new URL(source).origin === origin;
+  } catch {
+    return false;
+  }
+};
 
 // Gmail's dark theme marks itself only by its style sheet, which paints the page's own ground dark (`.aAU`) while leaving the conversation's sheet white.
 const DARK_PAGE = 0.2;
@@ -71,110 +89,122 @@ const sheetOf = (
  * lives on the elements, which go with the message; it holds only the roots still on the page, and
  * turning it off or Gmail's theme turning light puts every element back.
  */
-export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
-  apply: ({ canvas, document, scheduler, settings, style, undo }) => {
-    if (!settings.switches.extendDarkTheme) {
-      style("");
-      return;
-    }
-    const view = document.defaultView;
-    if (view === null) {
-      return;
-    }
-    const styleOf: StyleOf = (element) => view.getComputedStyle(element);
-    const theme: Theme = {
-      colourOf: (text) => parseColour(text) ?? canvas.colour(text),
-      mark,
-      styleOf,
-    };
-    // Each root with what its walk passes over.
-    const roots = new Map<Element, string>();
-    let on = true;
-    let dark = false;
-    let looked: string | undefined;
-    // Gmail turns its theme by the body's class or style, or by a style sheet arriving, so the body's ground is read again only when one of those changed.
-    const follow = () => {
-      const { body } = document;
-      const key = `${body.className}\n${body.getAttribute("style") ?? ""}\n${document.styleSheets.length}`;
-      if (key === looked) {
+export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
+  // Images whose pixels could not be read, which this page load does not try again.
+  const unread = new Set<string>();
+  return {
+    apply: ({ canvas, document, scheduler, settings, style, undo }) => {
+      if (!settings.switches.extendDarkTheme) {
+        style("");
         return;
       }
-      looked = key;
-      const was = dark;
-      dark = isGmailDark(document, styleOf);
-      if (was && !dark) {
-        releaseTree(document, mark);
-      }
-    };
-    const look = async (image: HTMLImageElement) => {
-      if (
-        image.naturalWidth * image.naturalHeight > LARGEST_ICON ||
-        image.currentSrc === ""
-      ) {
+      const view = document.defaultView;
+      if (view === null) {
         return;
       }
-      const sampled = await canvas.pixels(image.currentSrc);
-      if (on && image.isConnected && imageTone(sampled) === "dark") {
-        turnLight(image, mark);
-      }
-    };
-    const lookAt = (image: HTMLImageElement) => {
-      look(image).catch(() => {
-        // An image that cannot be read stays as the mail drew it.
-      });
-    };
-    const walk = (root: Element, skip: string) => {
-      if (!dark) {
-        return;
-      }
-      for (const image of themeAgain(root, theme, skip).images) {
-        if (image.complete) {
-          lookAt(image);
-        } else {
-          image.addEventListener(
-            "load",
-            () => {
-              lookAt(image);
-            },
-            { once: true }
-          );
+      const styleOf: StyleOf = (element) => view.getComputedStyle(element);
+      const theme: Theme = {
+        colourOf: (text) => parseColour(text) ?? canvas.colour(text),
+        mark,
+        styleOf,
+      };
+      // Each root with what its walk passes over.
+      const roots = new Map<Element, string>();
+      let dark = false;
+      let looked: string | undefined;
+      // Gmail turns its theme by the body's class or style, or by a style sheet arriving, so the body's ground is read again only when one of those changed.
+      const follow = () => {
+        const { body } = document;
+        const key = `${body.className}\n${body.getAttribute("style") ?? ""}\n${document.styleSheets.length}`;
+        if (key === looked) {
+          return;
         }
-      }
-    };
-    const found = (skip: string) => (root: Element) => {
-      roots.set(root, skip);
-      follow();
-      walk(root, skip);
-    };
-    style(hoverSheet(mark));
-    undo(() => {
-      on = false;
-      roots.clear();
-      releaseTree(document, mark);
-    });
-    undo(
-      scheduler.register(conversationEntry, (subject) => {
-        const sheet = sheetOf(subject, styleOf);
-        if (sheet !== undefined) {
-          // Each message is walked as its own entry finds it, so the sheet's walk leaves them to it.
-          found(`${EDITOR}, ${MESSAGE}`)(sheet);
+        looked = key;
+        const was = dark;
+        dark = isGmailDark(document, styleOf);
+        if (was && !dark) {
+          releaseTree(document, mark);
         }
-      })
-    );
-    undo(scheduler.register(messageEntry, found(EDITOR)));
-    undo(scheduler.register(clippedEntry, found(EDITOR)));
-    undo(
-      scheduler.everyBatch(() => {
-        follow();
-        for (const [root, skip] of roots) {
-          if (root.isConnected) {
-            walk(root, skip);
-          } else {
-            roots.delete(root);
+      };
+      const look = (images: readonly HTMLImageElement[]) => {
+        for (const image of images) {
+          const source = image.currentSrc;
+          if (
+            source === "" ||
+            unread.has(source) ||
+            image.naturalWidth * image.naturalHeight > LARGEST_ICON ||
+            !readable(image, view.location.origin)
+          ) {
+            continue;
+          }
+          const sampled = canvas.pixels(image);
+          if (sampled.length === 0) {
+            if (unread.size >= FAILURES_KEPT) {
+              unread.clear();
+            }
+            unread.add(source);
+          } else if (imageTone(sampled) === "dark") {
+            turnLight(image, mark);
           }
         }
-      })
-    );
-  },
-  id: "extendDarkTheme",
-});
+      };
+      const walk = (root: Element, skip: string) => {
+        if (dark) {
+          look(themeAgain(root, theme, skip).images);
+        }
+      };
+      // An image the walk marked is looked at again whenever it loads, the first time or after its address changed, from what the mail set: one listener for the page rather than one per image.
+      const loaded = (event: Event) => {
+        const image = event.target;
+        if (
+          dark &&
+          image instanceof HTMLImageElement &&
+          image.hasAttribute(mark)
+        ) {
+          release(image, mark);
+          look(themeTree(image, theme).images);
+        }
+      };
+      document.addEventListener("load", loaded, true);
+      document.addEventListener("error", loaded, true);
+      undo(() => {
+        document.removeEventListener("load", loaded, true);
+        document.removeEventListener("error", loaded, true);
+      });
+      const found = (skip: string) => (root: Element) => {
+        roots.set(root, skip);
+        follow();
+        walk(root, skip);
+      };
+      style(hoverSheet(mark));
+      undo(() => {
+        roots.clear();
+        releaseTree(document, mark);
+      });
+      undo(
+        scheduler.register(conversationEntry, (subject) => {
+          const sheet = sheetOf(subject, styleOf);
+          if (sheet !== undefined) {
+            // Each message is walked as its own entry finds it, so the sheet's walk leaves them to it.
+            found(`${EDITOR}, ${MESSAGE}`)(sheet);
+          }
+        })
+      );
+      undo(scheduler.register(messageEntry, found(EDITOR)));
+      undo(scheduler.register(clippedEntry, found(EDITOR)));
+      undo(
+        scheduler.everyBatch(() => {
+          follow();
+          for (const [root, skip] of roots) {
+            if (root.isConnected) {
+              walk(root, skip);
+            } else {
+              roots.delete(root);
+            }
+          }
+        })
+      );
+    },
+    id: "extendDarkTheme",
+  };
+};
