@@ -20,8 +20,8 @@ import {
   valueOf,
 } from "../scripts/lib/app.ts";
 import type { Launched, LaunchOptions } from "../scripts/lib/app.ts";
-import { startStub } from "./entitlement-stub.ts";
-import type { Stub } from "./entitlement-stub.ts";
+import { startStub } from "../scripts/lib/entitlement-stub.ts";
+import type { Stub } from "../scripts/lib/entitlement-stub.ts";
 import { startFeedStub } from "./feed-stub.ts";
 import type { FeedStub } from "./feed-stub.ts";
 

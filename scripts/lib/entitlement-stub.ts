@@ -2,12 +2,12 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import { issueRequestSchema } from "../app/core/entitlement/api.ts";
-import { mintToken } from "../scripts/entitlement/sign.ts";
+import { issueRequestSchema } from "../../app/core/entitlement/api.ts";
+import { mintToken } from "../entitlement/sign.ts";
 
 const DAY = 86_400;
 
-/** The token the stub answers a license key with. */
+/** What the stand-in issues for a license key. */
 export type StubAnswer =
   | { readonly kind: "trial"; readonly days: number }
   | { readonly kind: "pro"; readonly deviceLimit: number }
@@ -19,7 +19,7 @@ export interface Stub {
   readonly requests: { licenseKey: string | null; deviceId: string }[];
   /** Answers `licenseKey` from now on; null is a device with no license key. */
   readonly answer: (licenseKey: string | null, answer: StubAnswer) => void;
-  /** Holds every answer until `release`, so what the app shows before one arrives can be seen. */
+  /** Holds every answer until `release`, so a caller can look at the app while it waits on one. */
   readonly hold: () => void;
   readonly release: () => void;
   readonly stop: () => Promise<void>;
@@ -68,7 +68,7 @@ const tokenFor = (answer: StubAnswer, deviceId: string) => {
   });
 };
 
-/** A loopback stand-in for the entitlement API, answering per license key with tokens signed by the development key, a trial to a device with no license key until told otherwise. */
+/** A loopback stand-in for the entitlement API, answering per license key with tokens signed by the development key: a 14-day trial to a device with no license key, and a refusal to any key it has not been told to answer. */
 export const startStub = async (): Promise<Stub> => {
   const table = new Map<string | null, StubAnswer>([
     [null, { days: 14, kind: "trial" }],
@@ -129,10 +129,3 @@ export const startStub = async (): Promise<Stub> => {
     url: `http://127.0.0.1:${address.port}/entitlement/issue`,
   };
 };
-
-// Run directly, it serves a trial to a device with no license key and Pro to PRO-KEY until stopped.
-if (import.meta.main) {
-  const stub = await startStub();
-  stub.answer("PRO-KEY", { deviceLimit: 3, kind: "pro" });
-  console.log(`MERU_ENTITLEMENT_URL=${stub.url}`);
-}
