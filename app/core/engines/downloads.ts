@@ -206,7 +206,7 @@ export const uniqueName = (
 
 /** How long the history keeps a download, and how many it keeps at most. */
 export const HISTORY_DAYS = 30;
-export const HISTORY_LIMIT = 200;
+export const HISTORY_LIMIT = 100;
 
 /** How many of the newest downloads the overlay lists, and so how many it looks for on disk when it opens. */
 export const SHOWN_DOWNLOADS = 50;
