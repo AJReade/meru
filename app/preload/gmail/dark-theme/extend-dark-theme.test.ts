@@ -132,13 +132,17 @@ describe(extendDarkTheme, () => {
       body?.innerHTML === before,
     ];
     body?.setAttribute("contenteditable", "false");
+    const compose = document.createElement("div");
+    document.body.append(compose);
+    compose.setAttribute("contenteditable", "true");
     await pause(0);
 
-    expect([themed, editable, body?.hasAttribute(TEST_MARK)]).toStrictEqual([
-      true,
-      [SKIPPED, true],
-      false,
-    ]);
+    expect([
+      themed,
+      editable,
+      body?.hasAttribute(TEST_MARK),
+      compose.hasAttribute(TEST_MARK),
+    ]).toStrictEqual([true, [SKIPPED, true], false, false]);
     page.app.dispose();
   });
 

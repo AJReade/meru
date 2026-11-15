@@ -136,7 +136,13 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
           return;
         }
         if (node.matches(EDITOR)) {
-          skipEditor(node, mark);
+          // Compose and every other editor the walk never reached stay unmarked.
+          if (
+            node.hasAttribute(mark) ||
+            node.querySelector(`[${mark}]`) !== null
+          ) {
+            skipEditor(node, mark);
+          }
         } else if (node.getAttribute(mark) === SKIPPED) {
           node.removeAttribute(mark);
           arrived = true;
