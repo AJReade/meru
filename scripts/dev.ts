@@ -1,4 +1,4 @@
-// node scripts/dev.ts [--profile <name>] [--background] [any Electron argument…]
+// node scripts/dev.ts [--profile <name>] [--entitlement <free|trial|pro>] [--background] [any Electron argument…]
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { once } from "node:events";
@@ -8,6 +8,7 @@ import path from "node:path";
 import { devUserDataDir, readBranch } from "@meru/user-data";
 import { build, createServer } from "vite-plus";
 
+import { PRO_LICENSE_KEY, startDevStub } from "./entitlement/stub.ts";
 import { splitArgs } from "./lib/dev-args.ts";
 
 const root = path.join(import.meta.dirname, "..");
@@ -16,9 +17,21 @@ const electronBinary = String(
   createRequire(path.join(root, "app", "package.json"))("electron")
 );
 
-const { profile, background, electronArgs } = splitArgs(process.argv.slice(2));
+const { profile, background, entitlement, electronArgs } = splitArgs(
+  process.argv.slice(2)
+);
 const userData = devUserDataDir(root, profile, readBranch(root));
 const userDataArgs = [`--user-data-dir=${userData}`];
+
+const stub = entitlement === "free" ? undefined : await startDevStub();
+const entitlementEnv =
+  stub === undefined
+    ? {}
+    : {
+        MERU_ENTITLEMENT_URL: stub.url,
+        // Node leaves an undefined variable out, so a key in the shell cannot turn a trial into Pro.
+        MERU_LICENSE_KEY: entitlement === "pro" ? PRO_LICENSE_KEY : undefined,
+      };
 
 const renderer = await createServer({
   configFile: path.join(root, "vite.renderer.ts"),
@@ -39,6 +52,7 @@ const shutdown = async (code: number) => {
   stopping = true;
   electron?.kill("SIGTERM");
   await renderer.close();
+  await stub?.stop();
   process.exit(code);
 };
 
@@ -51,6 +65,7 @@ const startElectron = () => {
       env: {
         ...process.env,
         MERU_RENDERER_URL: rendererBase,
+        ...entitlementEnv,
         ...(background ? { MERU_BACKGROUND: "1" } : {}),
       },
       stdio: "inherit",
@@ -114,5 +129,5 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 }
 
 console.log(
-  `Renderer on ${rendererUrl}, user data in ${path.relative(root, userData)}${background ? ", in the background" : ""}`
+  `Renderer on ${rendererUrl}, user data in ${path.relative(root, userData)}${entitlement === "free" ? "" : `, ${entitlement}`}${background ? ", in the background" : ""}`
 );

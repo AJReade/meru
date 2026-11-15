@@ -3,6 +3,8 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.ts",
+    "dev:trial": "node scripts/dev.ts --entitlement=trial",
+    "dev:pro": "node scripts/dev.ts --entitlement=pro",
     "build": "rm -rf app/dist/preload && vp build -c vite.main.ts && vp build -c vite.preload-renderer.ts && vp build -c vite.preload-drag.ts && vp build -c vite.preload-gmail.ts && vp build -c vite.preload-google.ts && vp build -c vite.renderer.ts",
     "test": "vp test run",
     "lint": "vp lint",
