@@ -183,9 +183,20 @@ export const Downloads = () => {
   const { active: running, items } = useDownloads();
   const shown = items.slice(0, SHOWN_DOWNLOADS);
   const now = useNow();
-  const [active, setActive] = useState(0);
+  // By id, since a download finishing lands above the rows and would move an index onto another row.
+  const [active, setActive] = useState<{
+    readonly id: string | null;
+    readonly index: number;
+  }>({ id: null, index: 0 });
   const rows = useRef<(HTMLButtonElement | null)[]>([]);
-  const at = Math.min(active, Math.max(shown.length - 1, 0));
+  const found = shown.findIndex((item) => item.id === active.id);
+  const at =
+    found === -1
+      ? Math.min(active.index, Math.max(shown.length - 1, 0))
+      : found;
+  const activate = (index: number) => {
+    setActive({ id: shown[index]?.id ?? null, index });
+  };
   const close = () => {
     client.send(downloads.close, {});
   };
@@ -197,7 +208,7 @@ export const Downloads = () => {
     }
     const next = index < shown.length - 1 ? index + 1 : index - 1;
     rows.current[next]?.focus();
-    setActive(Math.min(index, next));
+    setActive({ id: shown[next]?.id ?? null, index: Math.min(index, next) });
     void client.invoke(downloads.remove, { id: item.id });
   };
 
@@ -212,24 +223,27 @@ export const Downloads = () => {
   }, [client]);
 
   const keyDown = (event: KeyboardEvent) => {
-    if (!rows.current.some((row) => row !== null && row === event.target)) {
+    const from = rows.current.findIndex(
+      (row) => row !== null && row === event.target
+    );
+    if (from === -1) {
       return;
     }
     const last = shown.length - 1;
     if (isStep(event.key) && last >= 0) {
       event.preventDefault();
-      const next = STEPS[event.key](at, last);
-      setActive(next);
+      const next = STEPS[event.key](from, last);
+      activate(next);
       rows.current[next]?.focus();
       return;
     }
-    const item = shown[at];
+    const item = shown[from];
     if (item === undefined) {
       return;
     }
     if (event.key === "Delete" || event.key === "Backspace") {
       event.preventDefault();
-      remove(at);
+      remove(from);
     } else if (event.key === "Enter") {
       event.preventDefault();
       if (opens(item)) {
@@ -295,7 +309,7 @@ export const Downloads = () => {
                 key={item.id}
                 now={now}
                 onFocus={() => {
-                  setActive(index);
+                  activate(index);
                 }}
                 onRemove={() => {
                   remove(index);

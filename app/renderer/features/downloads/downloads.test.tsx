@@ -170,6 +170,36 @@ describe(Downloads, () => {
     ]);
   });
 
+  it("keeps Enter, Delete and the tab stop on the focused row when a finished download lands above it", async () => {
+    const { push, sentOn } = mount(
+      [item("a"), item("b"), item("c")],
+      [running("fresh")]
+    );
+    await settle();
+    act(() => {
+      rowButton("a")?.focus();
+    });
+    press("ArrowDown");
+    push(
+      downloadsPushes.changed,
+      snapshot([item("fresh"), item("a"), item("b"), item("c")])
+    );
+    await settle();
+    const stop = [
+      ...document.querySelectorAll<HTMLElement>("[data-download-id] > button"),
+    ]
+      .filter((button) => button.tabIndex === 0)
+      .map((button) => button.closest("li")?.dataset.downloadId);
+    press("Enter");
+    press("Delete");
+    await settle();
+    expect([
+      stop,
+      sentOn(downloads.openFile),
+      sentOn(downloads.remove),
+    ]).toStrictEqual([["b"], [{ id: "b" }], [{ id: "b" }]]);
+  });
+
   it("follows the history main pushes, and says so when it is empty", () => {
     const { push } = mount([]);
     const empty = document.body.textContent.includes("No downloads yet");
