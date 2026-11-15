@@ -60,14 +60,16 @@ const createdOf = async (app: ElectronApplication) =>
     CREATED
   );
 
+/** Closes the sign-in window as its close button does, and waits until it is gone; the app never destroys one, so neither does the test. */
 const closeSignIn = async (app: ElectronApplication) => {
   await app.evaluate(({ BrowserWindow }) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (window.webContents.getURL().includes("accounts.google.com")) {
-        window.destroy();
+        window.close();
       }
     }
   });
+  await expect.poll(async () => await popupsOf(app)).toStrictEqual([]);
 };
 
 // A page's `window.open("about:blank")`, as Google's sign-in opens, reaches the stage as a window before the page points it anywhere; its first navigation decides it: shown for Google's sign-in, sent to the browser and destroyed for anything else, destroyed when it never navigates.
