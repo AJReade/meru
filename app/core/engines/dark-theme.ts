@@ -27,6 +27,8 @@ const BRAND_LIGHTNESS = 0.8;
 
 // How far a light background moves past the surface for each step it was below white, so a page's layered greys stay layered.
 const LAYER_STEP = 0.9;
+// The lightest a darkened background lands, so a mid-grey ground ends dark under light text rather than a mid-grey that dark text and light text both read poorly on.
+const DARKEST_LAYER = 0.3;
 // A light border lands this much lighter than a background of its tone, so a rule between two darkened surfaces still shows.
 const BORDER_LIFT = 0.08;
 // A darkened colour keeps at most this saturation, which stops a pastel turning neon on black.
@@ -175,7 +177,7 @@ const darkened = (colour: Rgba, lift: number): Rgba => {
   return fromHsl(
     {
       h,
-      l: Math.min(0.5, surface + (1 - l) * LAYER_STEP + lift),
+      l: Math.min(DARKEST_LAYER, surface + (1 - l) * LAYER_STEP + lift),
       s: Math.min(s, DARK_SATURATION),
     },
     colour.a

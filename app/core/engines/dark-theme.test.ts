@@ -75,6 +75,17 @@ describe(darkBackground, () => {
     }
   });
 
+  it("darkens a mid-grey ground to a dark one, so its grey text turns light", () => {
+    const ground = darkBackground(colour("#888888"));
+    const text = darkText(colour("#777777"), ground);
+
+    expect([
+      luminance(ground) < 0.1,
+      luminance(text) > luminance(ground),
+      contrast(text, ground) >= TEXT_CONTRAST,
+    ]).toStrictEqual([true, true, true]);
+  });
+
   it("darkens a pastel without turning it neon", () => {
     const green = darkBackground(colour("#e8f5e9"));
 
