@@ -88,15 +88,36 @@ describe(darkBackground, () => {
     ]).toStrictEqual([true, true, true]);
   });
 
-  it("keeps the order of the greys up to where it lands them at its lightest, so a darker panel never ends lighter than a lighter one", () => {
-    const greys = Array.from({ length: 13 }, (_, step) => {
-      const channel = (step * 17).toString(16).padStart(2, "0");
-      return luminance(
-        darkBackground(colour(`#${channel}${channel}${channel}`))
-      );
-    });
+  it("darkens the light greys into a dark band, each apart from the others and a lighter one landing darker, under which every text still reads", () => {
+    const greys = ["#555", "#666", "#777", "#999", "#ccc", "#eee", "#fff"].map(
+      (grey) => darkBackground(colour(grey))
+    );
+    const lightnesses = greys.map(({ r }) => Math.round(r));
+    const draw = random(26);
+    const unreadable = greys.flatMap((ground) =>
+      Array.from({ length: 200 }, () => randomColour(draw)).filter(
+        (text) =>
+          contrast(darkText(text, ground), ground) < TEXT_CONTRAST - 0.01
+      )
+    );
 
-    expect(greys).toStrictEqual(greys.toSorted((one, other) => one - other));
+    expect([
+      new Set(lightnesses).size,
+      lightnesses.toSorted((one, other) => other - one),
+      Math.max(...greys.map((ground) => luminance(ground))) < 0.1,
+      unreadable,
+    ]).toStrictEqual([greys.length, lightnesses, true, []]);
+  });
+
+  it("keeps a pastel's hue in the band, in order of its lightness", () => {
+    const deeper = darkBackground(colour("#f8bbd0"));
+    const paler = darkBackground(colour("#fce4ec"));
+
+    expect([
+      deeper.r > deeper.g,
+      paler.r > paler.g,
+      luminance(deeper) > luminance(paler),
+    ]).toStrictEqual([true, true, true]);
   });
 
   it("darkens a pastel without turning it neon", () => {

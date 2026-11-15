@@ -27,10 +27,10 @@ const DARK_TINT = 0.2;
 const BRAND_SATURATION = 0.4;
 const BRAND_LIGHTNESS = 0.8;
 
-// How far a light background moves past the surface for each step it was below white, so a page's layered greys stay layered.
-const LAYER_STEP = 0.9;
-// The lightest a darkened background lands, so a mid-grey ground ends dark under light text rather than a mid-grey that dark text and light text both read poorly on.
+// The lightest a darkened background lands, and the lightness from which a background is darkened, so a mid-grey ground ends dark under light text rather than a mid-grey that dark text and light text both read poorly on.
 const DARKEST_LAYER = 0.3;
+// How the band from DARKEST_LAYER to white bends onto the dark band: under 1 it spreads the near-whites a page layers its panels in further apart than the mid-greys, which still land apart.
+const LAYER_CURVE = 0.6;
 // A light border lands this much lighter than a background of its tone, so a rule between two darkened surfaces still shows.
 const BORDER_LIFT = 0.08;
 // A darkened colour keeps at most this saturation, which stops a pastel turning neon on black.
@@ -186,13 +186,15 @@ const isBrand = (colour: Rgba): boolean => {
   return s >= BRAND_SATURATION && l <= BRAND_LIGHTNESS;
 };
 
+/** The colour's lightness from DARKEST_LAYER to white mapped, in reverse and without two landing together, onto the dark band from DARKEST_LAYER down to the surface, its hue kept and its saturation damped, then lifted by `lift`. */
 const darkened = (colour: Rgba, lift: number): Rgba => {
   const { h, s, l } = toHsl(colour);
   const surface = toHsl(DARK_SURFACE).l;
+  const below = Math.min(1, Math.max(0, (1 - l) / (1 - DARKEST_LAYER)));
   return fromHsl(
     {
       h,
-      l: Math.min(DARKEST_LAYER, surface + (1 - l) * LAYER_STEP + lift),
+      l: surface + (DARKEST_LAYER - surface) * below ** LAYER_CURVE + lift,
       s: Math.min(s, DARK_SATURATION),
     },
     colour.a
@@ -200,10 +202,11 @@ const darkened = (colour: Rgba, lift: number): Rgba => {
 };
 
 /**
- * What a background becomes on the dark page: a light ground is darkened, keeping its hue and how
- * far below white it sat; a dark one, a brand's colour and a transparent one stay. A grey is kept
- * as dark only up to the lightness a darkened one lands at most, so a grey just lighter than one
- * kept never ends darker than it; a dark tint is the sender's colour and is kept as it is.
+ * What a background becomes on the dark page: a light ground is darkened, keeping its hue and its
+ * place among the page's other grounds, a lighter one landing darker; a dark one, a brand's colour
+ * and a transparent one stay. A grey is kept as dark up to DARKEST_LAYER, where the darkened band
+ * starts, so a grey just lighter than one kept lands beside it; a dark tint is the sender's colour
+ * and is kept as it is.
  */
 export const darkBackground = (colour: Rgba): Rgba => {
   if (colour.a === 0 || isBrand(colour)) {
