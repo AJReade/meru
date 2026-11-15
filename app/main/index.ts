@@ -56,6 +56,7 @@ import {
 import { CommandDispatcher } from "./shell/commands.ts";
 import {
   exposeE2e,
+  recordingClipboard,
   recordingContextMenu,
   recordingDesktop,
   RecordingShell,
@@ -264,6 +265,8 @@ const start = async () => {
   const desktop = e2e ? recorded : ports;
   // The end-to-end suite asserts on the links that would leave for the browser and the files it would open, and opens none.
   const externalLinks = new RecordingShell();
+  // The suite copies through the app's menus, which would otherwise write the clipboard of the Mac it runs on.
+  const recordedClipboard = recordingClipboard();
   const shell = e2e ? externalLinks : ports.shell;
   // A run from the repository can read a stand-in feed; the suite and a measure read none unless given one, so no test run asks Google.
   const gmailOverride = ports.lifecycle.packaged
@@ -442,7 +445,7 @@ const start = async () => {
   await downloads.open();
   downloads.start();
   const contextMenu = new ContextMenu({
-    clipboard: ports.clipboard,
+    clipboard: e2e ? recordedClipboard : ports.clipboard,
     contextMenu: e2e ? recordedMenus : ports.contextMenu,
     development: !ports.lifecycle.packaged,
     downloads,
@@ -470,6 +473,7 @@ const start = async () => {
   if (e2e) {
     exposeE2e({
       accelerators: applicationAccelerators,
+      clipboard: recordedClipboard,
       contextMenu: recordedMenus,
       desktop: recorded,
       entitlement,

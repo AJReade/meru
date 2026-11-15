@@ -8,7 +8,7 @@ const AWAY = "https://example.com/away";
 const MAILBOX = `<!doctype html><title>Gmail</title>
 <div role="main"><a id="away" href="${AWAY}">Away</a></div>`;
 
-test("builds the menu a right-click on a link in the Gmail pane opens, and sends the link to the browser from it", async ({
+test("builds the menu a right-click on a link in the Gmail pane opens, sends the link to the browser from it and copies it", async ({
   launch,
 }) => {
   const stub = await startGmailStub(MAILBOX);
@@ -45,16 +45,21 @@ test("builds the menu a right-click on a link in the Gmail pane opens, and sends
       ]);
 
     const { contextMenu } = await inspect(app);
-    const open = contextMenu.findIndex(
-      (item) => item.kind === "item" && item.id === "openInDefaultBrowser"
-    );
-    await callExposed(app, E2E_CLICK_CONTEXT_MENU, [open]);
+    const indexOf = (id: string) =>
+      contextMenu.findIndex((item) => item.kind === "item" && item.id === id);
+    await callExposed(app, E2E_CLICK_CONTEXT_MENU, [
+      indexOf("openInDefaultBrowser"),
+    ]);
+    await callExposed(app, E2E_CLICK_CONTEXT_MENU, [indexOf("copyLink")]);
     await expect
       .poll(async () => {
-        const { external } = await inspect(app);
-        return external;
+        const { clipboard, external } = await inspect(app);
+        return { clipboard, external };
       })
-      .toStrictEqual([AWAY]);
+      .toStrictEqual({
+        clipboard: [{ kind: "bookmark", title: "Away", url: AWAY }],
+        external: [AWAY],
+      });
   } finally {
     await stub.stop();
   }

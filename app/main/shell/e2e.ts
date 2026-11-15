@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { DownloadProgress } from "../../core/engines/downloads.ts";
 import type {
   BadgePort,
+  ClipboardPort,
   ContextMenuPort,
   GlobalShortcutPort,
   NotificationPort,
@@ -52,6 +53,17 @@ export const e2eSnapshotSchema = z.object({
       z.object({
         kind: z.literal("share"),
         label: z.string(),
+        url: z.string(),
+      }),
+    ])
+  ),
+  /** Everything the app put on the clipboard, in order. */
+  clipboard: z.array(
+    z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("text"), text: z.string() }),
+      z.object({
+        kind: z.literal("bookmark"),
+        title: z.string(),
         url: z.string(),
       }),
     ])
@@ -120,6 +132,26 @@ export class RecordingShell implements ShellPort {
     this.revealed.push(path);
   };
 }
+
+/** The clipboard of a run under MERU_E2E: it keeps what it was asked to write and leaves the system's, which is the maintainer's, alone. */
+interface RecordingClipboard extends ClipboardPort {
+  readonly written: () => E2eSnapshot["clipboard"];
+}
+
+export const recordingClipboard = (): RecordingClipboard => {
+  const written: E2eSnapshot["clipboard"] = [];
+  return {
+    writeBookmark: async (title, url) => {
+      written.push({ kind: "bookmark", title, url });
+      await Promise.resolve();
+    },
+    writeText: async (text) => {
+      written.push({ kind: "text", text });
+      await Promise.resolve();
+    },
+    written: () => [...written],
+  };
+};
 
 /** The context menus of a run under MERU_E2E: it hears the pages and acts on them as the platform's does, but keeps the menu it was asked to show rather than showing it. */
 interface RecordingContextMenu extends ContextMenuPort {
@@ -227,13 +259,14 @@ export const recordingDesktop = (): RecordingDesktop => {
   };
 };
 
-/** Leaves, as a JSON string under `E2E_GLOBAL`, what Electron holds for the first window's stage and the menu, the entitlement, the update state and the links sent to the browser. */
+/** Leaves, as a JSON string under `E2E_GLOBAL`, what Electron holds for the first window's stage and the menu, the entitlement, the update state, the links sent to the browser and what was copied. */
 export const exposeE2e = (options: {
   readonly stages: Pick<Stages, "all">;
   readonly entitlement: Pick<Entitlement<unknown>, "current">;
   readonly updater: Pick<Updater, "current">;
   readonly accelerators: () => Partial<Record<CommandId, string | null>>;
   readonly external: RecordingShell;
+  readonly clipboard: RecordingClipboard;
   readonly desktop: RecordingDesktop;
   readonly contextMenu: RecordingContextMenu;
   readonly sessions: Pick<SessionPort, "fetchText">;
@@ -243,6 +276,7 @@ export const exposeE2e = (options: {
     const desktop = options.desktop.read();
     return {
       badge: desktop.badge,
+      clipboard: options.clipboard.written(),
       contextMenu: options.contextMenu.shown().map((entry) =>
         entry.kind === "item"
           ? {
