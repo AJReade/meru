@@ -208,6 +208,14 @@ export class Downloads {
           return ok(undefined);
         },
         defaultFolder: () => ok(this.#options.defaultDirectory),
+        dragOut: ({ id }, { contentsId }) => {
+          const item = this.#item(id);
+          if (item === undefined || item.state !== "done" || !item.exists) {
+            return err("unknownDownload");
+          }
+          void this.#dragOut(contentsId, item.filePath);
+          return ok(undefined);
+        },
         open: (_payload, { contentsId }) => this.show(contentsId),
         openFile: ({ id }) => this.openFile(id),
         remove: ({ id }) => this.remove(id),
@@ -300,6 +308,16 @@ export class Downloads {
     }
     void this.#openPath(item.filePath);
     return ok(null);
+  }
+
+  /** Hands the file to the system's drag, looking again for the files the overlay lists when the drag is refused, since a file that has gone is the likeliest refusal. */
+  async #dragOut(contentsId: number, file: string) {
+    try {
+      await this.#options.downloads.dragOut(contentsId, file);
+    } catch (error) {
+      this.#options.log.warn("A download could not be dragged out", { error });
+      await this.recheck();
+    }
   }
 
   async #openPath(file: string) {

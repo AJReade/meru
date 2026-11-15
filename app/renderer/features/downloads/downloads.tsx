@@ -63,6 +63,15 @@ const Row = ({
             void client.invoke(downloads.openFile, { id: item.id });
           }
         }}
+        draggable={!gone}
+        onDragStart={(event) => {
+          if (gone) {
+            return;
+          }
+          // Chromium would drag the row's own text, where main's drag carries the file.
+          event.preventDefault();
+          client.send(downloads.dragOut, { id: item.id });
+        }}
         onFocus={onFocus}
         ref={rowRef}
         tabIndex={focusable ? 0 : -1}
@@ -168,7 +177,7 @@ const STEPS = {
 const isStep = (key: string): key is keyof typeof STEPS =>
   Object.hasOwn(STEPS, key);
 
-/** The downloads over the panes: those still arriving with their progress and a button to call each off, then the newest finished downloads with how long ago each started, a click opening the file, each row showing it in its folder or taking it off the list, a file that has gone struck through, and Clear all. The arrows and Home and End move through the rows, Enter opens one and Delete takes it off; Escape, a click outside and the window losing focus close it. */
+/** The downloads over the panes: those still arriving with their progress and a button to call each off, then the newest finished downloads with how long ago each started, a click opening the file, each row dragging its file out to the Finder or another app, showing it in its folder or taking it off the list, a file that has gone struck through, and Clear all. The arrows and Home and End move through the rows, Enter opens one and Delete takes it off; Escape, a click outside and the window losing focus close it. */
 export const Downloads = () => {
   const client = useDownloadsClient();
   const { active: running, items } = useDownloads();

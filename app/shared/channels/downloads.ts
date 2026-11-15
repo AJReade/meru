@@ -36,6 +36,8 @@ export const downloads = defineChannels("downloads", {
   showInFolder: invoke(byId, z.null()),
   /** Calls off a download under way, which is then recorded as cancelled. */
   cancel: invoke(byId, z.null()),
+  /** Starts a drag of a finished download's file out of the page, for the Finder or another app to take. */
+  dragOut: event(byId),
   /** Takes a download off the history, leaving its file. */
   remove: invoke(byId, z.null()),
   clear: invoke(noPayload, z.null()),

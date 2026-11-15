@@ -630,4 +630,43 @@ describe(Downloads, () => {
     await settle();
     expect(pushed().at(-1)?.active).toStrictEqual([]);
   });
+
+  it("drags a finished download's file out of the page that asked, and refuses one that did not finish or whose id it does not know", async () => {
+    const { port, registrar } = await setup();
+    const whole = port.start({ suggestedName: "report.pdf" });
+    port.complete(whole.id);
+    const cut = port.start({ suggestedName: "cut.pdf" });
+    port.interrupt(cut.id);
+    await settle();
+    const refused = [
+      registrar.dispatch(OVERLAY, wireName(channels.dragOut), { id: cut.id }),
+      registrar.dispatch(OVERLAY, wireName(channels.dragOut), {
+        id: "elsewhere",
+      }),
+    ];
+    expect(
+      registrar.dispatch(OVERLAY, wireName(channels.dragOut), { id: whole.id })
+        .ok
+    ).toBeTruthy();
+    await settle();
+    expect([refused.map(({ ok: sent }) => sent), port.dragged]).toStrictEqual([
+      [false, false],
+      [{ contentsId: OVERLAY, path: at("report.pdf") }],
+    ]);
+  });
+
+  it("looks for the files it lists again when a drag is refused, so a file that has gone is marked", async () => {
+    const { feature, log, port, registrar } = await setup();
+    const { id, path: saved } = port.start({ suggestedName: "report.pdf" });
+    port.complete(id);
+    await settle();
+    port.files.delete(saved ?? "");
+    registrar.dispatch(OVERLAY, wireName(channels.dragOut), { id });
+    await settle();
+    expect([
+      port.dragged,
+      feature.snapshot().items.map((item) => item.exists),
+      log.at("warn"),
+    ]).toStrictEqual([[], [false], ["A download could not be dragged out"]]);
+  });
 });

@@ -147,6 +147,15 @@ export const createDownloads = (options: {
     download: (contentsId, url) => {
       webContents.fromId(contentsId)?.downloadURL(url);
     },
+    dragOut: async (contentsId, file) => {
+      const contents = webContents.fromId(contentsId);
+      if (contents === null || contents === undefined) {
+        return;
+      }
+      // Electron refuses a drag with an empty image, so the icon is fetched before the drag starts rather than drawn from the file's type here.
+      const icon = await app.getFileIcon(file);
+      contents.startDrag({ file, icon });
+    },
     exists: async (file) => {
       try {
         await access(file);

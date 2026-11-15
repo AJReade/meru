@@ -70,6 +70,7 @@ export const downloadsSurface = defineSurface({
       cancel: downloads.cancel,
       clear: downloads.clear,
       close: downloads.close,
+      dragOut: downloads.dragOut,
       openFile: downloads.openFile,
       remove: downloads.remove,
       showInFolder: downloads.showInFolder,

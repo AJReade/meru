@@ -213,6 +213,26 @@ describe(Downloads, () => {
     ]).toStrictEqual([[{ id: "report" }], true, true]);
   });
 
+  it("drags out the file of a download that finished, and never one that has gone", async () => {
+    const { sentOn } = mount([
+      item("report"),
+      item("moved", { exists: false }),
+    ]);
+    const drags = ["report", "moved"].map((id) => {
+      const event = new Event("dragstart", { bubbles: true, cancelable: true });
+      act(() => {
+        rowButton(id)?.dispatchEvent(event);
+      });
+      return event.defaultPrevented;
+    });
+    await settle();
+    expect([
+      drags,
+      ["report", "moved"].map((id) => rowButton(id)?.getAttribute("draggable")),
+      sentOn(downloads.dragOut),
+    ]).toStrictEqual([[true, false], ["true", "false"], [{ id: "report" }]]);
+  });
+
   it("closes on a click on the backdrop", async () => {
     const { sentOn } = mount([item("report")]);
     const backdrop = document.querySelector<HTMLElement>(

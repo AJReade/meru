@@ -19,6 +19,8 @@ export class FakeDownloads implements DownloadPort {
   readonly requested: { contentsId: number; url: string }[] = [];
   /** Each file marked as a finished download, in order. */
   readonly marked: string[] = [];
+  /** Each file dragged out of a page, in order. */
+  readonly dragged: { contentsId: number; path: string }[] = [];
   #decide: ((start: DownloadStart) => DownloadTarget) | undefined;
   #moves: Promise<void> = Promise.resolve();
   readonly #listeners = new Set<(event: DownloadEvent) => void>();
@@ -92,6 +94,14 @@ export class FakeDownloads implements DownloadPort {
 
   readonly download = (contentsId: number, url: string) => {
     this.requested.push({ contentsId, url });
+  };
+
+  readonly dragOut = async (contentsId: number, path: string) => {
+    await Promise.resolve();
+    if (!this.files.has(path)) {
+      throw new Error(`ENOENT: ${path}`);
+    }
+    this.dragged.push({ contentsId, path });
   };
 
   readonly occupied = (path: string) => {
