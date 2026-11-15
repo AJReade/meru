@@ -574,6 +574,7 @@ export class Gmail {
       signIn: this.#options.signIn,
       styles: {
         hideGmailLogo: settings.get("gmail.hideGmailLogo"),
+        hideInboxFooter: settings.get("gmail.hideInboxFooter"),
         hideOutOfOfficeBanner: settings.get("gmail.hideOutOfOfficeBanner"),
         hidePromoBanner: settings.get("gmail.hidePromoBanner"),
         hideUpgradeButton: settings.get("gmail.hideUpgradeButton"),

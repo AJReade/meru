@@ -3,6 +3,7 @@ import { attachmentsToTop } from "./attachments-to-top.ts";
 import { clippedMessages } from "./clipped-messages.ts";
 import { closeAfterSend } from "./close-after-send.ts";
 import { hideGmailLogo } from "./hide-gmail-logo.ts";
+import { hideInboxFooter } from "./hide-inbox-footer.ts";
 import { hidePromoBanner } from "./hide-promo-banner.ts";
 import { hideUpgradeButton } from "./hide-upgrade-button.ts";
 import { labelColors } from "./label-colors.ts";
@@ -26,6 +27,7 @@ export const gmailFeatures = (): readonly GmailFeature[] => [
   clippedMessages,
   closeAfterSend,
   hideGmailLogo,
+  hideInboxFooter,
   hidePromoBanner,
   hideUpgradeButton,
   labelColors,

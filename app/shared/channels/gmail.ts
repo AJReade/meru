@@ -15,6 +15,7 @@ import {
 /** The Gmail page's style sheets the settings turn on and off, one per feature, by its setting's name under `gmail.`. */
 export const gmailStylesSchema = z.object({
   hideGmailLogo: z.boolean(),
+  hideInboxFooter: z.boolean(),
   hideOutOfOfficeBanner: z.boolean(),
   hidePromoBanner: z.boolean(),
   hideUpgradeButton: z.boolean(),

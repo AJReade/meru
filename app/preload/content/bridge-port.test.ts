@@ -13,6 +13,7 @@ const settings = {
   signIn: "https://accounts.google.com",
   styles: {
     hideGmailLogo: false,
+    hideInboxFooter: false,
     hideOutOfOfficeBanner: false,
     hidePromoBanner: false,
     hideUpgradeButton: false,

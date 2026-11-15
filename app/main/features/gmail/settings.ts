@@ -25,6 +25,17 @@ export const gmailSettings = [
     section: msg`Appearance`,
     tier: "free",
   }),
+  defineSetting("gmail.hideInboxFooter", {
+    default: true,
+    description: msg`Hide the footer at the bottom of the inbox.`,
+    label: msg`Hide inbox footer`,
+    page: gmailPage.id,
+    restart: false,
+    schema: z.boolean(),
+    scope: "global",
+    section: msg`Appearance`,
+    tier: "free",
+  }),
   defineSetting("gmail.hidePromoBanner", {
     default: true,
     description: msg`Hide the promotional banners at the top of the message list, such as the Google Workspace upgrade offer.`,

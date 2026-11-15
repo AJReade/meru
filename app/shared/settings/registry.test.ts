@@ -32,6 +32,7 @@ describe("the settings registry", () => {
       | "downloads.saveAs"
       | "gmail.closeComposeWindowAfterSend"
       | "gmail.hideGmailLogo"
+      | "gmail.hideInboxFooter"
       | "gmail.hideOutOfOfficeBanner"
       | "gmail.hidePromoBanner"
       | "gmail.hideUpgradeButton"
