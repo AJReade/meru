@@ -34,16 +34,13 @@ export const mailNotice = (
   options: MailNoticeOptions
 ): MailNotice => {
   const { platform, profileLabel, labelled } = options;
-  const sender =
-    entry.author.name === "" ? entry.author.email : entry.author.name;
+  const sender = entry.author.name ?? entry.author.email;
   let title = profileLabel;
   if (options.showSender) {
     title = labelled ? `[${profileLabel}] ${sender}` : sender;
   }
-  const subject =
-    options.showSubject && entry.subject !== "" ? entry.subject : undefined;
-  const summary =
-    options.showSummary && entry.summary !== "" ? entry.summary : undefined;
+  const subject = options.showSubject ? entry.subject : undefined;
+  const summary = options.showSummary ? entry.summary : undefined;
   if (platform === "darwin") {
     return {
       title,

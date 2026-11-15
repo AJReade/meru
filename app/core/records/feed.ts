@@ -2,7 +2,8 @@ import { z } from "zod";
 
 const feedPersonSchema = z.object({
   email: z.string(),
-  name: z.string(),
+  /** The sender's name, absent where the feed gives none. */
+  name: z.string().optional(),
 });
 
 /** One unread message in the inbox as Gmail's Atom feed lists it. */
@@ -11,8 +12,10 @@ const feedEntrySchema = z.object({
   id: z.string(),
   /** The hex id in the link's `message_id`, which Gmail's own URLs and actions take. */
   messageId: z.string(),
-  subject: z.string(),
-  summary: z.string(),
+  /** The subject, absent where the message has none. */
+  subject: z.string().optional(),
+  /** The snippet, absent where the message has none. */
+  summary: z.string().optional(),
   link: z.string(),
   author: feedPersonSchema,
   /** When the message arrived, in milliseconds since the epoch. */

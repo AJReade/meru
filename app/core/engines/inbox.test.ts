@@ -26,7 +26,7 @@ const subjects = (entries: readonly FeedEntry[]) =>
 
 const reads = (
   ...steps: readonly (readonly [readonly FeedEntry[], number])[]
-): string[][] => {
+): (string | undefined)[][] => {
   let memory = EMPTY_FEED_MEMORY;
   return steps.map(([entries, readAt]) => {
     const read = readFeed(memory, entries, readAt);

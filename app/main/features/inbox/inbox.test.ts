@@ -49,7 +49,10 @@ const setup = async ({ online = true } = {}) => {
   const network = new FakeOnline(online);
   const power = new FakePower();
   const log = new FakeLog();
-  const arrived: { profileId: string; subjects: string[] }[] = [];
+  const arrived: {
+    profileId: string;
+    subjects: (string | undefined)[];
+  }[] = [];
   events.on("mail.arrived", ({ profileId, entries }) => {
     arrived.push({
       profileId,

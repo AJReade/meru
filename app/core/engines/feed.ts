@@ -19,6 +19,15 @@ const child = (element: XmlElement, name: string): XmlElement | undefined =>
 const textOf = (element: XmlElement, name: string): string =>
   child(element, name)?.text.trim() ?? "";
 
+/** The child's text, or undefined where the feed gives none, as Gmail leaves a snippet or a sender's name out. */
+const optionalTextOf = (
+  element: XmlElement,
+  name: string
+): string | undefined => {
+  const text = textOf(element, name);
+  return text === "" ? undefined : text;
+};
+
 const MESSAGE_ID = /[?&]message_id=(?<id>[\da-f]+)/u;
 
 const entryOf = (element: XmlElement): FeedEntry | undefined => {
@@ -30,13 +39,16 @@ const entryOf = (element: XmlElement): FeedEntry | undefined => {
     return undefined;
   }
   return {
-    author: { email: textOf(author, "email"), name: textOf(author, "name") },
+    author: {
+      email: textOf(author, "email"),
+      name: optionalTextOf(author, "name"),
+    },
     id,
     issued,
     link,
     messageId: MESSAGE_ID.exec(link)?.groups?.id ?? "",
-    subject: textOf(element, "title"),
-    summary: textOf(element, "summary"),
+    subject: optionalTextOf(element, "title"),
+    summary: optionalTextOf(element, "summary"),
   };
 };
 

@@ -10,7 +10,7 @@ import {
 import { parseFeed } from "./feed.ts";
 
 describe(parseFeed, () => {
-  it("reads every entry with its entities decoded and every value a string, the message id from its link", () => {
+  it("reads every entry with its entities decoded, the message id from its link, and nothing where the feed gives no subject, snippet or sender name", () => {
     expect(parseFeed(TWO_UNREAD)).toStrictEqual({
       ok: true,
       value: {
@@ -31,12 +31,21 @@ describe(parseFeed, () => {
             link: "https://mail.google.com/mail/u/0?account_id=jane@example.com&message_id=18c1a2b3c4d5e6f8&view=conv&extsrc=atom",
             messageId: "18c1a2b3c4d5e6f8",
             subject: "2024",
-            summary: "",
+            summary: undefined,
           },
         ],
         unread: 2,
       },
     });
+  });
+
+  it("leaves out a sender's name the feed gives as nothing, so a notification falls back to the address", () => {
+    const parsed = parseFeed(
+      TWO_UNREAD.replace("<name>Tom O&#39;Brien</name>", "<name></name>")
+    );
+    expect(
+      parsed.ok ? parsed.value.entries[0]?.author : undefined
+    ).toStrictEqual({ email: "tom@example.com", name: undefined });
   });
 
   it("reads one entry as a list of one, none as an empty list, and the unread count past the entries listed", () => {
