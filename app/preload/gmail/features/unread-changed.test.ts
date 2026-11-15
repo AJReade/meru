@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { gmail } from "../../../shared/channels/gmail.ts";
-import { mountGmail } from "../testing.ts";
+import { mountGmail, withoutFrames } from "../testing.ts";
 import inboxRows from "./fixtures/inbox-rows.html?raw";
 import { INBOX_LINK } from "./refresh.ts";
 import { unreadChanged } from "./unread-changed.ts";
@@ -44,7 +44,7 @@ describe(unreadChanged, () => {
   it("waits for the navigation when the page has none yet, and says nothing of the count it first shows", async () => {
     const page = mountGmail({ features: [unreadChanged()], html: "" });
     page.run();
-    document.body.innerHTML = inboxRows;
+    document.body.innerHTML = withoutFrames(inboxRows);
     await page.settle();
     expect(page.bridge.sentOn(gmail.unreadChanged)).toStrictEqual([]);
     page.app.dispose();

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { gmailPushes } from "../../../shared/channels/gmail.ts";
-import { mountGmail, MAILBOX } from "../testing.ts";
+import { mountGmail, MAILBOX, withoutFrames } from "../testing.ts";
 import attachments from "./fixtures/attachments.html?raw";
 import inboxRows from "./fixtures/inbox-rows.html?raw";
 import {
@@ -63,7 +63,7 @@ describe(refresh, () => {
     const page = mountGmail({ features: [refresh(() => now)], html: "" });
 
     page.bridge.push(gmailPushes.refresh, {});
-    document.body.innerHTML = inboxRows;
+    document.body.innerHTML = withoutFrames(inboxRows);
     const pressed = clicksOn(REFRESH_BUTTON);
     now = 1;
     page.bridge.push(gmailPushes.refresh, {});

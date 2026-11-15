@@ -86,6 +86,11 @@ export interface MountedGmail {
   readonly settle: () => Promise<number>;
 }
 
+// happy-dom tries to load every iframe and logs a stack trace for each, since the tests leave its frame loading off; Gmail's are its own empty script frames, which no feature reads, so a fixture goes in without them rather than with a setting that would load frames for every test.
+/** The fixture without its iframes. */
+export const withoutFrames = (html: string): string =>
+  html.replaceAll(/<iframe\b[\s\S]*?<\/iframe\s*>/giu, "");
+
 /** The preload over a fixture, assembled as `index.ts` assembles it, with one fake bridge and the page's frames in the test's hands. */
 export const mountGmail = (options: {
   html?: string;
@@ -99,7 +104,7 @@ export const mountGmail = (options: {
   pixels?: FakeImagePixels;
 }): MountedGmail => {
   document.head.innerHTML = "";
-  document.body.innerHTML = options.html ?? "";
+  document.body.innerHTML = withoutFrames(options.html ?? "");
   const bridge = new FakeContentBridge(gmailSurface);
   const http = new FakeGmailHttp();
   const settings = { ...testSettings, ...options.settings };
