@@ -10,12 +10,24 @@ export interface PageCanvas {
 
 const SIDE = 24;
 
+/** A 2D context to read pixels from, or null where the page gives none: a page without `OffscreenCanvas`, or one that refuses a context. */
+const contextOf = (side: number): OffscreenCanvasRenderingContext2D | null => {
+  if (typeof OffscreenCanvas === "undefined") {
+    return null;
+  }
+  try {
+    return new OffscreenCanvas(side, side).getContext("2d", {
+      willReadFrequently: true,
+    });
+  } catch {
+    return null;
+  }
+};
+
 const imageSampler = (): ((image: HTMLImageElement) => Uint8ClampedArray) => {
   let context: OffscreenCanvasRenderingContext2D | null | undefined;
   return (image) => {
-    context ??= new OffscreenCanvas(SIDE, SIDE).getContext("2d", {
-      willReadFrequently: true,
-    });
+    context ??= contextOf(SIDE);
     if (context === null) {
       return new Uint8ClampedArray(0);
     }
@@ -70,10 +82,14 @@ const colourReader = (): ((text: string) => Rgba | undefined) => {
     if (answers.has(text)) {
       return answers.get(text);
     }
-    context ??= new OffscreenCanvas(1, 1).getContext("2d", {
-      willReadFrequently: true,
-    });
-    const colour = context === null ? undefined : paintedColour(context, text);
+    context ??= contextOf(1);
+    let colour: Rgba | undefined;
+    try {
+      colour = context === null ? undefined : paintedColour(context, text);
+    } catch {
+      // A canvas that refuses to be read answers no colour, which leaves what is painted in it as the mail set it.
+      colour = undefined;
+    }
     if (answers.size >= COLOURS_KEPT) {
       answers.clear();
     }
