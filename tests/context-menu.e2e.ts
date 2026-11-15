@@ -27,20 +27,20 @@ test("builds the menu a right-click on a link in the Gmail pane opens, sends the
           enabled: true,
           id: "copyLink",
           kind: "item",
-          label: "Copy Link Addr&ess",
+          label: "Copy link addr&ess",
         },
         {
           enabled: true,
           id: "openInDefaultBrowser",
           kind: "item",
-          label: "Open in Default Browser",
+          label: "Open in default browser",
         },
         { kind: "separator" },
         {
           enabled: true,
           id: "inspectElement",
           kind: "item",
-          label: "Inspect Element",
+          label: "Inspect element",
         },
       ]);
 

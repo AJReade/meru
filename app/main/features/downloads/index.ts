@@ -81,7 +81,7 @@ const historySnapshot: SnapshotSpec<History, "items"> = {
 /** How often at most the pages hear what the downloads under way have received: Chromium reports every chunk it writes, which is many times a second on a fast network. */
 export const PROGRESS_INTERVAL = 500;
 
-/** How long a Save Image As waits for its download to arrive before it is forgotten. */
+/** How long a Save image as waits for its download to arrive before it is forgotten. */
 export const SAVE_AS_LIFETIME = 60_000;
 
 /** Where a download goes once it is whole: a path, or, while the save dialog has not answered, the one it suggested. */
@@ -351,7 +351,7 @@ export class Downloads {
     return ok(null);
   }
 
-  /** Downloads `url` from the page `contentsId`, asking where to save it whatever `downloads.saveAs` says, as Save Image As does. */
+  /** Downloads `url` from the page `contentsId`, asking where to save it whatever `downloads.saveAs` says, as Save image as does. */
   saveAs(contentsId: number, url: string): void {
     const now = this.#options.clock.now();
     const pending = this.#pendingSaves.filter(

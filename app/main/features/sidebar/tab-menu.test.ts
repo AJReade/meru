@@ -111,18 +111,18 @@ describe(TabMenu, () => {
       shown().map((entry) => (entry.kind === "item" ? entry.label : "-"))
     ).toStrictEqual([
       "Reload",
-      "Split Vertically",
-      "Split Horizontally",
-      "Leave Group",
+      "Split vertically",
+      "Split horizontally",
+      "Leave group",
       "-",
       "Copy URL",
-      "Open in Default Browser",
+      "Open in default browser",
       "-",
-      "Sleep When Idle",
+      "Sleep when idle",
       "-",
       "Close",
-      "Close Other Tabs",
-      "Close Tabs Below",
+      "Close other tabs",
+      "Close tabs below",
     ]);
   });
 

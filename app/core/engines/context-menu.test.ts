@@ -16,23 +16,23 @@ import type { ContextMenuLabels } from "./context-menu.ts";
 
 const LABELS: ContextMenuLabels = {
   copy: "Copy",
-  copyEmailAddress: "Copy Email Address",
-  copyImage: "Copy Image",
-  copyImageAddress: "Copy Image Address",
-  copyLink: "Copy Link Address",
-  copyMessageLink: "Copy Message Link",
+  copyEmailAddress: "Copy email address",
+  copyImage: "Copy image",
+  copyImageAddress: "Copy image address",
+  copyLink: "Copy link address",
+  copyMessageLink: "Copy message link",
   copyUrl: "Copy URL",
   cut: "Cut",
-  inspectElement: "Inspect Element",
-  learnSpelling: "Learn Spelling",
-  lookUp: (selection) => `Look Up “${selection}”`,
-  noGuessesFound: "No Guesses Found",
-  openInDefaultBrowser: "Open in Default Browser",
+  inspectElement: "Inspect element",
+  learnSpelling: "Learn spelling",
+  lookUp: (selection) => `Look up “${selection}”`,
+  noGuessesFound: "No guesses found",
+  openInDefaultBrowser: "Open in default browser",
   paste: "Paste",
-  pasteAndMatchStyle: "Paste and Match Style",
-  saveImageAs: "Save Image As…",
+  pasteAndMatchStyle: "Paste and match style",
+  saveImageAs: "Save image as…",
   searchWithGoogle: "Search with Google",
-  selectAll: "Select All",
+  selectAll: "Select all",
   share: "Share",
 };
 
@@ -117,7 +117,7 @@ const imageItems = (srcUrl: string) =>
   layout(menu({ mediaType: "image", srcUrl })).slice(2);
 
 describe(contextMenuOf, () => {
-  it("offers only Select All on a page with nothing under the click, outside macOS, and nothing on macOS", () => {
+  it("offers only Select all on a page with nothing under the click, outside macOS, and nothing on macOS", () => {
     expect([
       layout(menu({})),
       layout(menu({}, { platform: "win32" })),
@@ -125,19 +125,19 @@ describe(contextMenuOf, () => {
     ]).toStrictEqual([["selectAll"], ["selectAll"], []]);
   });
 
-  it("enables Select All as the page's edit flags say", () => {
+  it("enables Select all as the page's edit flags say", () => {
     expect(
       layout(menu({ editFlags: { ...NOTHING.editFlags, canSelectAll: false } }))
     ).toStrictEqual(["selectAll (off)"]);
   });
 
-  it("offers Look Up on macOS, Search with Google and Copy for selected text", () => {
+  it("offers Look up on macOS, Search with Google and Copy for selected text", () => {
     expect(
       layout(menu({ selectionText: "Meru" }, { platform: "darwin" }))
     ).toStrictEqual(["lookUp", "-", "searchWithGoogle", "-", "copy"]);
   });
 
-  it("leaves Look Up out on a link and off macOS", () => {
+  it("leaves Look up out on a link and off macOS", () => {
     expect([
       layout(
         menu({ ...LINK, selectionText: "Example" }, { platform: "darwin" })
@@ -201,7 +201,7 @@ describe(contextMenuOf, () => {
     );
   });
 
-  it("offers neither Look Up nor Search with Google for a selection of only space", () => {
+  it("offers neither Look up nor Search with Google for a selection of only space", () => {
     expect(
       layout(menu({ selectionText: " \n" }, { platform: "darwin" }))
     ).toStrictEqual(["copy"]);
@@ -252,7 +252,7 @@ describe(contextMenuOf, () => {
     });
   });
 
-  it("puts the spelling suggestions first, each replacing the word, then Learn Spelling", () => {
+  it("puts the spelling suggestions first, each replacing the word, then Learn spelling", () => {
     const items = menu(
       { ...MISSPELLED, dictionarySuggestions: ["Meru", "Menu"] },
       { platform: "darwin" }
@@ -274,7 +274,7 @@ describe(contextMenuOf, () => {
     ]);
   });
 
-  it("says No Guesses Found, disabled, when the spellchecker has none", () => {
+  it("says No guesses found, disabled, when the spellchecker has none", () => {
     expect(layout(menu(MISSPELLED)).slice(0, 3)).toStrictEqual([
       "noGuessesFound (off)",
       "-",
@@ -282,7 +282,7 @@ describe(contextMenuOf, () => {
     ]);
   });
 
-  it("offers no suggestion or Learn Spelling outside a text field, but still says there is no guess", () => {
+  it("offers no suggestion or Learn spelling outside a text field, but still says there is no guess", () => {
     const outside = { ...MISSPELLED, isEditable: false };
     expect([
       layout(menu({ ...outside, dictionarySuggestions: ["Meru"] })),
@@ -318,7 +318,7 @@ describe(contextMenuOf, () => {
     ]);
   });
 
-  it("offers Save Image As, Copy Image and Copy Image Address for an image", () => {
+  it("offers Save image as, Copy image and Copy image address for an image", () => {
     const items = menu(IMAGE);
     expect([
       layout(items),
@@ -355,7 +355,7 @@ describe(contextMenuOf, () => {
     ).toStrictEqual(["selectAll"]);
   });
 
-  it("offers Copy Link Address and Open in Default Browser for a link", () => {
+  it("offers Copy link address and Open in default browser for a link", () => {
     const items = menu(LINK);
     expect([
       layout(items),
@@ -382,7 +382,7 @@ describe(contextMenuOf, () => {
     ]);
   });
 
-  it("offers Copy Email Address for a mailto link, and no browser for it", () => {
+  it("offers Copy email address for a mailto link, and no browser for it", () => {
     const items = menu({
       linkText: "someone",
       linkUrl: "mailto:some%20one@example.com?subject=Hi",
@@ -393,7 +393,7 @@ describe(contextMenuOf, () => {
     ]);
   });
 
-  it("offers no Copy Email Address for a mailto link without an address", () => {
+  it("offers no Copy email address for a mailto link without an address", () => {
     expect(layout(menu({ linkUrl: "mailto:?subject=Hi" }))).toStrictEqual([
       "selectAll",
       "-",
@@ -415,7 +415,7 @@ describe(contextMenuOf, () => {
     ]);
   });
 
-  it("offers neither Look Up nor Search with Google for a selection of only zero-width characters, and searches without them", () => {
+  it("offers neither Look up nor Search with Google for a selection of only zero-width characters, and searches without them", () => {
     expect([
       layout(menu({ selectionText: "\u200B\uFEFF" }, { platform: "darwin" })),
       searchOf("\u200BMeru\u200D"),
@@ -427,19 +427,19 @@ describe(contextMenuOf, () => {
     ]);
   });
 
-  it("leaves Open in Default Browser out for a link the browser does not take", () => {
+  it("leaves Open in default browser out for a link the browser does not take", () => {
     expect(
       layout(menu({ linkUrl: "blob:https://example.com/1" }))
     ).toStrictEqual(["selectAll", "-", "copyLink"]);
   });
 
-  it("offers no Copy Message Link on a page off the mailbox", () => {
+  it("offers no Copy message link on a page off the mailbox", () => {
     expect(
       layout(menu({ pageUrl: `https://example.com/#inbox/${MESSAGE}` }))
     ).toStrictEqual(["selectAll"]);
   });
 
-  it("offers Copy Message Link on a Gmail page showing a message, with Share on macOS", () => {
+  it("offers Copy message link on a Gmail page showing a message, with Share on macOS", () => {
     const pageUrl = `${MAILBOX}/#inbox/${MESSAGE}`;
     const link = `${MAILBOX}/#inbox/${MESSAGE}`;
     const items = menu({ pageUrl }, { platform: "darwin" });
@@ -454,7 +454,7 @@ describe(contextMenuOf, () => {
     ]);
   });
 
-  it("offers Copy URL and Open in Default Browser for the page's own address where asked, after a message's link", () => {
+  it("offers Copy URL and Open in default browser for the page's own address where asked, after a message's link", () => {
     const pageUrl = "https://calendar.google.com/calendar/u/0/r";
     const items = menu({ pageUrl }, { offersPage: true });
     expect([
@@ -477,7 +477,7 @@ describe(contextMenuOf, () => {
       },
       {
         action: { kind: "openExternal", url: pageUrl },
-        label: "Open in Default Browser",
+        label: "Open in default browser",
       },
       ["selectAll"],
       ["selectAll", "-", "copyUrl"],
@@ -494,7 +494,7 @@ describe(contextMenuOf, () => {
     ]);
   });
 
-  it("offers Inspect Element last, only in a run from the repository", () => {
+  it("offers Inspect element last, only in a run from the repository", () => {
     const items = menu(LINK, { development: true });
     expect([layout(items).at(-1), items.at(-1)]).toMatchObject([
       "inspectElement",

@@ -89,7 +89,7 @@ export type ContextMenuItem =
       readonly id: ContextMenuItemId;
       readonly label: string;
       readonly enabled: boolean;
-      /** Absent on an item that only says something, such as No Guesses Found. */
+      /** Absent on an item that only says something, such as No guesses found. */
       readonly action?: ContextMenuAction;
     }
   | { readonly kind: "separator" }

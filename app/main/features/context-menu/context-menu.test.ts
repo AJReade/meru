@@ -151,17 +151,17 @@ describe(ContextMenu, () => {
       "-",
       "&Copy",
       "-",
-      "Copy Link Addr&ess",
-      "Open in Default Browser",
+      "Copy link addr&ess",
+      "Open in default browser",
       "-",
-      "Inspect Element",
+      "Inspect element",
     ]);
   });
 
-  it("names the selection Look Up shows on macOS", async () => {
+  it("names the selection Look up shows on macOS", async () => {
     const { labels, rightClick } = await setup();
     rightClick({ selectionText: "Fish & Chips" });
-    expect(labels()[0]).toBe("Look Up “Fish && Chips”");
+    expect(labels()[0]).toBe("Look up “Fish && Chips”");
   });
 
   it("opens a link and searches Google in the default browser, through the links feature", async () => {
@@ -240,7 +240,7 @@ describe(ContextMenu, () => {
     ]);
   });
 
-  it("acts on the page it was opened over for an edit, a spelling, an image and Inspect Element", async () => {
+  it("acts on the page it was opened over for an edit, a spelling, an image and Inspect element", async () => {
     const { click, pane, port, rightClick } = await setup({
       development: true,
       platform: "linux",
@@ -301,7 +301,7 @@ describe(ContextMenu, () => {
       shell.opened,
     ]).toStrictEqual([
       [],
-      ["Copy URL", "Open in Default Browser"],
+      ["Copy URL", "Open in default browser"],
       [{ kind: "text", text: pageUrl }],
       [pageUrl],
     ]);

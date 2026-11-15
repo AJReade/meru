@@ -21,15 +21,15 @@ import type { Stages } from "../stage/index.ts";
 
 const labels = (): TabMenuLabels => ({
   close: msg`Close`,
-  closeBelow: msg`Close Tabs Below`,
-  closeOthers: msg`Close Other Tabs`,
+  closeBelow: msg`Close tabs below`,
+  closeOthers: msg`Close other tabs`,
   copyUrl: msg`Copy URL`,
-  leaveGroup: msg`Leave Group`,
-  openInDefaultBrowser: msg`Open in Default Browser`,
+  leaveGroup: msg`Leave group`,
+  openInDefaultBrowser: msg`Open in default browser`,
   reload: msg`Reload`,
-  sleepWhenIdle: msg`Sleep When Idle`,
-  splitHorizontal: msg`Split Horizontally`,
-  splitVertical: msg`Split Vertically`,
+  sleepWhenIdle: msg`Sleep when idle`,
+  splitHorizontal: msg`Split horizontally`,
+  splitVertical: msg`Split vertically`,
 });
 
 export interface TabMenuOptions {

@@ -243,7 +243,7 @@ test("hides the sidebar and brings it back from the menu, laying the panes out a
   await expect.poll(left).toBe(shown);
 });
 
-test("opens a row's menu on a right-click, whose Close Other Tabs leaves that tab and the pinned Gmail", async ({
+test("opens a row's menu on a right-click, whose Close other tabs leaves that tab and the pinned Gmail", async ({
   launch,
 }) => {
   const { app, chrome } = await launch();

@@ -20,23 +20,23 @@ import type { ContentPage } from "../stage/tab-views.ts";
 // A single & marks the access key on Windows and Linux, which macOS's menus leave out. Read on every menu, so a change of language shows in the next one.
 const labels = (): ContextMenuLabels => ({
   copy: msg`&Copy`,
-  copyEmailAddress: msg`Copy Email Address`,
-  copyImage: msg`Cop&y Image`,
-  copyImageAddress: msg`C&opy Image Address`,
-  copyLink: msg`Copy Link Addr&ess`,
-  copyMessageLink: msg`Copy Message Link`,
+  copyEmailAddress: msg`Copy email address`,
+  copyImage: msg`Cop&y image`,
+  copyImageAddress: msg`C&opy image address`,
+  copyLink: msg`Copy link addr&ess`,
+  copyMessageLink: msg`Copy message link`,
   copyUrl: msg`Copy URL`,
   cut: msg`Cu&t`,
-  inspectElement: msg`Inspect Element`,
-  learnSpelling: msg`&Learn Spelling`,
-  lookUp: (selection) => msg`Look Up “${selection}”`,
-  noGuessesFound: msg`No Guesses Found`,
-  openInDefaultBrowser: msg`Open in Default Browser`,
+  inspectElement: msg`Inspect element`,
+  learnSpelling: msg`&Learn spelling`,
+  lookUp: (selection) => msg`Look up “${selection}”`,
+  noGuessesFound: msg`No guesses found`,
+  openInDefaultBrowser: msg`Open in default browser`,
   paste: msg`&Paste`,
-  pasteAndMatchStyle: msg`Paste and &Match Style`,
-  saveImageAs: msg`Sa&ve Image As…`,
+  pasteAndMatchStyle: msg`Paste and &match style`,
+  saveImageAs: msg`Sa&ve image as…`,
   searchWithGoogle: msg`&Search with Google`,
-  selectAll: msg`Select &All`,
+  selectAll: msg`Select &all`,
   share: msg`Share`,
 });
 
@@ -57,7 +57,7 @@ export interface ContextMenuOptions {
   readonly links: Pick<Links, "openExternal">;
   readonly log: LogPort;
   readonly platform: Platform;
-  /** A run from the repository, whose menu offers Inspect Element. */
+  /** A run from the repository, whose menu offers Inspect element. */
   readonly development: boolean;
   /** The Gmail mailbox's address, under which a page showing a message offers its link. */
   readonly mailbox: string;

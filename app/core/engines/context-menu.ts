@@ -31,7 +31,7 @@ export interface ContextMenuLabels {
 
 export interface ContextMenuContext {
   readonly platform: Platform;
-  /** A run from the repository, which offers Inspect Element. */
+  /** A run from the repository, which offers Inspect element. */
   readonly development: boolean;
   /** The Gmail mailbox's address, whose origin a page showing a message must share to offer its link. */
   readonly mailbox: string;
@@ -40,17 +40,17 @@ export interface ContextMenuContext {
   readonly labels: ContextMenuLabels;
 }
 
-/** The most graphemes of a selection Look Up names before cutting it short, as Safari does. */
+/** The most graphemes of a selection Look up names before cutting it short, as Safari does. */
 export const LOOK_UP_GRAPHEMES = 25;
 
 const MAILTO = "mailto:";
 
 const WEB_ADDRESS = /^https?:/iu;
 
-/** Whether the address is a web page's, the only kind Open in Default Browser hands the browser. */
+/** Whether the address is a web page's, the only kind Open in default browser hands the browser. */
 export const isWebAddress = (url: string): boolean => WEB_ADDRESS.test(url);
 
-// Chromium downloads an image from a page's data and blob addresses as it does from the web; it gives none at all for a data address over about 2 MB, and any other scheme, such as javascript:, is nothing to save. Copy Image Address takes only a web address, since a blob address means nothing outside the page that made it and a data address is the image itself, up to megabytes of text.
+// Chromium downloads an image from a page's data and blob addresses as it does from the web; it gives none at all for a data address over about 2 MB, and any other scheme, such as javascript:, is nothing to save. Copy image address takes only a web address, since a blob address means nothing outside the page that made it and a data address is the image itself, up to megabytes of text.
 const SAVEABLE_IMAGE = /^(?:https?|data|blob):/iu;
 
 // The space a selection is trimmed of, with the zero-width characters a page leaves around words, which show nothing to look up or search.
@@ -71,7 +71,7 @@ const QUERY_VIEWS = new Set([
   "circle",
 ]);
 
-/** The selection as Look Up names it: trimmed of space and zero-width characters, cut to `LOOK_UP_GRAPHEMES` with an ellipsis, so an emoji sequence or a combined character is never split, and its ampersands doubled, since a single one marks an access key. */
+/** The selection as Look up names it: trimmed of space and zero-width characters, cut to `LOOK_UP_GRAPHEMES` with an ellipsis, so an emoji sequence or a combined character is never split, and its ampersands doubled, since a single one marks an access key. */
 export const lookUpName = (selection: string): string => {
   const graphemes: string[] = [];
   const segments = new Intl.Segmenter(undefined, {
@@ -180,7 +180,7 @@ const googleSearch = (text: string): string => {
 
 type Section = readonly ContextMenuItem[];
 
-/** A suggestion for each guess the spellchecker has, which only an editable field can take, or No Guesses Found. */
+/** A suggestion for each guess the spellchecker has, which only an editable field can take, or No guesses found. */
 const spelling = (
   params: ContextMenuParams,
   labels: ContextMenuLabels
@@ -290,7 +290,7 @@ const edit = (
           item("pasteAndMatchStyle", editFlags.canPaste),
         ]
       : []),
-    // macOS's own menus leave Select All out of a page's context menu.
+    // macOS's own menus leave Select all out of a page's context menu.
     ...(platform === "darwin"
       ? []
       : [item("selectAll", editFlags.canSelectAll)]),

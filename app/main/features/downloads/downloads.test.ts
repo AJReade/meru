@@ -172,7 +172,7 @@ describe(Downloads, () => {
     ]).toStrictEqual([false, false, 1]);
   });
 
-  it("asks for a Save Image As whatever downloads.saveAs says, and only for the address it was given while it is fresh", async () => {
+  it("asks for a Save image as whatever downloads.saveAs says, and only for the address it was given while it is fresh", async () => {
     const { clock, dialogs, feature, port } = await setup();
     feature.saveAs(7, "https://example.com/cat.png");
     expect(port.requested).toStrictEqual([
@@ -201,7 +201,7 @@ describe(Downloads, () => {
     ).toBe(at("late.png"));
   });
 
-  it("arms no Save Image As for a page that has gone, so a later download of the address saves silently", async () => {
+  it("arms no Save image as for a page that has gone, so a later download of the address saves silently", async () => {
     const { dialogs, feature, port } = await setup();
     port.closedPages.add(7);
     feature.saveAs(7, "https://example.com/cat.png");

@@ -8,15 +8,15 @@ import type { TabMenuContext, TabMenuItem, TabMenuLabels } from "./tab-menu.ts";
 
 const LABELS: TabMenuLabels = {
   close: "Close",
-  closeBelow: "Close Tabs Below",
-  closeOthers: "Close Other Tabs",
+  closeBelow: "Close tabs below",
+  closeOthers: "Close other tabs",
   copyUrl: "Copy URL",
-  leaveGroup: "Leave Group",
-  openInDefaultBrowser: "Open in Default Browser",
+  leaveGroup: "Leave group",
+  openInDefaultBrowser: "Open in default browser",
   reload: "Reload",
-  sleepWhenIdle: "Sleep When Idle",
-  splitHorizontal: "Split Horizontally",
-  splitVertical: "Split Vertically",
+  sleepWhenIdle: "Sleep when idle",
+  splitHorizontal: "Split horizontally",
+  splitVertical: "Split vertically",
 };
 
 const tab = (id: string, appId = "drive", sleeps = false): Tab => ({
@@ -105,18 +105,18 @@ describe(tabMenuOf, () => {
       )
     ).toStrictEqual([
       "Reload",
-      "Split Vertically",
-      "Split Horizontally",
-      "Leave Group",
+      "Split vertically",
+      "Split horizontally",
+      "Leave group",
       "-",
       "Copy URL",
-      "Open in Default Browser",
+      "Open in default browser",
       "-",
-      "Sleep When Idle",
+      "Sleep when idle",
       "-",
       "Close",
-      "Close Other Tabs",
-      "Close Tabs Below",
+      "Close other tabs",
+      "Close tabs below",
     ]);
   });
 
@@ -166,7 +166,7 @@ describe(tabMenuOf, () => {
     });
   });
 
-  it("checks Sleep When Idle on a tab let sleep, a click turning it off", () => {
+  it("checks Sleep when idle on a tab let sleep, a click turning it off", () => {
     const asleep = {
       groups,
       tabs: tabs.map((found) =>
@@ -200,7 +200,7 @@ describe(tabMenuOf, () => {
     ).toBeFalsy();
   });
 
-  it("disables Close on a profile's one tab and Close Other Tabs when every other is pinned", () => {
+  it("disables Close on a profile's one tab and Close other tabs when every other is pinned", () => {
     const alone = { groups: [single("a")], tabs: [tab("a")] };
     expect(enabled(menuOf(alone, "a", context()))).toMatchObject({
       close: false,
