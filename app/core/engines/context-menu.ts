@@ -47,6 +47,14 @@ const MAILTO = "mailto:";
 
 const WEB_ADDRESS = /^https?:/iu;
 
+// Chromium downloads an image from a page's data and blob addresses as it does from the web; it gives none at all for a data address over about 2 MB, and any other scheme, such as javascript:, is nothing to save. Copy Image Address takes only a web address, since a blob address means nothing outside the page that made it and a data address is the image itself, up to megabytes of text.
+const SAVEABLE_IMAGE = /^(?:https?|data|blob):/iu;
+
+// The space a selection is trimmed of, with the zero-width characters a page leaves around words, which show nothing to look up or search.
+const SPACE = /^[\s\u200B-\u200D\uFEFF]+|[\s\u200B-\u200D\uFEFF]+$/gu;
+
+const trimmed = (text: string): string => text.replaceAll(SPACE, "");
+
 // Gmail's message ids are hex or, in newer links, longer base-62 strings; a label or a search is never this long without a slash.
 const MESSAGE_ID = /^[A-Za-z0-9]{15,}$/u;
 
@@ -60,12 +68,12 @@ const QUERY_VIEWS = new Set([
   "circle",
 ]);
 
-/** The selection as Look Up names it: trimmed, cut to `LOOK_UP_GRAPHEMES` with an ellipsis, so an emoji sequence or a combined character is never split, and its ampersands doubled, since a single one marks an access key. */
+/** The selection as Look Up names it: trimmed of space and zero-width characters, cut to `LOOK_UP_GRAPHEMES` with an ellipsis, so an emoji sequence or a combined character is never split, and its ampersands doubled, since a single one marks an access key. */
 export const lookUpName = (selection: string): string => {
   const graphemes: string[] = [];
   const segments = new Intl.Segmenter(undefined, {
     granularity: "grapheme",
-  }).segment(selection.trim());
+  }).segment(trimmed(selection));
   // Stops one past the limit, since the selection can be a whole page.
   for (const { segment } of segments) {
     graphemes.push(segment);
@@ -115,14 +123,28 @@ export const messageLinkOf = (
     : messageUrl(`${page.origin}${page.slot ?? ""}`, id);
 };
 
-/** The address a mailto link writes to, without its scheme, query or escapes; the link as it is when it cannot be decoded. */
-export const emailAddressOf = (link: string): string => {
-  const [address = ""] = link.slice(MAILTO.length).split("?");
+const TO = /^to=/iu;
+
+/** The address a mailto link writes to, without its scheme, query, fragment or escapes, taken from its `to` field when the link names none before its query, such as `mailto:?to=…`; as it is when it cannot be decoded, and null when there is none. */
+export const emailAddressOf = (link: string): string | null => {
+  const [body = ""] = link.slice(MAILTO.length).split("#");
+  const queryAt = body.indexOf("?");
+  const path = queryAt === -1 ? body : body.slice(0, queryAt);
+  const to =
+    queryAt === -1
+      ? undefined
+      : body
+          .slice(queryAt + 1)
+          .split("&")
+          .find((field) => TO.test(field));
+  const address = path === "" ? (to?.slice("to=".length) ?? "") : path;
+  let decoded = address;
   try {
-    return decodeURIComponent(address);
+    decoded = decodeURIComponent(address);
   } catch {
-    return address;
+    // An address that is not valid UTF-8 escaped is copied as the page wrote it.
   }
+  return decoded.trim() === "" ? null : decoded.trim();
 };
 
 /** The most graphemes of a selection Search with Google sends, as many as Google reads of a query. */
@@ -210,7 +232,7 @@ const lookUp = (
   { labels, platform }: ContextMenuContext
 ): Section =>
   platform === "darwin" &&
-  params.selectionText.trim() !== "" &&
+  trimmed(params.selectionText) !== "" &&
   params.linkUrl === ""
     ? [
         {
@@ -227,7 +249,7 @@ const search = (
   params: ContextMenuParams,
   labels: ContextMenuLabels
 ): Section => {
-  const text = params.selectionText.trim();
+  const text = trimmed(params.selectionText);
   return text === ""
     ? []
     : [
@@ -277,14 +299,15 @@ const imageAndEmail = (
   labels: ContextMenuLabels
 ): Section => {
   const { linkUrl, mediaType, srcUrl, x, y } = params;
-  // Chromium gives no address for an image whose data address is over about 2 MB, which leaves nothing to save or copy.
-  const addressed = srcUrl !== "";
+  const email = linkUrl.toLowerCase().startsWith(MAILTO)
+    ? emailAddressOf(linkUrl)
+    : null;
   return [
     ...(mediaType === "image"
       ? ([
           {
             action: { kind: "saveImageAs", url: srcUrl },
-            enabled: addressed,
+            enabled: SAVEABLE_IMAGE.test(srcUrl),
             id: "saveImageAs",
             kind: "item",
             label: labels.saveImageAs,
@@ -298,24 +321,24 @@ const imageAndEmail = (
           },
           {
             action: { kind: "copyBookmark", title: srcUrl, url: srcUrl },
-            enabled: addressed,
+            enabled: WEB_ADDRESS.test(srcUrl),
             id: "copyImageAddress",
             kind: "item",
             label: labels.copyImageAddress,
           },
         ] satisfies Section)
       : []),
-    ...(linkUrl.toLowerCase().startsWith(MAILTO)
-      ? ([
+    ...(email === null
+      ? []
+      : ([
           {
-            action: { kind: "copyText", text: emailAddressOf(linkUrl) },
+            action: { kind: "copyText", text: email },
             enabled: true,
             id: "copyEmailAddress",
             kind: "item",
             label: labels.copyEmailAddress,
           },
-        ] satisfies Section)
-      : []),
+        ] satisfies Section)),
   ];
 };
 

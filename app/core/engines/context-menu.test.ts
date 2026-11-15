@@ -112,6 +112,10 @@ const searchOf = (selectionText: string) => {
     : null;
 };
 
+/** The image's items of the menu for an image of the address. */
+const imageItems = (srcUrl: string) =>
+  layout(menu({ mediaType: "image", srcUrl })).slice(2);
+
 describe(contextMenuOf, () => {
   it("offers only Select All on a page with nothing under the click, outside macOS, and nothing on macOS", () => {
     expect([
@@ -389,6 +393,40 @@ describe(contextMenuOf, () => {
     ]);
   });
 
+  it("offers no Copy Email Address for a mailto link without an address", () => {
+    expect(layout(menu({ linkUrl: "mailto:?subject=Hi" }))).toStrictEqual([
+      "selectAll",
+      "-",
+      "copyLink",
+    ]);
+  });
+
+  it("saves an image of a web, data or blob address, copies only a web one, and does neither for another scheme", () => {
+    expect([
+      imageItems("data:image/png;base64,AAAA"),
+      imageItems("blob:https://example.com/1"),
+      imageItems(["javascript", "alert(1)"].join(":")),
+      imageItems("HTTPS://example.com/a.png"),
+    ]).toStrictEqual([
+      ["saveImageAs", "copyImage", "copyImageAddress (off)"],
+      ["saveImageAs", "copyImage", "copyImageAddress (off)"],
+      ["saveImageAs (off)", "copyImage", "copyImageAddress (off)"],
+      ["saveImageAs", "copyImage", "copyImageAddress"],
+    ]);
+  });
+
+  it("offers neither Look Up nor Search with Google for a selection of only zero-width characters, and searches without them", () => {
+    expect([
+      layout(menu({ selectionText: "\u200B\uFEFF" }, { platform: "darwin" })),
+      searchOf("\u200BMeru\u200D"),
+      lookUpName("\u200CMeru\uFEFF"),
+    ]).toStrictEqual([
+      ["copy"],
+      "https://www.google.com/search?q=Meru",
+      "Meru",
+    ]);
+  });
+
   it("leaves Open in Default Browser out for a link the browser does not take", () => {
     expect(
       layout(menu({ linkUrl: "blob:https://example.com/1" }))
@@ -573,6 +611,22 @@ describe(messageLinkOf, () => {
 });
 
 describe(emailAddressOf, () => {
+  it("reads the to field of a link with nothing before its query, drops the fragment, and finds none in an empty link", () => {
+    expect([
+      emailAddressOf("mailto:?to=someone@example.com&subject=Hi"),
+      emailAddressOf("mailto:?subject=Hi&TO=some%2Bone@example.com"),
+      emailAddressOf("mailto:someone@example.com#top"),
+      emailAddressOf("mailto:"),
+      emailAddressOf("mailto:?subject=Hi"),
+    ]).toStrictEqual([
+      "someone@example.com",
+      "some+one@example.com",
+      "someone@example.com",
+      null,
+      null,
+    ]);
+  });
+
   it("keeps the address of a mailto link, decoded and without its query", () => {
     expect([
       emailAddressOf("mailto:someone@example.com"),
