@@ -2,13 +2,34 @@ import { describe, expect, it } from "vitest";
 
 import { gmail } from "../../../shared/channels/gmail.ts";
 import { mountGmail, reached, stylesWith } from "../testing.ts";
+import attachments from "./fixtures/attachments.html?raw";
+import clipped from "./fixtures/clipped.html?raw";
 import inboxRows from "./fixtures/inbox-rows.html?raw";
 import outOfOfficeBanner from "./fixtures/out-of-office.html?raw";
 import {
+  NOTICE_BAR,
   OUT_OF_OFFICE_BANNER,
+  bannerOf,
   hideOutOfOfficeBannerRules,
   outOfOffice,
 } from "./out-of-office.ts";
+
+const missesAfterGrace = async (html: string) => {
+  let now = 0;
+  const page = mountGmail({
+    features: [outOfOffice()],
+    grace: 10,
+    html,
+    now: () => now,
+  });
+  page.run();
+  now = 100_000;
+  document.body.append(document.createElement("p"));
+  await page.settle();
+  const misses = page.bridge.sentOn(gmail.selectorMiss);
+  page.app.dispose();
+  return misses;
+};
 
 describe(outOfOffice, () => {
   it("says the profile is out of office while the banner shows, and only when that changes", async () => {
@@ -50,7 +71,7 @@ describe(outOfOffice, () => {
     const page = mountGmail({ features: [outOfOffice()], html: inboxRows });
     page.run();
 
-    expect(document.querySelector(`[id=":7"]`)).not.toBeNull();
+    expect(document.querySelector(NOTICE_BAR)?.childElementCount).toBe(0);
     expect(page.bridge.sentOn(gmail.outOfOffice)).toStrictEqual([
       { on: false },
     ]);
@@ -86,5 +107,30 @@ describe(outOfOffice, () => {
       { on: false },
     ]);
     page.app.dispose();
+  });
+
+  it("finds the banner the style rule hides, and nothing on the captured pages without it", () => {
+    expect(
+      [outOfOfficeBanner, inboxRows, attachments, clipped].map((html) => {
+        document.body.innerHTML = html;
+        const found = bannerOf(document);
+        return [
+          found?.id,
+          found === (document.querySelector(OUT_OF_OFFICE_BANNER) ?? undefined),
+        ];
+      })
+    ).toStrictEqual([
+      [":7", true],
+      [undefined, true],
+      [undefined, true],
+      [undefined, true],
+    ]);
+  });
+
+  it("reports no miss while the bar is on the page, and one once it has rotted", async () => {
+    await expect(missesAfterGrace(inboxRows)).resolves.toStrictEqual([]);
+    await expect(
+      missesAfterGrace(inboxRows.replace('<h1 class="qp">', '<h2 class="qp">'))
+    ).resolves.toStrictEqual([{ selector: "outOfOfficeBar" }]);
   });
 });
