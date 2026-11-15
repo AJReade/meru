@@ -1,11 +1,14 @@
 import type { ElectronApplication, Page } from "@playwright/test";
 
+import { E2E_CLICK_CONTEXT_MENU } from "../app/main/shell/e2e.ts";
 import { profiles } from "../app/shared/channels/profiles.ts";
 import { invokeIn, pageOf, pagesOf } from "../scripts/lib/app.ts";
 import {
+  callExposed,
   clickMenuItem,
   entitlementKindOf,
   expect,
+  inspect,
   must,
   pickApp,
   pressIn,
@@ -238,4 +241,47 @@ test("hides the sidebar and brings it back from the menu, laying the panes out a
   await clickMenuItem(app, "sidebar.toggle");
   await expect(sidebar).toBeVisible();
   await expect.poll(left).toBe(shown);
+});
+
+test("opens a row's menu on a right-click, whose Close Other Tabs leaves that tab and the pinned Gmail", async ({
+  launch,
+}) => {
+  const { app, chrome } = await launch();
+  await openApp(app, chrome, "Calendar");
+  await openApp(app, chrome, "Drive");
+  await openApp(app, chrome, "Docs");
+  await expect(rowsOf(chrome)).toHaveCount(4);
+  await rowsOf(chrome).nth(2).locator("[role=tab]").click({ button: "right" });
+  await expect
+    .poll(async () => {
+      const { contextMenu } = await inspect(app);
+      return contextMenu.map((item) =>
+        item.kind === "item" ? [item.id, item.enabled] : "-"
+      );
+    })
+    .toStrictEqual([
+      ["reload", false],
+      ["splitVertical", false],
+      ["splitHorizontal", false],
+      ["leaveGroup", false],
+      "-",
+      ["copyUrl", true],
+      ["openInDefaultBrowser", false],
+      "-",
+      ["sleepWhenIdle", true],
+      "-",
+      ["close", true],
+      ["closeOthers", true],
+      ["closeBelow", true],
+    ]);
+
+  const { contextMenu } = await inspect(app);
+  await callExposed(app, E2E_CLICK_CONTEXT_MENU, [
+    contextMenu.findIndex(
+      (item) => item.kind === "item" && item.id === "closeOthers"
+    ),
+  ]);
+  await expect(rowsOf(chrome)).toHaveCount(2);
+  const { tabs } = await profilesOf(chrome);
+  expect(tabs.map((tab) => tab.appId)).toStrictEqual(["gmail", "drive"]);
 });
