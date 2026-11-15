@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
 
 import { msg } from "../msg.ts";
-import { defineSetting } from "./define.ts";
+import { defineSetting, wordedFor } from "./define.ts";
 
 const entry = {
   default: false,
@@ -58,6 +58,33 @@ describe(defineSetting, () => {
         options: { a: msg`A`, b: msg`B` },
       }).options
     ).toStrictEqual({ a: "A", b: "B" });
+  });
+
+  it("takes the platform's wording in the place of the label and the description", () => {
+    const setting = defineSetting("tray.icon", {
+      ...entry,
+      description: msg`Show the icon in the system tray.`,
+      label: msg`Show icon in system tray`,
+      platformWording: {
+        darwin: {
+          description: msg`Show the icon in the menu bar.`,
+          label: msg`Show icon in menu bar`,
+        },
+      },
+    });
+    expect({
+      linux: wordedFor(setting, "linux"),
+      mac: wordedFor(setting, "darwin"),
+    }).toMatchObject({
+      linux: {
+        description: "Show the icon in the system tray.",
+        label: "Show icon in system tray",
+      },
+      mac: {
+        description: "Show the icon in the menu bar.",
+        label: "Show icon in menu bar",
+      },
+    });
   });
 
   it("formats a message as its text until it is translated", () => {

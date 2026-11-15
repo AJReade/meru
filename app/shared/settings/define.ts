@@ -49,6 +49,15 @@ interface SettingFacts<
   readonly section?: Message;
   /** The platforms the setting does anything on; every one when absent. */
   readonly platforms?: readonly Platform[];
+  /** Takes the place of `label` and `description` on the platforms it names, for a setting the platform has its own word for. */
+  readonly platformWording?: Readonly<
+    Partial<
+      Record<
+        Platform,
+        { readonly label: Message; readonly description?: Message }
+      >
+    >
+  >;
 }
 
 type SettingEntry<
@@ -73,3 +82,19 @@ export const defineSetting = <
   key: K & DottedKey<K>,
   entry: SettingEntry<S, Scope, Page>
 ): Setting<K, S, Scope, Page> => ({ ...entry, key });
+
+/** The setting as `platform` words it, that platform's label and description in the place of the default ones. */
+export const wordedFor = <S extends Setting>(
+  setting: S,
+  platform: Platform
+): S => {
+  const wording = setting.platformWording?.[platform];
+  if (wording === undefined) {
+    return setting;
+  }
+  return {
+    ...setting,
+    description: wording.description,
+    label: wording.label,
+  };
+};

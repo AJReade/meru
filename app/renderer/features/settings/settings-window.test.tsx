@@ -211,6 +211,26 @@ describe(SettingsWindow, () => {
     }).toStrictEqual({ linux: true, mac: null });
   });
 
+  it("words the tray icon for the platform, the menu bar on macOS and the system tray elsewhere", () => {
+    const onMac = mount({ page: "inbox" });
+    const mac = field("tray.icon")?.textContent;
+    const macSelectUnread = field("tray.selectUnread");
+    onMac.unmount();
+    mount({ page: "inbox", platform: "linux" });
+    expect({
+      linux: field("tray.icon")?.textContent,
+      linuxSelectUnread: field("tray.selectUnread"),
+      mac,
+      macSelectUnread: macSelectUnread !== null,
+    }).toStrictEqual({
+      linux:
+        "Show icon in system trayShow the application icon in the system tray.",
+      linuxSelectUnread: null,
+      mac: "Show icon in menu barShow the application icon in the menu bar.",
+      macSelectUnread: true,
+    });
+  });
+
   it("picks apps as checkboxes over the catalog, the picked ones first in their order, a newly checked one at the end", () => {
     const { sentOn } = mount({
       layers: {

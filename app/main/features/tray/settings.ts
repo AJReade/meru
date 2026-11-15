@@ -6,11 +6,17 @@ import { defineSetting } from "../../../shared/settings/define.ts";
 export const traySettings = [
   defineSetting("tray.icon", {
     default: true,
-    description: msg`Show the application icon in the menu bar or the system tray.`,
-    label: msg`Show tray icon`,
+    description: msg`Show the application icon in the system tray.`,
+    label: msg`Show icon in system tray`,
     page: "inbox",
     // Off where the dock brings a closed window back, as in 3.x.
     platformDefaults: { darwin: false },
+    platformWording: {
+      darwin: {
+        description: msg`Show the application icon in the menu bar.`,
+        label: msg`Show icon in menu bar`,
+      },
+    },
     section: msg`Menu bar and system tray`,
     restart: false,
     schema: z.boolean(),
@@ -47,6 +53,8 @@ export const traySettings = [
     description: msg`Select the first profile with unread emails when the icon is clicked.`,
     label: msg`Select first unread profile on click`,
     page: "inbox",
+    // Linux's tray sends no click.
+    platforms: ["darwin", "win32"],
     section: msg`Menu bar and system tray`,
     restart: false,
     schema: z.boolean(),

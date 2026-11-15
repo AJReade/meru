@@ -4,6 +4,7 @@ import { groupBy, sortBy } from "es-toolkit";
 import { TITLEBAR_HEIGHT } from "../../../core/engines/chrome.ts";
 import type { Platform } from "../../../core/records/platform.ts";
 import { msg } from "../../../shared/msg.ts";
+import { wordedFor } from "../../../shared/settings/define.ts";
 import type { Setting } from "../../../shared/settings/define.ts";
 import { registry, settingsPages } from "../../../shared/settings/registry.ts";
 import type { SettingsPageId } from "../../../shared/settings/registry.ts";
@@ -35,12 +36,14 @@ const Contents = ({
 const Fields = ({ page }: { readonly page: SettingsPageId }) => {
   const { platform } = useSettingsClient();
   // A list is as wide as the page and as long as it holds, so it comes after the fields that sit on one line.
-  const shown = registry.filter(
-    (setting) =>
-      setting.page === page &&
-      fieldKindOf(setting.schema).kind !== "bespoke" &&
-      appliesOn(setting, platform)
-  );
+  const shown = registry
+    .filter(
+      (setting) =>
+        setting.page === page &&
+        fieldKindOf(setting.schema).kind !== "bespoke" &&
+        appliesOn(setting, platform)
+    )
+    .map((setting) => wordedFor(setting, platform));
   const ordered = sortBy(shown, [
     (setting) => fieldKindOf(setting.schema).kind === "multiChoice",
   ]);
