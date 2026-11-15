@@ -116,7 +116,6 @@ export type ContextMenuEntry =
       readonly id: ContextMenuItemId | TabMenuItemId;
       readonly label: string;
       readonly enabled: boolean;
-      /** Present on a checkbox, absent on a plain item. */
       readonly checked?: boolean;
       readonly run: () => void;
     }

@@ -26,7 +26,6 @@ interface TabMenuCommand {
   readonly id: TabMenuItemId;
   readonly label: string;
   readonly enabled: boolean;
-  /** Present on a checkbox, absent on a plain item. */
   readonly checked?: boolean;
   readonly action: TabMenuAction;
 }

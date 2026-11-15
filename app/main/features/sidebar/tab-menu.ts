@@ -19,7 +19,6 @@ import type { Links } from "../links/index.ts";
 import type { Profiles } from "../profiles/index.ts";
 import type { Stages } from "../stage/index.ts";
 
-// Read on every menu, so a change of language shows in the next one.
 const labels = (): TabMenuLabels => ({
   close: msg`Close`,
   closeBelow: msg`Close Tabs Below`,
