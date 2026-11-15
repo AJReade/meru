@@ -23,6 +23,7 @@ import {
   ACT_TIMEOUT,
   Gmail,
   NAVIGATE_TIMEOUT,
+  NUDGE_MAX_WAIT,
   REFRESH_INTERVAL,
   SENT_UNDO_WINDOW,
   UNREAD_SETTLE,
@@ -335,6 +336,24 @@ describe(Gmail, () => {
     expect(read).toStrictEqual([]);
     app.clock.advance(1);
     expect(read).toStrictEqual([tab.profileId]);
+  });
+
+  it("reads the profile's feed once, no later than the longest wait, while the count its page shows keeps changing, and waits afresh after it", async () => {
+    const { app, read, request, tab } = await setup();
+    for (let elapsed = 0; elapsed < NUDGE_MAX_WAIT; elapsed += 500) {
+      unwrap(request(gmail.unreadChanged));
+      app.clock.advance(500);
+    }
+    const atLongest = [...read];
+    unwrap(request(gmail.unreadChanged));
+    app.clock.advance(UNREAD_SETTLE - 1);
+    const settling = [...read];
+    app.clock.advance(1);
+    expect([atLongest, settling, read]).toStrictEqual([
+      [tab.profileId],
+      [tab.profileId],
+      [tab.profileId, tab.profileId],
+    ]);
   });
 
   it("refuses an action no page answers for, and one whose tab has no page even after it is woken", async () => {

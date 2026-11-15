@@ -66,6 +66,9 @@ export const REFRESH_INTERVAL = 3000;
 // A page reports each change of the count it shows, and reading a message can change it twice in quick succession, so the feed is read once the changes stop.
 export const UNREAD_SETTLE = 1000;
 
+// A count that keeps changing, such as while Gmail pages through a burst of mail, would hold the read back for as long as it changed, so the first change is read no later than this.
+export const NUDGE_MAX_WAIT = 3000;
+
 // An editor saves in several writes, each of which the watch may report, so a read waits for the writes to stop.
 export const USER_STYLES_SETTLE = 200;
 
@@ -157,7 +160,10 @@ export class Gmail {
   /** When each page was last asked to refresh, by its web contents id. */
   readonly #refreshed = new Map<number, number>();
   /** The feed read each profile waits for while its page's count settles, by profile id. */
-  readonly #unread = new Map<string, Unsubscribe>();
+  readonly #unread = new Map<
+    string,
+    { readonly cancel: Unsubscribe; readonly since: number }
+  >();
   #nextNavigation = 0;
   #nextAction = 0;
   #userStyles = "";
@@ -208,14 +214,21 @@ export class Gmail {
           if (profileId === undefined) {
             return err("noProfile");
           }
-          this.#unread.get(profileId)?.();
-          this.#unread.set(
-            profileId,
-            this.#options.clock.schedule(UNREAD_SETTLE, () => {
+          const { clock } = this.#options;
+          const waiting = this.#unread.get(profileId);
+          waiting?.cancel();
+          const since = waiting?.since ?? clock.now();
+          const delay = Math.max(
+            0,
+            Math.min(UNREAD_SETTLE, since + NUDGE_MAX_WAIT - clock.now())
+          );
+          this.#unread.set(profileId, {
+            cancel: clock.schedule(delay, () => {
               this.#unread.delete(profileId);
               this.#options.readFeed(profileId);
-            })
-          );
+            }),
+            since,
+          });
           return ok(undefined);
         },
         mailActionFailed: ({ reason }, { profileId }) => {
@@ -320,7 +333,7 @@ export class Gmail {
       }),
       () => {
         this.#settle?.();
-        for (const cancel of this.#unread.values()) {
+        for (const { cancel } of this.#unread.values()) {
           cancel();
         }
         for (const { close } of this.#sent.values()) {
