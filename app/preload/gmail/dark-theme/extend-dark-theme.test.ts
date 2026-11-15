@@ -327,6 +327,32 @@ describe(extendDarkTheme, () => {
     page.app.dispose();
   });
 
+  it("leaves a dark logo on the sender's own dark ground as it is when it loads", () => {
+    const canvas = new FakeCanvas();
+    canvas.answer("https://example.com/logo.png", [20, 20, 20, 255], 40);
+    const page = mountGmail({
+      canvas,
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation.replace(
+        "<img",
+        `<div style="background-color: rgb(17, 17, 17)"><img crossorigin="anonymous" src="https://example.com/logo.png" class="on-dark" /></div><div style="background-color: rgb(26, 35, 126)"><img crossorigin="anonymous" src="https://example.com/logo.png" class="on-navy" /></div><img crossorigin="anonymous"`
+      ),
+      settings: on,
+    });
+    page.run();
+    const images = ["img.on-dark", "img.on-navy", "img.logo"].map((selector) =>
+      document.querySelector<HTMLElement>(selector)
+    );
+    for (const image of images) {
+      image?.dispatchEvent(new Event("load"));
+    }
+
+    expect(
+      images.map((image) => image?.style.getPropertyValue("filter"))
+    ).toStrictEqual(["", "", TURN_LIGHT]);
+    page.app.dispose();
+  });
+
   it("asks once a page load for an image it could not read", () => {
     const canvas = new FakeCanvas();
     const page = mountGmail({

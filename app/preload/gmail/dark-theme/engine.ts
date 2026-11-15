@@ -268,13 +268,35 @@ const ignore: WriteTo = () => {
   // An element a former walk wrote to keeps what it was given.
 };
 
-// A mark's value is a flag, a kind and, for an element written to, the `style` attribute it had: the flag says whether its hover ground is held (`HOLD`) or not (`PLAIN`), the kind whether the walk only looked at it (`LOOKED`), wrote to an element that had no `style` attribute (`NO_STYLE`) or wrote over the one that follows (`HAD_STYLE`). An editor's mark is `SKIPPED` alone.
+// A mark's value is a flag, a kind and, for an element written to, the `style` attribute it had: the flag says whether its hover ground is held (`HOLD`), whether what it holds sits on a ground the walk darkened (`PLAIN`) or on one it kept or could not read (`KEPT_GROUND`), the kind whether the walk only looked at it (`LOOKED`), wrote to an element that had no `style` attribute (`NO_STYLE`) or wrote over the one that follows (`HAD_STYLE`). An editor's mark is `SKIPPED` alone.
 const HOLD = "t";
 export const SKIPPED = "s";
 const PLAIN = "-";
+const KEPT_GROUND = "k";
 const LOOKED = ".";
 const NO_STYLE = "0";
 const HAD_STYLE = "1";
+
+const flagOf = (
+  style: CSSStyleDeclaration,
+  frame: Frame,
+  paint: Paint
+): string => {
+  if (holdsHover(style, frame)) {
+    return HOLD;
+  }
+  return paint.darkened && paint.ground !== undefined ? PLAIN : KEPT_GROUND;
+};
+
+/** Where a walk starts: on the ground above `root`, darkened unless its parent's mark recorded a ground the walk kept, such as the sender's own dark one under an image that loaded since. */
+const rootFrame = (root: Element, theme: Theme): Frame => ({
+  darkened:
+    root.parentElement?.getAttribute(theme.mark)?.charAt(0) !== KEPT_GROUND,
+  element: root,
+  ground: groundAbove(root, theme),
+  parentColour: "",
+  parentText: "",
+});
 
 const writtenValue = (flag: string, element: Element): string => {
   const style = element.getAttribute("style");
@@ -301,15 +323,7 @@ export const themeTree = (
   const touched = new Set<Element>();
   const looked = new Map<Element, string>();
   const editors: Element[] = [];
-  const stack: Frame[] = [
-    {
-      darkened: true,
-      element: root,
-      ground: groundAbove(root, theme),
-      parentColour: "",
-      parentText: "",
-    },
-  ];
+  const stack: Frame[] = [rootFrame(root, theme)];
   for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
     const { element } = frame;
     if (element.matches(skip)) {
@@ -345,7 +359,7 @@ export const themeTree = (
       }
     }
     if (!marked) {
-      looked.set(element, holdsHover(style, frame) ? HOLD : PLAIN);
+      looked.set(element, flagOf(style, frame, paint));
     }
     for (
       let child = element.lastElementChild;
