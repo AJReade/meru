@@ -5,6 +5,14 @@ import { mountGmail, switchesWith } from "../testing.ts";
 import inboxRows from "./fixtures/inbox-rows.html?raw";
 import { senderIcons } from "./sender-icons.ts";
 
+const favicon = (domain: string) =>
+  `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+
+// The capture's account mails itself, so every sender shares one domain until a test gives one another.
+const SENDER_DOMAIN = "domain-1.example.com";
+
+const rows = () => [...document.querySelectorAll("tr.zA")];
+
 const iconsOf = (rowId: string) =>
   [
     ...(document
@@ -19,20 +27,22 @@ describe(senderIcons.id, () => {
       html: inboxRows,
       settings: { switches: switchesWith("showSenderIcons") },
     });
+    const [first, second] = rows();
+    second
+      ?.querySelector('span[email*="@"]')
+      ?.setAttribute("email", "grace@navy.example");
     page.run();
 
-    expect(iconsOf(":1a")).toStrictEqual([
-      "https://www.google.com/s2/favicons?domain=example.com&sz=32",
-    ]);
-    expect(iconsOf(":1b")).toStrictEqual([
-      "https://www.google.com/s2/favicons?domain=navy.example&sz=32",
-      "https://www.google.com/s2/favicons?domain=example.com&sz=32",
+    expect(iconsOf(first?.id ?? "")).toStrictEqual([favicon(SENDER_DOMAIN)]);
+    expect(iconsOf(second?.id ?? "")).toStrictEqual([
+      favicon("navy.example"),
+      favicon(SENDER_DOMAIN),
     ]);
     expect(
       [...document.querySelectorAll(".meru-sender-icons")].map(
         (icons) => icons.id
       )
-    ).toStrictEqual(["meru-sender-icons-:1a", "meru-sender-icons-:1b"]);
+    ).toStrictEqual(rows().map((row) => `meru-sender-icons-${row.id}`));
     expect(page.sheet("senderIcons")).toContain("border-radius: 50%");
     page.app.dispose();
   });
@@ -47,7 +57,9 @@ describe(senderIcons.id, () => {
     document.body.append(document.createElement("p"));
     await page.settle();
 
-    expect(document.querySelectorAll(".meru-sender-icons")).toHaveLength(2);
+    expect(document.querySelectorAll(".meru-sender-icons")).toHaveLength(
+      rows().length
+    );
 
     page.change({ switches: switchesWith() });
 

@@ -1,5 +1,5 @@
 // Writes the Gmail fixtures the preload's tests read, from a signed-in profile, each document scrubbed of everything personal:
-// MERU_TEST_PROFILE_DIR=<a user data directory signed in to Gmail> node scripts/gmail/capture.ts, after pnpm build.
+// MERU_TEST_PROFILE_DIR=<a user data directory signed in to Gmail> node scripts/gmail/capture.ts [--in-place], after pnpm build and once the account has sent itself the two messages named below, then vp fmt; --in-place runs on the directory itself, for one that is a copy already.
 import { existsSync } from "node:fs";
 import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,20 +14,17 @@ import { launch } from "../lib/app.ts";
 const root = path.join(import.meta.dirname, "..", "..");
 const FIXTURES = path.join(root, "app/preload/gmail/features/fixtures");
 
-// Each hand-made fixture a capture replaces in place, by the document it is taken from. labels.html stays hand-made: the scrub takes out every label's name, which is what its test colours by; so do clipped.html, out-of-office.html and message-sent.html, whose states a page at rest does not hold. attachments.html needs the opened conversation to carry an attachment.
-const FROM_INBOX = [
-  "header.html",
-  "inbox-rows.html",
-  "promo-banner.html",
-  "upgrade-button.html",
-];
-const FROM_THREAD = [
-  "attachments.html",
-  "compose.html",
-  "conversation.html",
-  "links.html",
-  "trimmed-content.html",
-];
+// Each hand-made fixture a capture replaces in place, by the document it is taken from. labels.html stays hand-made: the scrub takes out every label's name, which is what its test colours by; so does mailbox-key.html, since the scrub takes out the script the marker is written in; so do out-of-office.html and message-sent.html, whose states a page at rest does not hold.
+// promo-banner.html and upgrade-button.html stay hand-made: the scrub takes out the `data-pep-id` and `data-action-behavior` values their rules read, and the account is offered neither.
+const FROM_INBOX = ["header.html", "inbox-rows.html"];
+// Taken from the conversation the account sent itself with an attachment, with Compose open over it. conversation.html, links.html and trimmed-content.html stay hand-made until the account holds a conversation of several messages, an outside link and a folded quote.
+const FROM_THREAD = ["attachments.html", "compose.html"];
+// Taken from the message the account sent itself past Gmail's clipping size.
+const FROM_CLIPPED = ["clipped.html"];
+
+/** The subjects of the two messages the account is sent before a capture, which the capture opens by searching for them. */
+const ATTACHMENT_SUBJECT = "Meru capture attachment";
+const CLIPPED_SUBJECT = "Meru capture clipped";
 
 /** How long a document of the real Gmail is given to render. */
 const READY = 120_000;
@@ -112,17 +109,29 @@ const write = async (name: string, html: string) => {
 const documentOf = async (app: ElectronApplication, contentsId: number) =>
   await readPane(app, contentsId, "document.documentElement.outerHTML");
 
-/** The id of the first thread the list shows, by which the thread's own document is opened. */
-const firstThread = async (app: ElectronApplication, contentsId: number) => {
-  const id = await readPane(
+/** Opens the newest conversation of this subject, which the account must have been sent first, by a click on its row: Gmail takes a search's result to its conversation only from the list, not from an address naming the thread. */
+const openBySubject = async (
+  app: ElectronApplication,
+  contentsId: number,
+  subject: string,
+  ready: string
+) => {
+  await goTo(
     app,
     contentsId,
-    '(() => { const row = document.querySelector("[data-legacy-thread-id]"); return row === null ? "" : row.getAttribute("data-legacy-thread-id") ?? ""; })()'
+    `search/${encodeURIComponent(`subject:"${subject}"`)}`
   );
-  if (id === "") {
-    throw new Error("The list showed no thread to open");
-  }
-  return id;
+  // The list the search replaces stays drawn for a moment, so the row is the one showing the subject.
+  const clickRow = `(() => { const row = [...document.querySelectorAll('[role="main"] tr')].find((found) => found.offsetParent !== null && found.textContent.includes(${quote(subject)})); if (row === undefined) { return ""; } for (const type of ["mousedown", "mouseup", "click"]) { row.dispatchEvent(new MouseEvent(type, { bubbles: true })); } return "ready"; })()`;
+  await expect
+    .poll(async () => await readPane(app, contentsId, clickRow), {
+      message: `No conversation titled ${subject} was listed`,
+      timeout: READY,
+    })
+    .toBe("ready");
+  await waitFor(app, contentsId, "h2[data-legacy-thread-id]", subject);
+  // Gmail draws a message's attachments and its clipping note after the conversation itself.
+  await waitFor(app, contentsId, ready, `What ${subject} holds`);
 };
 
 const writeAll = async (names: readonly string[], html: string) =>
@@ -133,10 +142,18 @@ const capture = async (app: ElectronApplication) => {
   await waitFor(app, pane, '[role="main"]', "Gmail's inbox");
   const inbox = await writeAll(FROM_INBOX, await documentOf(app, pane));
 
-  await goTo(app, pane, `inbox/${await firstThread(app, pane)}`);
-  await waitFor(app, pane, "h2[data-legacy-thread-id]", "The thread");
+  await openBySubject(app, pane, ATTACHMENT_SUBJECT, "span[download_url]");
+  await readPane(
+    app,
+    pane,
+    `(() => { const compose = document.querySelector('[gh="cm"]'); for (const type of ["mousedown", "mouseup", "click"]) { compose?.dispatchEvent(new MouseEvent(type, { bubbles: true })); } return "opened"; })()`
+  );
+  await waitFor(app, pane, 'input[name="subjectbox"]', "Compose");
   const thread = await writeAll(FROM_THREAD, await documentOf(app, pane));
-  return [...inbox, ...thread];
+
+  await openBySubject(app, pane, CLIPPED_SUBJECT, '.iX > a[href*="view=lg"]');
+  const clipped = await writeAll(FROM_CLIPPED, await documentOf(app, pane));
+  return [...inbox, ...thread, ...clipped];
 };
 
 const run = async () => {
@@ -151,9 +168,14 @@ const run = async () => {
       "Nothing to capture from in app/dist/; run pnpm build first"
     );
   }
-  // The app is launched on a copy, so a capture never writes to the signed-in profile it reads.
-  const userData = await mkdtemp(path.join(tmpdir(), "meru-capture-"));
-  await cp(profile, userData, { recursive: true });
+  // The app is launched on a copy, so a capture never writes to the signed-in profile it reads, unless that is a copy already, whose session a second copy would rotate out from under it.
+  const inPlace = process.argv.includes("--in-place");
+  const userData = inPlace
+    ? profile
+    : await mkdtemp(path.join(tmpdir(), "meru-capture-"));
+  if (!inPlace) {
+    await cp(profile, userData, { recursive: true });
+  }
   // MERU_E2E blanks every pane, so the capture turns off what the end-to-end launch sets.
   const { app, close } = await launch({ env: { MERU_E2E: "0" }, userData });
   try {
@@ -162,7 +184,9 @@ const run = async () => {
     }
   } finally {
     await close();
-    await rm(userData, { force: true, recursive: true });
+    if (!inPlace) {
+      await rm(userData, { force: true, recursive: true });
+    }
   }
 };
 

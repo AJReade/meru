@@ -18,7 +18,8 @@ const PRINT_VIEW = `<html><body>
 </td></tr></table>
 </body></html>`;
 
-const PRINT_ADDRESS = `${MAILBOX}/?ui=2&ik=abc&view=lg&permmsgid=msg-f:123`;
+// The link as the scrub leaves it: the view and the message, numbered.
+const PRINT_ADDRESS = `${MAILBOX}/?view=lg&permmsgid=message-17`;
 
 const mount = (on = true): MountedGmail =>
   mountGmail({
@@ -43,7 +44,7 @@ describe(clippedMessages.id, () => {
       expect(document.querySelector(".iX")).toBeNull();
     });
     expect(page.http.asked).toStrictEqual([PRINT_ADDRESS]);
-    const body = document.querySelector(".clipped-body");
+    const body = document.querySelector("[data-meru-clipped]");
     expect([
       body?.textContent?.includes("The whole message."),
       body?.querySelector("script, [onclick]"),

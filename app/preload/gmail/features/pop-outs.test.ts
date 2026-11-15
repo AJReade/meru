@@ -79,12 +79,10 @@ describe(popOuts.id, () => {
 
     const changed = mountGmail({
       features: [popOuts],
-      html: compose.replace(
-        '<span class="ams bkG" role="link">Forward</span>',
-        ""
-      ),
+      html: compose,
       settings: { switches: switchesWith("replyForwardInPopOut") },
     });
+    document.querySelector(".bkG")?.remove();
     changed.run();
     const replies = listen(".bkH");
     click(".bkH");

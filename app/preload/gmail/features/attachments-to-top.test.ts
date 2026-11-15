@@ -4,10 +4,11 @@ import { mountGmail, switchesWith } from "../testing.ts";
 import { attachmentsToTop } from "./attachments-to-top.ts";
 import attachments from "./fixtures/attachments.html?raw";
 
+// Gmail's message holds more than its body and its attachments, so only the order of those two is read.
 const order = () =>
-  [...(document.querySelector(".gs")?.children ?? [])].map(
-    (child) => child.className
-  );
+  [...(document.querySelector(".ii.gt")?.parentElement?.children ?? [])]
+    .map((child) => child.className)
+    .filter((name) => name === "ii gt" || name === "hq gt");
 
 describe(attachmentsToTop.id, () => {
   it("moves a message's attachments above its body once, under one rule, however often the page changes", async () => {
@@ -20,8 +21,8 @@ describe(attachmentsToTop.id, () => {
     document.body.append(document.createElement("p"));
     await page.settle();
 
-    expect(order()).toStrictEqual(["hq gt", "ii gt", "gA"]);
-    expect(document.querySelectorAll(".hp")).toHaveLength(1);
+    expect(order()).toStrictEqual(["hq gt", "ii gt"]);
+    expect(document.querySelectorAll(".meru-attachments-rule")).toHaveLength(1);
     page.app.dispose();
   });
 
@@ -35,8 +36,8 @@ describe(attachmentsToTop.id, () => {
 
     page.change({ switches: switchesWith() });
 
-    expect(order()).toStrictEqual(["ii gt", "hq gt", "gA"]);
-    expect(document.querySelectorAll(".hp")).toHaveLength(0);
+    expect(order()).toStrictEqual(["ii gt", "hq gt"]);
+    expect(document.querySelectorAll(".meru-attachments-rule")).toHaveLength(0);
     page.app.dispose();
   });
 
@@ -47,7 +48,7 @@ describe(attachmentsToTop.id, () => {
     });
     page.run();
 
-    expect(order()).toStrictEqual(["ii gt", "hq gt", "gA"]);
+    expect(order()).toStrictEqual(["ii gt", "hq gt"]);
     page.app.dispose();
   });
 });
