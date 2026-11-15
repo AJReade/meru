@@ -1,0 +1,163 @@
+import { DisposableStore } from "../../../core/disposable.ts";
+import { tabMenuOf } from "../../../core/engines/tab-menu.ts";
+import type {
+  TabMenuAction,
+  TabMenuLabels,
+} from "../../../core/engines/tab-menu.ts";
+import type { LogPort } from "../../../core/log.ts";
+import type { ClipboardPort, ContextMenuPort } from "../../../core/ports.ts";
+import type { ContextMenuEntry } from "../../../core/records/context-menu.ts";
+import type { Orientation } from "../../../core/records/layout.ts";
+import { err, ok } from "../../../core/result.ts";
+import type { Result } from "../../../core/result.ts";
+import { isSingleInstanceId } from "../../../shared/apps.ts";
+import type { IpcRegistrar } from "../../../shared/channels/define.ts";
+import { sidebar } from "../../../shared/channels/sidebar.ts";
+import { msg } from "../../../shared/msg.ts";
+import type { Links } from "../links/index.ts";
+import type { Profiles } from "../profiles/index.ts";
+import type { Stages } from "../stage/index.ts";
+
+// Read on every menu, so a change of language shows in the next one.
+const labels = (): TabMenuLabels => ({
+  close: msg`Close`,
+  closeBelow: msg`Close Tabs Below`,
+  closeOthers: msg`Close Other Tabs`,
+  copyUrl: msg`Copy URL`,
+  leaveGroup: msg`Leave Group`,
+  openInDefaultBrowser: msg`Open in Default Browser`,
+  reload: msg`Reload`,
+  sleepWhenIdle: msg`Sleep When Idle`,
+  splitHorizontal: msg`Split Horizontally`,
+  splitVertical: msg`Split Vertically`,
+});
+
+export interface TabMenuOptions {
+  readonly profiles: Pick<
+    Profiles,
+    "state" | "closeTab" | "focusTab" | "leaveGroup" | "letSleep"
+  >;
+  readonly stages: Pick<Stages, "address" | "reload" | "shown">;
+  /** Opens the launcher for a pane of `orientation` beside the focused one in the window whose chrome page is `windowId`, as the split commands do. */
+  readonly split: (windowId: number, orientation: Orientation) => void;
+  readonly links: Pick<Links, "openExternal">;
+  readonly contextMenu: ContextMenuPort;
+  readonly clipboard: ClipboardPort;
+  readonly registrar: IpcRegistrar;
+  readonly log: LogPort;
+}
+
+/** The native menu a right-click on a sidebar row opens, built by `tabMenuOf` and carried out through the profiles, the stages, the launcher, the clipboard and the links. */
+export class TabMenu {
+  readonly #options: TabMenuOptions;
+  readonly #disposables = new DisposableStore();
+
+  constructor(options: TabMenuOptions) {
+    this.#options = options;
+  }
+
+  start(): void {
+    this.#disposables.add(
+      this.#options.registrar.register(
+        { showTabMenu: sidebar.showTabMenu },
+        {
+          showTabMenu: ({ tabId }, { contentsId }) =>
+            this.show(contentsId, tabId),
+        }
+      )
+    );
+  }
+
+  dispose(): void {
+    this.#disposables.dispose();
+  }
+
+  /** Shows the menu of the tab's row over the chrome page `windowId`. */
+  show(windowId: number, tabId: string): Result<undefined, "unknownTab"> {
+    const { profiles, stages } = this.#options;
+    const { state } = profiles;
+    const url =
+      stages.address(tabId) ?? state.tabs.find(({ id }) => id === tabId)?.url;
+    const items =
+      url === undefined
+        ? undefined
+        : tabMenuOf(state, tabId, {
+            labels: labels(),
+            shown: stages.shown(),
+            singleInstance: isSingleInstanceId,
+            url,
+          });
+    if (items === undefined) {
+      return err("unknownTab");
+    }
+    this.#options.contextMenu.popup(
+      windowId,
+      items.map((item): ContextMenuEntry => {
+        if (item.kind !== "item") {
+          return item;
+        }
+        const { action, checked, enabled, id, label } = item;
+        return {
+          ...(checked === undefined ? {} : { checked }),
+          enabled,
+          id,
+          kind: "item",
+          label,
+          run: () => {
+            // Electron's click has no caller to hand a throw to, so one would end the app as an uncaught exception.
+            try {
+              this.#run(windowId, tabId, action);
+            } catch (error) {
+              this.#options.log.error("A tab menu item failed", {
+                error,
+                item: id,
+              });
+            }
+          },
+        };
+      })
+    );
+    return ok(undefined);
+  }
+
+  #run(windowId: number, tabId: string, action: TabMenuAction): void {
+    const { clipboard, links, profiles, split, stages } = this.#options;
+    if (action.kind === "reload") {
+      stages.reload(tabId);
+    } else if (action.kind === "split") {
+      // The launcher's pick goes beside the focused pane, so the row's tab is focused first.
+      if (profiles.focusTab(tabId).ok) {
+        split(windowId, action.orientation);
+      }
+    } else if (action.kind === "leaveGroup") {
+      this.#refused(profiles.leaveGroup(tabId));
+    } else if (action.kind === "copyUrl") {
+      void this.#copy(clipboard.writeText(action.url));
+    } else if (action.kind === "openExternal") {
+      links.openExternal(action.url);
+    } else if (action.kind === "letSleep") {
+      this.#refused(profiles.letSleep(tabId, action.sleeps));
+    } else {
+      for (const id of action.tabIds) {
+        this.#refused(profiles.closeTab(id));
+      }
+    }
+  }
+
+  // The menu was built from the state as it stood, so a refusal means it changed under the menu; nobody waits on the click to hear it.
+  #refused(result: Result<unknown, string>): void {
+    if (!result.ok) {
+      this.#options.log.warn("A tab menu item was refused", {
+        reason: result.error,
+      });
+    }
+  }
+
+  async #copy(write: Promise<void>): Promise<void> {
+    try {
+      await write;
+    } catch (error) {
+      this.#options.log.warn("The clipboard refused a copy", { error });
+    }
+  }
+}

@@ -38,7 +38,10 @@ export class Sidebars {
     const { events, registrar, commands, settings } = this.#options;
     this.#current = this.#compute();
     this.#disposables.add(
-      registrar.register(sidebar, { snapshot: () => ok(this.#current) }),
+      registrar.register(
+        { snapshot: sidebar.snapshot },
+        { snapshot: () => ok(this.#current) }
+      ),
       commands.register(sidebarCommands, {
         toggle: {
           run: () => {

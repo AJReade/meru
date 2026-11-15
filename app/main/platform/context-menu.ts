@@ -53,6 +53,9 @@ const template = (entry: ContextMenuEntry): MenuItemConstructorOptions => {
     enabled: entry.enabled,
     id: entry.id,
     label: entry.label,
+    ...(entry.checked === undefined
+      ? {}
+      : { checked: entry.checked, type: "checkbox" }),
   };
 };
 

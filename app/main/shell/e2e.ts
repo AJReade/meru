@@ -44,6 +44,7 @@ export const e2eSnapshotSchema = z.object({
   contextMenu: z.array(
     z.discriminatedUnion("kind", [
       z.object({
+        checked: z.boolean().optional(),
         enabled: z.boolean(),
         id: z.string(),
         kind: z.literal("item"),
@@ -280,6 +281,9 @@ export const exposeE2e = (options: {
       contextMenu: options.contextMenu.shown().map((entry) =>
         entry.kind === "item"
           ? {
+              ...(entry.checked === undefined
+                ? {}
+                : { checked: entry.checked }),
               enabled: entry.enabled,
               id: entry.id,
               kind: entry.kind,

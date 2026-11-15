@@ -31,6 +31,7 @@ import { Profiles } from "./features/profiles/index.ts";
 import { SettingsStore } from "./features/settings/index.ts";
 import { SettingsWindow } from "./features/settings/window.ts";
 import { Sidebars } from "./features/sidebar/index.ts";
+import { TabMenu } from "./features/sidebar/tab-menu.ts";
 import { Sleep } from "./features/sleep/index.ts";
 import { Stages } from "./features/stage/index.ts";
 import { Tray } from "./features/tray/index.ts";
@@ -340,10 +341,13 @@ const start = async () => {
   const recordedMenus = recordingContextMenu(ports.contextMenu);
   // The suite copies through the app's menus, which would otherwise write the clipboard of the Mac it runs on.
   const recordedClipboard = recordingClipboard();
-  // Built ahead of the stages, whose panes and pop-outs it attaches to; the downloads and the links come after the stages they need, and the menu reaches them only on a click.
-  const contextMenu = new ContextMenu({
+  const menuPorts = {
     clipboard: e2e ? recordedClipboard : ports.clipboard,
     contextMenu: e2e ? recordedMenus : ports.contextMenu,
+  };
+  // Built ahead of the stages, whose panes and pop-outs it attaches to; the downloads and the links come after the stages they need, and the menu reaches them only on a click.
+  const contextMenu = new ContextMenu({
+    ...menuPorts,
     development: !ports.lifecycle.packaged,
     downloads: {
       saveAs: (contentsId, url) => {
@@ -441,6 +445,17 @@ const start = async () => {
     stages,
   });
   launcher.start();
+  new TabMenu({
+    ...menuPorts,
+    links,
+    log: log.scoped("tabMenu"),
+    profiles,
+    registrar: dispatcher,
+    split: (windowId, orientation) => {
+      launcher.open(windowId, orientation);
+    },
+    stages,
+  }).start();
   const downloads = new Downloads({
     clock: ports.clock,
     closeTab: closeTabOf(stages, profiles),

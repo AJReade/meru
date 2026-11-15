@@ -279,6 +279,27 @@ export class Stages {
     }
   }
 
+  /** Reloads the tab's page in every pane that shows it. */
+  reload(tabId: string): void {
+    for (const found of this.all) {
+      for (const { tab, view } of found.panes()) {
+        if (tab.id === tabId) {
+          view.navigate("reload");
+        }
+      }
+    }
+  }
+
+  /** Where the tab's page stands: its view's current entry, else where it stood when it fell asleep; undefined while it has neither. */
+  address(tabId: string): string | undefined {
+    const history =
+      this.all
+        .flatMap((found) => found.kept())
+        .find(({ tab }) => tab.id === tabId)
+        ?.view.history() ?? this.#options.historyOf?.(tabId);
+    return history?.entries[history.index]?.url;
+  }
+
   /** The tabs a pane of some window shows. */
   shown(): Set<string> {
     return new Set(
