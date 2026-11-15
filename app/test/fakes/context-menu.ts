@@ -37,7 +37,13 @@ export class FakeContextMenu implements ContextMenuPort {
     this.shown.set(contentsId, entries);
   };
 
+  /** Whether acting on a page throws, as Electron does on a page destroyed under the menu. */
+  failing = false;
+
   readonly act = (contentsId: number, action: PageAction) => {
+    if (this.failing) {
+      throw new Error("The page is gone");
+    }
     this.acted.push({ action, contentsId });
   };
 

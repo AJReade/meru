@@ -209,6 +209,28 @@ describe(ContextMenu, () => {
     expect(log.at("warn")).toStrictEqual(["The clipboard refused a copy"]);
   });
 
+  it("logs a menu it could not build and an item that threw, rather than throwing out of Electron's event", async () => {
+    const log = new FakeLog();
+    const { click, pane, port, rightClick } = await setup({
+      log: log.scoped("contextMenu"),
+    });
+    rightClick({ isEditable: true });
+    port.failing = true;
+    const clicked = click("paste");
+    const unreadable: ContextMenuParams = {
+      ...NOTHING,
+      get misspelledWord(): string {
+        throw new Error("Unreadable");
+      },
+    };
+    const built = port.rightClick(pane.contentsId, unreadable);
+    expect([built, clicked, log.at("error")]).toStrictEqual([
+      true,
+      true,
+      ["A context menu item failed", "The context menu could not be shown"],
+    ]);
+  });
+
   it("saves an image through the downloads, which ask where", async () => {
     const { click, downloadPort, pane, rightClick } = await setup();
     rightClick({ mediaType: "image", srcUrl: "https://example.com/a.png" });

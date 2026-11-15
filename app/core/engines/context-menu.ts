@@ -133,13 +133,13 @@ const SEARCH = "https://www.google.com/search?q=";
 // Windows' `shell.openExternal` refuses an address past 2081 characters, which a few hundred characters outside ASCII reach once escaped.
 const OPEN_EXTERNAL_LIMIT = 2081;
 
-// Core compiles without the DOM's or Node's URL types, so the query is escaped by hand; it is cut by whole graphemes, so a surrogate pair or an emoji sequence is never split.
+// Core compiles without the DOM's or Node's URL types, so the query is escaped by hand; it is cut by whole graphemes, so a surrogate pair or an emoji sequence is never split, and a lone surrogate, which `encodeURIComponent` throws on, is searched as U+FFFD, as Chromium itself reports one.
 const googleSearch = (text: string): string => {
   let query = "";
   let count = 0;
   for (const { segment } of new Intl.Segmenter(undefined, {
     granularity: "grapheme",
-  }).segment(text)) {
+  }).segment(text.toWellFormed())) {
     const escaped = encodeURIComponent(segment);
     if (
       count === SEARCH_QUERY_LIMIT ||

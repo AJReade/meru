@@ -191,6 +191,12 @@ describe(contextMenuOf, () => {
     ]);
   });
 
+  it("searches Google for a selection holding a lone surrogate rather than throwing", () => {
+    expect(searchOf("a\uD83Db")).toBe(
+      `https://www.google.com/search?q=a${encodeURIComponent("\uFFFD")}b`
+    );
+  });
+
   it("offers neither Look Up nor Search with Google for a selection of only space", () => {
     expect(
       layout(menu({ selectionText: " \n" }, { platform: "darwin" }))

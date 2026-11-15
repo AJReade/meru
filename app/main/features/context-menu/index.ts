@@ -40,6 +40,16 @@ const LABELS: ContextMenuLabels = {
   share: msg`Share`,
 };
 
+/** What a right-click was on, without its addresses or text, for a log line. */
+const shapeOf = (params: ContextMenuParams) => ({
+  editable: params.isEditable,
+  imageAddress: params.srcUrl !== "",
+  link: params.linkUrl !== "",
+  mediaType: params.mediaType,
+  selection: params.selectionText.length,
+  suggestions: params.dictionarySuggestions.length,
+});
+
 export interface ContextMenuOptions {
   readonly contextMenu: ContextMenuPort;
   readonly clipboard: ClipboardPort;
@@ -64,7 +74,15 @@ export class ContextMenu {
   /** Opens the menu on every right-click in the page `contentsId` until the returned call, offering the page's own address when `offersPage` says. */
   attach(contentsId: number, { offersPage = false } = {}): Unsubscribe {
     return this.#options.contextMenu.listen(contentsId, (params) => {
-      this.#show(contentsId, params, offersPage);
+      // Electron's event has no caller to hand a throw to, so one would end the app as an uncaught exception.
+      try {
+        this.#show(contentsId, params, offersPage);
+      } catch (error) {
+        this.#options.log.error("The context menu could not be shown", {
+          error,
+          params: shapeOf(params),
+        });
+      }
     });
   }
 
@@ -110,8 +128,16 @@ export class ContextMenu {
           kind: "item",
           label: item.label,
           run: () => {
-            if (action !== undefined) {
+            if (action === undefined) {
+              return;
+            }
+            try {
               this.#run(contentsId, action);
+            } catch (error) {
+              this.#options.log.error("A context menu item failed", {
+                error,
+                item: item.id,
+              });
             }
           },
         };
