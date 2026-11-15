@@ -210,9 +210,16 @@ test("sends a window a pane opens onto another site to the browser rather than o
       return external;
     })
     .toStrictEqual(["https://example.com/", "https://example.org/"]);
-  expect(
-    await app.evaluate(
-      ({ BrowserWindow }) => BrowserWindow.getAllWindows().length
+  // The blank popup's hidden window is destroyed on a turn after its address goes out, so the count settles after `external` does.
+  await expect
+    .poll(
+      async () =>
+        await app.evaluate(
+          ({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows().filter(
+              (window) => !window.isDestroyed()
+            ).length
+        )
     )
-  ).toBe(1);
+    .toBe(1);
 });
