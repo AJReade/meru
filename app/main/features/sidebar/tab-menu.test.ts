@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { wireName } from "../../../shared/channels/define.ts";
+import { profilesPushes } from "../../../shared/channels/profiles.ts";
 import { sidebar } from "../../../shared/channels/sidebar.ts";
 import { FakeClipboard } from "../../../test/fakes/clipboard.ts";
 import { FakeContextMenu } from "../../../test/fakes/context-menu.ts";
@@ -14,7 +15,7 @@ import { TabMenu } from "./tab-menu.ts";
 
 const setup = async () => {
   const app = await testApp();
-  const { commands, profiles, registrar, settings } = app;
+  const { commands, events, profiles, registrar, settings, transport } = app;
   const { open, stages, views } = testStages(app);
   const launcher = new Launcher({
     commands,
@@ -60,6 +61,19 @@ const setup = async () => {
       tabId,
     });
   const at = () => port.at.get(window.contentsId);
+  const changes = {
+    get pages() {
+      return transport.sent.filter(
+        (sent) =>
+          sent.contentsId === window.contentsId &&
+          sent.channel === wireName(profilesPushes.changed)
+      ).length;
+    },
+    stage: 0,
+  };
+  events.on("stage.invalidated", () => {
+    changes.stage += 1;
+  });
   const shown = () => port.shown.get(window.contentsId) ?? [];
   const click = (id: string) => port.click(window.contentsId, id);
   const item = (id: string) =>
@@ -73,6 +87,7 @@ const setup = async () => {
   return {
     add,
     at,
+    changes,
     click,
     clipboard,
     gmail: gmail.id,
@@ -134,6 +149,21 @@ describe(TabMenu, () => {
     show(calendar);
     expect(click("closeOthers")).toBeTruthy();
     expect(left()).toStrictEqual([gmail, calendar]);
+  });
+
+  it("closes the other tabs in one change, telling the pages once", async () => {
+    const { add, changes, click, gmail, left, show } = await setup();
+    const calendar = add("calendar");
+    add("drive");
+    add("docs");
+    show(calendar);
+    const { pages, stage } = changes;
+    click("closeOthers");
+    expect({
+      left: left(),
+      pages: changes.pages - pages,
+      stage: changes.stage - stage,
+    }).toStrictEqual({ left: [gmail, calendar], pages: 1, stage: 1 });
   });
 
   it("closes the tabs below the row and only those", async () => {

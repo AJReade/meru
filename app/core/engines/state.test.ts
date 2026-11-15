@@ -16,6 +16,7 @@ import {
   equaliseGroup,
   canClose,
   closeTab,
+  closeTabs,
   openTab,
   firstGroup,
   freshState,
@@ -205,6 +206,33 @@ describe("the state's operations", () => {
       closeTab(calendar, "t1", gmail),
       closeTab(calendar, "t3", gmail).ok,
     ]).toStrictEqual([{ error: "pinned", ok: false }, true]);
+  });
+
+  it("closes several tabs in one change, leaving open each it would refuse one by one", () => {
+    const ids = fakeIds("n");
+    const state = freshState(profile("a"), gmailTab("t1", "a"), ids);
+    const two = unwrap(
+      addTab(state, { ...tabOf("t3", "a"), appId: "calendar" }, ids)
+    );
+    const three = unwrap(
+      addTab(two, { ...tabOf("t4", "a"), appId: "drive" }, ids)
+    );
+    const closed = closeTabs(three, ["t1", "t3", "gone", "t4"], gmail);
+    expect(validateState(closed.state, gmail)).toStrictEqual([]);
+    expect({
+      left: closed.state.tabs.map((tab) => tab.id),
+      refused: closed.refused,
+    }).toStrictEqual({
+      left: ["t1"],
+      refused: [
+        { reason: "pinned", tabId: "t1" },
+        { reason: "unknownTab", tabId: "gone" },
+      ],
+    });
+    const alone = freshState(profile("b"), tabOf("t5", "b"), ids);
+    expect(closeTabs(alone, ["t5"], gmail).refused).toStrictEqual([
+      { reason: "lastTab", tabId: "t5" },
+    ]);
   });
 
   it("answers whether a tab may close without closing it", () => {

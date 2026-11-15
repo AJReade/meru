@@ -9,6 +9,7 @@ import {
   equaliseGroup,
   canClose,
   closeTab,
+  closeTabs,
   openTab,
   firstState,
   firstGroup,
@@ -25,7 +26,11 @@ import {
   swapPanes,
   updateProfile,
 } from "../../../core/engines/state.ts";
-import type { ProfilePatch, StateError } from "../../../core/engines/state.ts";
+import type {
+  ClosedTabs,
+  ProfilePatch,
+  StateError,
+} from "../../../core/engines/state.ts";
 import { deactivatedProfiles, canUse } from "../../../core/entitlement/gate.ts";
 import type { Gate, GateRefusal } from "../../../core/entitlement/gate.ts";
 import type { AppEvents } from "../../../core/events.ts";
@@ -350,6 +355,19 @@ export class Profiles {
 
   closeTab(tabId: string): Result<undefined, ProfilesError> {
     return this.#commit(closeTab(this.state, tabId, isSingleInstanceId));
+  }
+
+  /** Closes the tabs in one change, leaving open each `closeTab` would refuse, and answers those with why. */
+  closeTabs(
+    tabIds: readonly string[]
+  ): Result<ClosedTabs["refused"], ProfilesError> {
+    const { refused, state } = closeTabs(
+      this.state,
+      tabIds,
+      isSingleInstanceId
+    );
+    const committed = this.#commit(ok(state));
+    return committed.ok ? ok(refused) : committed;
   }
 
   /** Lets the tab sleep once it has been out of sight a while, or keeps it awake. */

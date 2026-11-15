@@ -36,7 +36,7 @@ const labels = (): TabMenuLabels => ({
 export interface TabMenuOptions {
   readonly profiles: Pick<
     Profiles,
-    "state" | "tab" | "closeTab" | "focusTab" | "leaveGroup" | "letSleep"
+    "state" | "tab" | "closeTabs" | "focusTab" | "leaveGroup" | "letSleep"
   >;
   readonly stages: Pick<Stages, "address" | "reload" | "shown">;
   /** Opens the launcher for a pane of `orientation` beside the focused one in the window whose chrome page is `windowId`, as the split commands do. */
@@ -141,8 +141,10 @@ export class TabMenu {
     } else if (action.kind === "letSleep") {
       this.#refused(profiles.letSleep(tabId, action.sleeps));
     } else {
-      for (const id of action.tabIds) {
-        this.#refused(profiles.closeTab(id));
+      const closed = profiles.closeTabs(action.tabIds);
+      this.#refused(closed);
+      for (const { reason } of closed.ok ? closed.value : []) {
+        this.#refused(err(reason));
       }
     }
   }

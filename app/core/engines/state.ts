@@ -390,6 +390,34 @@ export const closeTab = (
   });
 };
 
+export interface ClosedTabs {
+  readonly state: ProfilesState;
+  /** The tabs left open, each with what `closeTab` refused it for, in the state the ones before it had left. */
+  readonly refused: readonly {
+    readonly tabId: string;
+    readonly reason: StateError;
+  }[];
+}
+
+/** Closes each tab in order as `closeTab` would, leaving open each it refuses, so a profile's tabs change once rather than once per tab. */
+export const closeTabs = (
+  state: ProfilesState,
+  tabIds: readonly string[],
+  singleInstance: SingleInstance
+): ClosedTabs => {
+  let closed = state;
+  const refused: { tabId: string; reason: StateError }[] = [];
+  for (const tabId of tabIds) {
+    const next = closeTab(closed, tabId, singleInstance);
+    if (next.ok) {
+      closed = next.value;
+    } else {
+      refused.push({ reason: next.error, tabId });
+    }
+  }
+  return { refused, state: closed };
+};
+
 /** Takes a tab out of its group into a group of its own; a pinned tab stays, the others leaving it. */
 export const leaveGroup = (
   state: ProfilesState,
