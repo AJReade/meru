@@ -79,6 +79,8 @@ export type ContextMenuItemId =
   | "copyLink"
   | "openInDefaultBrowser"
   | "copyMessageLink"
+  | "copyUrl"
+  | "openPageInDefaultBrowser"
   | "inspectElement";
 
 export type ContextMenuItem =

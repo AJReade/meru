@@ -25,6 +25,7 @@ const LABELS: ContextMenuLabels = {
   copyImageAddress: msg`C&opy Image Address`,
   copyLink: msg`Copy Link Addr&ess`,
   copyMessageLink: msg`Copy Message Link`,
+  copyUrl: msg`Copy URL`,
   cut: msg`Cu&t`,
   inspectElement: msg`Inspect Element`,
   learnSpelling: msg`&Learn Spelling`,
@@ -60,20 +61,21 @@ export class ContextMenu {
     this.#options = options;
   }
 
-  /** Opens the menu on every right-click in the page `contentsId` until the returned call. */
-  attach(contentsId: number): Unsubscribe {
+  /** Opens the menu on every right-click in the page `contentsId` until the returned call, offering the page's own address when `offersPage` says. */
+  attach(contentsId: number, { offersPage = false } = {}): Unsubscribe {
     return this.#options.contextMenu.listen(contentsId, (params) => {
-      this.#show(contentsId, params);
+      this.#show(contentsId, params, offersPage);
     });
   }
 
-  /** The tab's page, with the menu attached to its view alongside what the page attaches itself. */
-  page(content: ContentPage): ContentPage {
+  /** The page of a tab of `appId`, with the menu attached to its view alongside what the page attaches itself; every app's but Gmail's offers its own address, as 3.x's did. */
+  page(content: ContentPage, appId: string): ContentPage {
+    const offersPage = appId !== "gmail";
     return {
       ...content,
       attach: (contentsId) => {
         const detach = content.attach(contentsId);
-        const detachMenu = this.attach(contentsId);
+        const detachMenu = this.attach(contentsId, { offersPage });
         return () => {
           detachMenu();
           detach();
@@ -82,12 +84,17 @@ export class ContextMenu {
     };
   }
 
-  #show(contentsId: number, params: ContextMenuParams): void {
+  #show(
+    contentsId: number,
+    params: ContextMenuParams,
+    offersPage: boolean
+  ): void {
     const { development, mailbox, platform } = this.#options;
     const items = contextMenuOf(params, {
       development,
       labels: LABELS,
       mailbox,
+      offersPage,
       platform,
     });
     this.#options.contextMenu.popup(

@@ -65,8 +65,11 @@ const setup = async ({
   const shell = new FakeShell();
   const downloadPort = new FakeDownloads();
   const { open, stages, views } = testStages(app, {
-    content: () =>
-      contextMenu.page({ arguments: [], attach: () => noop, preload: "" }),
+    content: (tab) =>
+      contextMenu.page(
+        { arguments: [], attach: () => noop, preload: "" },
+        tab.appId
+      ),
     onOpen: (tabId, url, disposition) => links.open(tabId, url, disposition),
   });
   const links = new Links({
@@ -246,6 +249,40 @@ describe(ContextMenu, () => {
         { kind: "inspect", x: 4, y: 8 },
       ].map((action) => ({ action, contentsId: pane.contentsId }))
     );
+  });
+
+  it("copies a pane's own address and opens it in the browser, in every pane but Gmail's", async () => {
+    const { clipboard, labels, port, profiles, rightClick, shell, views } =
+      await setup();
+    rightClick({ pageUrl: `${MAILBOX}/#inbox` });
+    const gmail = labels();
+    const opened = profiles.openTab(profiles.selected().id, "calendar");
+    if (!opened.ok) {
+      throw new Error("The tab did not open");
+    }
+    profiles.focusTab(opened.value.id);
+    const [, calendar] = views.created;
+    if (calendar === undefined) {
+      throw new Error("The calendar tab has no view");
+    }
+    const pageUrl = "https://calendar.google.com/calendar/u/0/r";
+    port.rightClick(calendar.contentsId, { ...NOTHING, pageUrl });
+    port.click(calendar.contentsId, "copyUrl");
+    port.click(calendar.contentsId, "openPageInDefaultBrowser");
+    await settle();
+    expect([
+      gmail,
+      port.shown
+        .get(calendar.contentsId)
+        ?.map((entry) => (entry.kind === "separator" ? "-" : entry.label)),
+      clipboard.copied,
+      shell.opened,
+    ]).toStrictEqual([
+      [],
+      ["Copy URL", "Open in Default Browser"],
+      [{ kind: "text", text: pageUrl }],
+      [pageUrl],
+    ]);
   });
 
   it("stops hearing a pane's page once its tab closes and its view goes", async () => {

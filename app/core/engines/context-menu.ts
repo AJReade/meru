@@ -24,6 +24,7 @@ export interface ContextMenuLabels {
   readonly copyLink: string;
   readonly openInDefaultBrowser: string;
   readonly copyMessageLink: string;
+  readonly copyUrl: string;
   readonly share: string;
   readonly inspectElement: string;
 }
@@ -34,6 +35,8 @@ export interface ContextMenuContext {
   readonly development: boolean;
   /** The Gmail mailbox's address, whose origin a page showing a message must share to offer its link. */
   readonly mailbox: string;
+  /** Whether the menu offers the page's own address, which every pane but Gmail's does. */
+  readonly offersPage: boolean;
   readonly labels: ContextMenuLabels;
 }
 
@@ -373,6 +376,36 @@ const message = (
   ];
 };
 
+const page = (
+  params: ContextMenuParams,
+  { labels, offersPage }: ContextMenuContext
+): Section => {
+  const { pageUrl } = params;
+  if (!offersPage || pageUrl === "") {
+    return [];
+  }
+  return [
+    {
+      action: { kind: "copyText", text: pageUrl },
+      enabled: true,
+      id: "copyUrl",
+      kind: "item",
+      label: labels.copyUrl,
+    },
+    ...(WEB_ADDRESS.test(pageUrl)
+      ? ([
+          {
+            action: { kind: "openExternal", url: pageUrl },
+            enabled: true,
+            id: "openPageInDefaultBrowser",
+            kind: "item",
+            label: labels.openInDefaultBrowser,
+          },
+        ] satisfies Section)
+      : []),
+  ];
+};
+
 const inspect = (
   params: ContextMenuParams,
   { development, labels }: ContextMenuContext
@@ -407,6 +440,7 @@ export const contextMenuOf = (
     imageAndEmail(params, labels),
     link(params, labels),
     message(params, context),
+    page(params, context),
     inspect(params, context),
   ];
   return sections

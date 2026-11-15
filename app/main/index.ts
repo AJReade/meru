@@ -345,7 +345,8 @@ const start = async () => {
     commands,
     content: (tab) =>
       contextMenu.page(
-        tab.appId === "gmail" ? gmail.page(tab) : google.page(tab)
+        tab.appId === "gmail" ? gmail.page(tab) : google.page(tab),
+        tab.appId
       ),
     ...(e2e
       ? {

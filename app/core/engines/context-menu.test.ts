@@ -21,6 +21,7 @@ const LABELS: ContextMenuLabels = {
   copyImageAddress: "Copy Image Address",
   copyLink: "Copy Link Address",
   copyMessageLink: "Copy Message Link",
+  copyUrl: "Copy URL",
   cut: "Cut",
   inspectElement: "Inspect Element",
   learnSpelling: "Learn Spelling",
@@ -60,7 +61,11 @@ const NOTHING: ContextMenuParams = {
 
 const menu = (
   params: Partial<ContextMenuParams>,
-  options: { platform?: Platform; development?: boolean } = {}
+  options: {
+    platform?: Platform;
+    development?: boolean;
+    offersPage?: boolean;
+  } = {}
 ) =>
   contextMenuOf(
     { ...NOTHING, ...params },
@@ -68,6 +73,7 @@ const menu = (
       development: options.development ?? false,
       labels: LABELS,
       mailbox: MAILBOX,
+      offersPage: options.offersPage ?? false,
       platform: options.platform ?? "linux",
     }
   );
@@ -401,6 +407,46 @@ describe(contextMenuOf, () => {
       ["copyMessageLink", `share ${link}`],
       { action: { kind: "copyText", text: link } },
       ["selectAll", "-", "copyMessageLink"],
+    ]);
+  });
+
+  it("offers Copy URL and Open in Default Browser for the page's own address where asked, after a message's link", () => {
+    const pageUrl = "https://calendar.google.com/calendar/u/0/r";
+    const items = menu({ pageUrl }, { offersPage: true });
+    expect([
+      layout(items),
+      itemOf(items, "copyUrl"),
+      itemOf(items, "openPageInDefaultBrowser"),
+      layout(menu({ pageUrl })),
+      layout(menu({ pageUrl: "about:blank" }, { offersPage: true })),
+      layout(
+        menu(
+          { pageUrl: `${MAILBOX}/#inbox/${MESSAGE}` },
+          { development: true, offersPage: true }
+        )
+      ),
+    ]).toMatchObject([
+      ["selectAll", "-", "copyUrl", "openPageInDefaultBrowser"],
+      {
+        action: { kind: "copyText", text: pageUrl },
+        label: "Copy URL",
+      },
+      {
+        action: { kind: "openExternal", url: pageUrl },
+        label: "Open in Default Browser",
+      },
+      ["selectAll"],
+      ["selectAll", "-", "copyUrl"],
+      [
+        "selectAll",
+        "-",
+        "copyMessageLink",
+        "-",
+        "copyUrl",
+        "openPageInDefaultBrowser",
+        "-",
+        "inspectElement",
+      ],
     ]);
   });
 
