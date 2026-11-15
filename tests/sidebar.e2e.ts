@@ -265,7 +265,7 @@ test("opens a row's menu on a right-click, whose Close Other Tabs leaves that ta
       ["splitHorizontal", false],
       ["leaveGroup", false],
       "-",
-      ["copyUrl", true],
+      ["copyUrl", false],
       ["openInDefaultBrowser", false],
       "-",
       ["sleepWhenIdle", true],

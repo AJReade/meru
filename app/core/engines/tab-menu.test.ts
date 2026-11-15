@@ -92,6 +92,11 @@ const tabs = [tab("gmail", "gmail"), tab("a"), tab("b"), tab("c"), tab("d")];
 const groups = [single("gmail"), pair("a", "b"), single("c"), single("d")];
 const state = { groups, tabs };
 
+const copyable = (url: string) => [
+  byId(menuOf(state, "c", context({ url })), "copyUrl").enabled,
+  byId(menuOf(state, "c", context({ url })), "openInDefaultBrowser").enabled,
+];
+
 describe(tabMenuOf, () => {
   it("lays the items out in 3.x's order, sections apart by a separator", () => {
     expect(
@@ -229,6 +234,22 @@ describe(tabMenuOf, () => {
         "openInDefaultBrowser"
       ).enabled
     ).toBeFalsy();
+  });
+
+  it("copies only an address that may leave the app, as the browser opens only a web one", () => {
+    expect({
+      blob: copyable("blob:https://example.com/1"),
+      data: copyable("data:text/html,<b>hi</b>"),
+      http: copyable("http://example.com"),
+      javascript: copyable(["javascript", "alert(1)"].join(":")),
+      mailto: copyable("mailto:someone@example.com"),
+    }).toStrictEqual({
+      blob: [false, false],
+      data: [false, false],
+      http: [true, true],
+      javascript: [false, false],
+      mailto: [true, false],
+    });
   });
 
   it("leaves another profile's tabs alone", () => {

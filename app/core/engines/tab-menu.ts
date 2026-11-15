@@ -3,6 +3,7 @@ import type { Orientation } from "../records/layout.ts";
 import type { ProfilesState } from "../records/profiles-state.ts";
 import type { Tab } from "../records/tab.ts";
 import { isWebAddress } from "./context-menu.ts";
+import { opensOutside } from "./links.ts";
 import { groupOf, orderedTabs, rowTabs } from "./ordering.ts";
 import { isPinned } from "./pinned.ts";
 import type { SingleInstance } from "./pinned.ts";
@@ -87,7 +88,8 @@ export const tabMenuOf = (
     }),
     item("leaveGroup", grouped && !pinned, { kind: "leaveGroup" }),
     { kind: "separator" },
-    item("copyUrl", true, { kind: "copyUrl", url }),
+    // A data: address is the page itself, up to megabytes of text, and a blob: or javascript: one means nothing outside the page, so only what may leave the app is copied.
+    item("copyUrl", opensOutside(url), { kind: "copyUrl", url }),
     item("openInDefaultBrowser", isWebAddress(url), {
       kind: "openExternal",
       url,
