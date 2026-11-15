@@ -22,6 +22,12 @@ const entry = (item: MenuEntry<CommandId>): MenuItemConstructorOptions => {
   if (item.kind === "separator") {
     return { type: "separator" };
   }
+  if (item.kind === "speech") {
+    return {
+      label: "Speech",
+      submenu: [{ role: "startSpeaking" }, { role: "stopSpeaking" }],
+    };
+  }
   if (item.kind === "role") {
     return item.label === undefined
       ? { role: item.role }
@@ -47,9 +53,6 @@ export const setApplicationMenu = (
   Menu.setApplicationMenu(
     Menu.buildFromTemplate(
       sections.map((section): MenuItemConstructorOptions => {
-        if (section.kind === "role") {
-          return { role: section.role };
-        }
         if (section.kind === "app") {
           return { label: app.name, submenu: section.entries.map(entry) };
         }

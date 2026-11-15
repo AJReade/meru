@@ -26,12 +26,32 @@ interface ApplicationMenuOptions {
   readonly log: LogPort;
 }
 
-const labels = (): MenuLabels => ({
+// Each platform's own word for quitting, as Electron's role gives it.
+const QUIT: Readonly<Record<Platform, string>> = {
+  darwin: msg`Quit Meru`,
+  linux: msg`Quit`,
+  win32: msg`Exit`,
+};
+
+/** The application menu's submenu titles and role labels on `platform`. */
+export const menuLabels = (platform: Platform): MenuLabels => ({
+  about: msg`About Meru`,
+  close: msg`Close window`,
+  copy: msg`Copy`,
+  cut: msg`Cut`,
+  delete: msg`Delete`,
   edit: msg`Edit`,
   file: msg`File`,
   hideOthers: msg`Hide others`,
   history: msg`History`,
+  minimize: msg`Minimize`,
+  paste: msg`Paste`,
+  pasteAndMatchStyle: msg`Paste and match style`,
   profiles: msg`Profiles`,
+  quit: QUIT[platform],
+  redo: msg`Redo`,
+  selectAll: msg`Select all`,
+  undo: msg`Undo`,
   unhide: msg`Show all`,
   view: msg`View`,
 });
@@ -81,7 +101,7 @@ export class ApplicationMenu {
       buildMenu({
         bindings,
         commands,
-        labels: labels(),
+        labels: menuLabels(platform),
         checked: (id) => dispatcher.checked(id, this.#options.windowId?.()),
         enabled: (id) => dispatcher.enabled(id, this.#options.windowId?.()),
         platform,

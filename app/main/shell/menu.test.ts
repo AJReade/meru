@@ -19,11 +19,9 @@ import { testApp, testStages } from "../testing.ts";
 import { ApplicationMenu } from "./menu.ts";
 
 const entriesOf = (section: MenuSection<CommandId>) =>
-  section.kind === "role"
-    ? []
-    : section.entries.filter(
-        (entry): entry is MenuAction<CommandId> => entry.kind === "action"
-      );
+  section.entries.filter(
+    (entry): entry is MenuAction<CommandId> => entry.kind === "action"
+  );
 
 const setup = async (platform: Platform = "darwin") => {
   const log = new FakeLog();
@@ -174,7 +172,9 @@ describe(ApplicationMenu, () => {
         label: "Maximise pane",
       },
     ]);
-    expect(sections()[2]).toStrictEqual({ kind: "role", role: "editMenu" });
+    expect(
+      sections().map((section) => section.kind === "submenu" && section.label)
+    ).toContain("Edit");
   });
 
   it("puts the sidebar's toggle in the View menu on CmdOrCtrl+S", async () => {
@@ -270,21 +270,61 @@ describe(ApplicationMenu, () => {
     ]);
   });
 
-  it("labels the roles Electron would title-case in sentence case", async () => {
-    const { sections } = await setup("darwin");
-    const [app] = sections();
-    expect(
-      app?.kind === "app" &&
-        app.entries.flatMap((entry) =>
-          entry.kind === "role" && entry.label !== undefined
-            ? [[entry.role, entry.label]]
-            : []
+  it.each<readonly [Platform, string]>([
+    ["darwin", "Quit Meru"],
+    ["linux", "Quit"],
+    ["win32", "Exit"],
+  ])(
+    "labels every role it draws on %s in sentence case, Services and Hide Meru aside",
+    async (platform, quit) => {
+      const { sections } = await setup(platform);
+      const roles = sections().flatMap((section) =>
+        section.entries.flatMap((entry) =>
+          entry.kind === "role" ? [[entry.role, entry.label]] : []
         )
-    ).toStrictEqual([
-      ["hideOthers", "Hide others"],
-      ["unhide", "Show all"],
-    ]);
-  });
+      );
+      const mac = platform === "darwin";
+      expect(roles).toStrictEqual([
+        ["about", "About Meru"],
+        ...(mac
+          ? [
+              ["services", undefined],
+              ["hide", undefined],
+              ["hideOthers", "Hide others"],
+              ["unhide", "Show all"],
+            ]
+          : []),
+        ["quit", quit],
+        ["close", "Close window"],
+        ...(mac ? [] : [["minimize", "Minimize"]]),
+        ["undo", "Undo"],
+        ["redo", "Redo"],
+        ["cut", "Cut"],
+        ["copy", "Copy"],
+        ["paste", "Paste"],
+        ["pasteAndMatchStyle", "Paste and match style"],
+        ["delete", "Delete"],
+        ["selectAll", "Select all"],
+      ]);
+    }
+  );
+
+  it.each<readonly [Platform, boolean]>([
+    ["darwin", true],
+    ["linux", false],
+    ["win32", false],
+  ])(
+    "keeps macOS's Speech submenu in the Edit menu, on %s: %s",
+    async (platform, speech) => {
+      const { sections } = await setup(platform);
+      const edit = sections().find(
+        (section) => section.kind === "submenu" && section.label === "Edit"
+      );
+      expect(edit?.entries.some((entry) => entry.kind === "speech")).toBe(
+        speech
+      );
+    }
+  );
 
   it("enables Restart to update once an update is ready, rebuilding the menu", async () => {
     const { built, feed, sections } = await setup("linux");

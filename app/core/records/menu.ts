@@ -21,6 +21,8 @@ export interface MenuAction<Id extends string> {
 export type MenuEntry<Id extends string> =
   | MenuAction<Id>
   | { readonly kind: "separator" }
+  /** macOS's Speech submenu, as Electron's Edit menu role draws it. */
+  | { readonly kind: "speech" }
   | {
       readonly kind: "role";
       /** Absent to keep the label Electron gives the role. */
@@ -45,7 +47,6 @@ export type MenuEntry<Id extends string> =
     };
 
 export type MenuSection<Id extends string> =
-  | { readonly kind: "role"; readonly role: "editMenu" }
   | {
       readonly kind: "submenu";
       readonly label: string;

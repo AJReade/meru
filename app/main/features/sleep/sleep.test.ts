@@ -174,7 +174,7 @@ describe(Sleep, () => {
     }).start();
     const state = () => {
       const found = built
-        .flatMap((section) => (section.kind === "role" ? [] : section.entries))
+        .flatMap((section) => section.entries)
         .find(
           (entry) => entry.kind === "action" && entry.id === "sleep.toggleTab"
         );

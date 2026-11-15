@@ -1,28 +1,43 @@
 import type { MenuEntry, MenuSection, MenuSectionId } from "../records/menu.ts";
 import type { Platform } from "../records/platform.ts";
 
-const EDIT_ROLES: readonly MenuEntry<never>[] = [
-  { kind: "role", role: "undo" },
-  { kind: "role", role: "redo" },
-  { kind: "separator" },
-  { kind: "role", role: "cut" },
-  { kind: "role", role: "copy" },
-  { kind: "role", role: "paste" },
-  { kind: "role", role: "pasteAndMatchStyle" },
-  { kind: "role", role: "delete" },
-  { kind: "role", role: "selectAll" },
+type Role = Extract<MenuEntry<never>, { kind: "role" }>["role"];
+
+/** Every role the menu draws but Services and Hide Meru, which keep what macOS gives them: Electron title-cases most of the others. */
+export type LabelledRole = Exclude<Role, "services" | "hide">;
+
+const SEPARATOR: MenuEntry<never> = { kind: "separator" };
+const SPEECH: MenuEntry<never> = { kind: "speech" };
+
+const role = (labels: MenuLabels, name: LabelledRole): MenuEntry<never> => ({
+  kind: "role",
+  label: labels[name],
+  role: name,
+});
+
+const editRoles = (
+  labels: MenuLabels,
+  mac: boolean
+): readonly MenuEntry<never>[] => [
+  role(labels, "undo"),
+  role(labels, "redo"),
+  SEPARATOR,
+  role(labels, "cut"),
+  role(labels, "copy"),
+  role(labels, "paste"),
+  role(labels, "pasteAndMatchStyle"),
+  role(labels, "delete"),
+  role(labels, "selectAll"),
+  ...(mac ? [SEPARATOR, SPEECH] : []),
 ];
 
-const MINIMIZE: MenuEntry<never> = { kind: "role", role: "minimize" };
-
-// Electron labels these two in title case, against the sentence case of everything else the app draws.
 const macAppRoles = (labels: MenuLabels): readonly MenuEntry<never>[] => [
   { kind: "role", role: "services" },
-  { kind: "separator" },
+  SEPARATOR,
   { kind: "role", role: "hide" },
-  { kind: "role", label: labels.hideOthers, role: "hideOthers" },
-  { kind: "role", label: labels.unhide, role: "unhide" },
-  { kind: "separator" },
+  role(labels, "hideOthers"),
+  role(labels, "unhide"),
+  SEPARATOR,
 ];
 
 const checkOf = (checked: boolean | undefined) =>
@@ -34,9 +49,9 @@ interface MenuCommand<Id extends string> {
   readonly menu?: { readonly section: MenuSectionId; readonly order: number };
 }
 
-/** The titles of the submenus the app names itself and the labels of the macOS roles it relabels, in the user's language. */
+/** The titles of the submenus the app names itself and the labels of the roles it relabels, in the user's language and the platform's words. */
 export type MenuLabels = Readonly<
-  Record<Exclude<MenuSectionId, "app"> | "hideOthers" | "unhide", string>
+  Record<Exclude<MenuSectionId, "app"> | LabelledRole, string>
 >;
 
 interface MenuOptions<Id extends string> {
@@ -96,12 +111,12 @@ export const buildMenu = <Id extends string>({
   return [
     {
       entries: [
-        { kind: "role", role: "about" },
-        { kind: "separator" },
+        role(labels, "about"),
+        SEPARATOR,
         ...actions("app"),
-        { kind: "separator" },
+        SEPARATOR,
         ...(mac ? macAppRoles(labels) : []),
-        { kind: "role", role: "quit" },
+        role(labels, "quit"),
       ],
       kind: "app",
     },
@@ -111,18 +126,19 @@ export const buildMenu = <Id extends string>({
         ? []
         : [
             ...file,
-            { kind: "separator" },
-            { kind: "role", role: "close" },
-            ...(mac ? [] : [MINIMIZE]),
+            SEPARATOR,
+            role(labels, "close"),
+            ...(mac ? [] : [role(labels, "minimize")]),
           ]
     ),
-    edit.length === 0
-      ? { kind: "role", role: "editMenu" }
-      : {
-          entries: [...EDIT_ROLES, { kind: "separator" }, ...edit],
-          kind: "submenu",
-          label: labels.edit,
-        },
+    {
+      entries: [
+        ...editRoles(labels, mac),
+        ...(edit.length === 0 ? [] : [SEPARATOR, ...edit]),
+      ],
+      kind: "submenu",
+      label: labels.edit,
+    },
     { entries: actions("view"), kind: "submenu", label: labels.view },
     ...submenu("history"),
     ...submenu("profiles"),
