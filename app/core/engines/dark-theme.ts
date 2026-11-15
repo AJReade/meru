@@ -9,9 +9,6 @@ export interface Rgba {
 /** The ground a themed message sits on, Gmail's own dark surface. */
 export const DARK_SURFACE: Rgba = { a: 1, b: 31, g: 31, r: 31 };
 
-/** The text colour a themed message's unstyled text takes, Gmail's own on its dark surface. */
-export const DARK_TEXT: Rgba = { a: 1, b: 227, g: 227, r: 227 };
-
 const WHITE: Rgba = { a: 1, b: 255, g: 255, r: 255 };
 const BLACK: Rgba = { a: 1, b: 0, g: 0, r: 0 };
 
@@ -167,7 +164,7 @@ const fromHsl = ({ h, s, l }: Hsl, a: number): Rgba => {
 };
 
 /** Whether a colour says something as it stands, a brand's button or a highlighter's mark, rather than being a page's ground. */
-export const isBrand = (colour: Rgba): boolean => {
+const isBrand = (colour: Rgba): boolean => {
   const { s, l } = toHsl(colour);
   return s >= BRAND_SATURATION && l <= BRAND_LIGHTNESS;
 };
@@ -196,10 +193,6 @@ export const darkBackground = (colour: Rgba): Rgba => {
   }
   return darkened(colour, 0);
 };
-
-/** Whether `darkBackground` changes the colour. */
-export const darkens = (colour: Rgba): boolean =>
-  darkBackground(colour) !== colour;
 
 /** `colour` moved in lightness until it keeps `floor` against `ground`, its lightness turned over first, since a dark text on a darkened ground was light text's opposite. */
 const readableOn = (colour: Rgba, ground: Rgba, floor: number): Rgba => {
