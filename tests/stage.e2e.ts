@@ -11,6 +11,7 @@ import {
   launcherOf,
   must,
   panesOf,
+  launcherOpen,
   pickApp,
   stageOf,
   test,
@@ -18,6 +19,7 @@ import {
 } from "./app.ts";
 
 const SPLIT_VERTICAL: CommandId = "stage.splitVertical";
+const SPLIT_HORIZONTAL: CommandId = "stage.splitHorizontal";
 const CLOSE_TAB: CommandId = "stage.closeTab";
 const FOCUS_NEXT: CommandId = "stage.focusNext";
 const FOCUS_PREVIOUS: CommandId = "stage.focusPrevious";
@@ -111,6 +113,45 @@ test("splits with the app picked in the launcher, drags the divider across the p
 
   await clickMenuItem(app, CLOSE_TAB);
   await expect.poll(async () => await viewsOf(app)).toHaveLength(1);
+});
+
+test("opens the launcher from each split shortcut for its orientation, and splits nothing when it is closed", async ({
+  launch,
+}) => {
+  const { app } = await launch();
+  await expect.poll(async () => await panesOf(app)).toHaveLength(1);
+
+  const { menu } = await inspect(app);
+  expect({
+    horizontal: menu[SPLIT_HORIZONTAL],
+    vertical: menu[SPLIT_VERTICAL],
+  }).toStrictEqual({
+    horizontal: "CommandOrControl+Alt+Shift+N",
+    vertical: "CommandOrControl+Alt+N",
+  });
+
+  // Electron runs a menu item's accelerator off a real key event, which no event sent to a page is, so the shortcut is run as the key runs it: through its menu item.
+  await clickMenuItem(app, SPLIT_HORIZONTAL);
+  const launcher = await launcherOf(app);
+  await expect(launcher.locator("input")).toHaveAttribute(
+    "placeholder",
+    "Split horizontally with…"
+  );
+
+  // Escape closes the launcher's page, which can be gone before Playwright hears back about the key; the poll below is the assertion.
+  await launcher
+    .locator("input")
+    .press("Escape")
+    .catch(() => null);
+  await expect.poll(() => launcherOpen(app)).toBeFalsy();
+  expect(await panesOf(app)).toHaveLength(1);
+
+  await clickMenuItem(app, SPLIT_VERTICAL);
+  const again = await launcherOf(app);
+  await expect(again.locator("input")).toHaveAttribute(
+    "placeholder",
+    "Split vertically with…"
+  );
 });
 
 test("keeps a tab's page through a split beside it, leaving the group and joining it again", async ({
