@@ -178,7 +178,7 @@ describe(addressShape, () => {
 });
 
 // A received message's body holding everything a corpus capture must not let through, and the look it must keep.
-const PRIVATE_BODY = `<div class="a3s aiL msg-1781843495937646038"><style>.m_-1781843495937646038hero { background: url(https://tracker.example/open?u=tim@example.org) #fff; color: #202124 }</style>
+const PRIVATE_BODY = `<div class="a3s aiL msg-1781843495937646038"><style>.m_-1781843495937646038hero { background: url(https://tracker.example/open?u=tim@example.org) #fff; color: #202124 } .greeting::before { content: "Dear Tim, " } a[title='Results for Tim'] { color: #1a73e8 }</style>
 <script>track("tim@example.org")</script>
 <table class="m_-1781843495937646038hero" bgcolor="#F8F9FA" width="600" cellpadding="16"><tr><td style="background-image:url('https://ci3.googleusercontent.com/meips/secretPath');color:#202124;border:1px solid #dadce0">Hi Tim, your results are positive.</td></tr></table>
 <img src="https://ci3.googleusercontent.com/meips/secretPhoto=s0" width="74" height="24" alt="Tim's face">
@@ -217,6 +217,8 @@ describe(scrubMail, () => {
         'style="color:#1a73e8"',
         ".m_-0hero { background: url(",
         "color: #202124 }",
+        'content: "xxxx xxxx "',
+        "a[title='xxxxxxx xxx xxx'] { color: #1a73e8 }",
       ].filter((kept) => !scrubbed.includes(kept))
     ).toStrictEqual([]);
   });

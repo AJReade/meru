@@ -424,7 +424,8 @@ export const scrubHtml = (input: string): string => {
 // A run of digits this long in a body's class, id or style is a message's id, which Gmail writes into the names it gives a mail's own classes (`msg-…`, `m_…`).
 // A hex colour's digits follow its `#` or a hex letter, and stay.
 const DIGIT_RUN = /(?<![#\da-f])\d{6,}/giu;
-const CSS_URL = /url\(\s*(?:"[^"]*"|'[^']*'|[^)]*)\)/giu;
+// An address CSS loads, or a quoted string, found in one pass so a string inside an address is taken with it.
+const CSS_TEXT = /url\(\s*(?:"[^"]*"|'[^']*'|[^)]*)\)|"[^"]*"|'[^']*'/giu;
 const CSS_COMMENT = /\/\*[\s\S]*?\*\//gu;
 const DIMENSION = /^\d{1,4}(?:\.\d+)?(?:%|px)?$/u;
 const COLOUR = /^#?[\da-z]{1,20}$/iu;
@@ -439,11 +440,15 @@ export const imagePlaceholder = (width: number, height: number): string =>
 
 const UNSIZED_IMAGE = imagePlaceholder(1, 1);
 
-/** A mail's CSS with every address it loads made a placeholder image and message ids made zero. */
+/** A mail's CSS with every address it loads made a placeholder image, every string it holds, such as a `content` or an attribute selector's value, a placeholder of its length, and message ids made zero. */
 const mailCss = (css: string): string =>
   css
     .replaceAll(CSS_COMMENT, "")
-    .replaceAll(CSS_URL, `url("${UNSIZED_IMAGE}")`)
+    .replaceAll(CSS_TEXT, (text: string) =>
+      text.toLowerCase().startsWith("url(")
+        ? `url("${UNSIZED_IMAGE}")`
+        : `${text.charAt(0)}${text.slice(1, -1).replaceAll(/\S/gu, "x")}${text.charAt(0)}`
+    )
     .replaceAll(DIGIT_RUN, "0");
 
 const sizeOf = (tag: Tag, name: string): number => {
