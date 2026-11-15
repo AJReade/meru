@@ -66,7 +66,7 @@ export class Links {
       return true;
     }
     if (target.action === "external") {
-      this.#external(url);
+      this.openExternal(url);
       return true;
     }
     const background = target.action === "newTab" && target.background;
@@ -88,7 +88,7 @@ export class Links {
       url
     );
     if (!opened.ok) {
-      this.#external(url);
+      this.openExternal(url);
       return true;
     }
     if (opened.value.url !== url) {
@@ -128,7 +128,7 @@ export class Links {
   popup(url: string): boolean {
     const shows = isSignIn(url);
     if (!shows) {
-      this.#external(url);
+      this.openExternal(url);
     }
     return shows;
   }
@@ -145,11 +145,12 @@ export class Links {
     } else if (isSignIn(url)) {
       return false;
     }
-    this.#external(url);
+    this.openExternal(url);
     return true;
   }
 
-  #external(url: string): void {
+  /** Sends the address to the default browser, refusing one that is no web page or mail address. */
+  openExternal(url: string): void {
     if (!opensOutside(url)) {
       this.#options.log.warn("A link was not opened outside the app", {
         scheme: url.split(":", 1)[0]?.slice(0, 32),
