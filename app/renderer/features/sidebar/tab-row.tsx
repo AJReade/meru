@@ -19,6 +19,10 @@ export interface GmailMark {
   readonly unread: number | null;
 }
 
+// Chromium marks a menu opened from the keyboard, Shift+F10 or the Menu key, as a pointer event of no pointer type, and a menu popped up with no point opens where the mouse is, which may be nowhere near the row.
+const fromKeyboard = (event: MouseEvent): boolean =>
+  event instanceof PointerEvent ? event.pointerType === "" : event.button !== 2;
+
 const titleOf = (tab: Tab): string => {
   const name = appById(tab.appId)?.name ?? tab.appId;
   return tab.title === null || tab.title === name
@@ -180,7 +184,15 @@ export const TabRowButton = ({
         }}
         onContextMenu={(event) => {
           event.preventDefault();
-          client.send(sidebar.showTabMenu, { tabId: tab.id });
+          if (!fromKeyboard(event.nativeEvent)) {
+            client.send(sidebar.showTabMenu, { tabId: tab.id });
+            return;
+          }
+          const { bottom, left } = event.currentTarget.getBoundingClientRect();
+          client.send(sidebar.showTabMenu, {
+            at: { x: Math.round(left), y: Math.round(bottom) },
+            tabId: tab.id,
+          });
         }}
         ref={pinned ? undefined : ref}
         role="tab"

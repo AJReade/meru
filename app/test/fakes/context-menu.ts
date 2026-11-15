@@ -4,6 +4,7 @@ import type {
   ContextMenuParams,
   PageAction,
 } from "../../core/records/context-menu.ts";
+import type { Point } from "../../core/records/rect.ts";
 
 /** Pages a test right-clicks, the menus they would show and what was done to them. */
 export class FakeContextMenu implements ContextMenuPort {
@@ -30,11 +31,20 @@ export class FakeContextMenu implements ContextMenuPort {
     };
   };
 
+  /** Where the menu shown last was put, by page; absent for one at the pointer. */
+  readonly at = new Map<number, Point>();
+
   readonly popup = (
     contentsId: number,
-    entries: readonly ContextMenuEntry[]
+    entries: readonly ContextMenuEntry[],
+    at?: Point
   ) => {
     this.shown.set(contentsId, entries);
+    if (at === undefined) {
+      this.at.delete(contentsId);
+    } else {
+      this.at.set(contentsId, at);
+    }
   };
 
   /** Whether acting on a page throws, as Electron does on a page destroyed under the menu. */

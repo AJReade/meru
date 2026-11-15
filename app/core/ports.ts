@@ -12,7 +12,7 @@ import type {
   PageHistory,
 } from "./records/navigation.ts";
 import type { Platform } from "./records/platform.ts";
-import type { Rect } from "./records/rect.ts";
+import type { Point, Rect } from "./records/rect.ts";
 import type { Theme } from "./records/theme.ts";
 import type { TitleBar, TitleBarOverlay } from "./records/title-bar.ts";
 import type { Result } from "./result.ts";
@@ -336,10 +336,11 @@ export interface ContextMenuPort {
     contentsId: number,
     listener: (params: ContextMenuParams) => void
   ) => Unsubscribe;
-  /** Shows the menu over the page `contentsId` where the pointer is. */
+  /** Shows the menu over the page `contentsId` at `at` in its window's content, else where the pointer is. */
   readonly popup: (
     contentsId: number,
-    entries: readonly ContextMenuEntry[]
+    entries: readonly ContextMenuEntry[],
+    at?: Point
   ) => void;
   /** Does `action` to the page `contentsId`, nothing once it is gone. */
   readonly act: (contentsId: number, action: PageAction) => void;

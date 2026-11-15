@@ -156,9 +156,11 @@ describe(Sidebar, () => {
 
   it("asks main for a row's menu on a right-click, in place of the page's own", () => {
     const { container, sentOn } = mount();
-    const event = new MouseEvent("contextmenu", {
+    const event = new PointerEvent("contextmenu", {
       bubbles: true,
+      button: 2,
       cancelable: true,
+      pointerType: "mouse",
     });
     act(() => {
       container
@@ -168,6 +170,29 @@ describe(Sidebar, () => {
     expect([event.defaultPrevented, sentOn(sidebar.showTabMenu)]).toStrictEqual(
       [true, [{ tabId: "drive" }]]
     );
+  });
+
+  it("puts a row's menu opened from the keyboard at the row rather than the pointer", () => {
+    const { container, sentOn } = mount();
+    const button = container.querySelector<HTMLElement>(
+      "[data-tab-id=drive] [role=tab]"
+    );
+    if (button === null) {
+      throw new Error("No drive row");
+    }
+    button.getBoundingClientRect = () => new DOMRect(8.4, 120.2, 48, 32.4);
+    act(() => {
+      button.dispatchEvent(
+        new PointerEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          pointerType: "",
+        })
+      );
+    });
+    expect(sentOn(sidebar.showTabMenu)).toStrictEqual([
+      { at: { x: 8, y: 153 }, tabId: "drive" },
+    ]);
   });
 
   it("draws the pinned Gmail row as its icon alone, outlined, with no drag handle or close control", async () => {

@@ -54,10 +54,12 @@ const setup = async () => {
     throw new Error("The profile has no tab");
   }
   const add = (appId: string) => unwrap(profiles.openTab(profileId, appId)).id;
-  const show = (tabId: string) =>
+  const show = (tabId: string, at?: { x: number; y: number }) =>
     registrar.dispatch(window.contentsId, wireName(sidebar.showTabMenu), {
+      ...(at === undefined ? {} : { at }),
       tabId,
     });
+  const at = () => port.at.get(window.contentsId);
   const shown = () => port.shown.get(window.contentsId) ?? [];
   const click = (id: string) => port.click(window.contentsId, id);
   const item = (id: string) =>
@@ -70,6 +72,7 @@ const setup = async () => {
   };
   return {
     add,
+    at,
     click,
     clipboard,
     gmail: gmail.id,
@@ -106,6 +109,15 @@ describe(TabMenu, () => {
       "Close Other Tabs",
       "Close Tabs Below",
     ]);
+  });
+
+  it("pops the menu at the point the page names, and at the pointer when it names none", async () => {
+    const { add, at, show } = await setup();
+    const calendar = add("calendar");
+    show(calendar, { x: 8, y: 153 });
+    expect(at()).toStrictEqual({ x: 8, y: 153 });
+    show(calendar);
+    expect(at()).toBeUndefined();
   });
 
   it("refuses a tab it does not know, showing nothing", async () => {

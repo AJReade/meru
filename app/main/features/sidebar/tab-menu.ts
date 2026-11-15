@@ -8,6 +8,7 @@ import type { LogPort } from "../../../core/log.ts";
 import type { ClipboardPort, ContextMenuPort } from "../../../core/ports.ts";
 import type { ContextMenuEntry } from "../../../core/records/context-menu.ts";
 import type { Orientation } from "../../../core/records/layout.ts";
+import type { Point } from "../../../core/records/rect.ts";
 import { err, ok } from "../../../core/result.ts";
 import type { Result } from "../../../core/result.ts";
 import { isSingleInstanceId } from "../../../shared/apps.ts";
@@ -61,8 +62,8 @@ export class TabMenu {
       this.#options.registrar.register(
         { showTabMenu: sidebar.showTabMenu },
         {
-          showTabMenu: ({ tabId }, { contentsId }) =>
-            this.show(contentsId, tabId),
+          showTabMenu: ({ at, tabId }, { contentsId }) =>
+            this.show(contentsId, tabId, at),
         }
       )
     );
@@ -72,8 +73,12 @@ export class TabMenu {
     this.#disposables.dispose();
   }
 
-  /** Shows the menu of the tab's row over the chrome page `windowId`. */
-  show(windowId: number, tabId: string): Result<undefined, "unknownTab"> {
+  /** Shows the menu of the tab's row over the chrome page `windowId`, at `at` or else at the pointer. */
+  show(
+    windowId: number,
+    tabId: string,
+    at?: Point
+  ): Result<undefined, "unknownTab"> {
     const { profiles, stages } = this.#options;
     const tab = profiles.tab(tabId);
     if (tab === undefined) {
@@ -110,7 +115,8 @@ export class TabMenu {
             }
           },
         };
-      })
+      }),
+      at
     );
     return ok(undefined);
   }

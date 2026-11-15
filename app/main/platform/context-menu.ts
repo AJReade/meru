@@ -120,7 +120,7 @@ export const createContextMenu = (): ContextMenuPort => {
         }
       };
     },
-    popup: (contentsId, entries) => {
+    popup: (contentsId, entries, at) => {
       const contents = live(contentsId);
       if (contents === undefined) {
         return;
@@ -130,6 +130,9 @@ export const createContextMenu = (): ContextMenuPort => {
       Menu.buildFromTemplate(entries.map(template)).popup({
         ...(frame === null ? {} : { frame }),
         ...(window === null ? {} : { window }),
+        ...(at === undefined
+          ? {}
+          : { x: Math.round(at.x), y: Math.round(at.y) }),
       });
     },
   };
