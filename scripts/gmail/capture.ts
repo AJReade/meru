@@ -292,7 +292,7 @@ const corpusEntry = z.object({
   probe: z.boolean(),
 });
 
-// The thread of each row of the list showing, in order; Gmail keeps the list it replaces in the document, hidden.
+// Gmail keeps the list it replaces in the document, hidden.
 const ROWS = `JSON.stringify([...document.querySelectorAll('[role="main"] tr.zA')].filter((row) => row.offsetParent !== null).map((row) => row.querySelector("[data-legacy-thread-id]")?.getAttribute("data-legacy-thread-id") ?? ""))`;
 
 const rowsOf = async (
@@ -330,7 +330,6 @@ const openRow = async (
     `(() => { const row = [...document.querySelectorAll('[role="main"] tr.zA')].find((found) => found.offsetParent !== null && found.querySelector(${quote(`[data-legacy-thread-id="${thread}"]`)}) !== null); if (row === undefined) { return ""; } for (const type of ["mousedown", "mouseup", "click"]) { row.dispatchEvent(new MouseEvent(type, { bubbles: true })); } return "opened"; })()`
   )) === "opened";
 
-// The mails sent to fill a kind first, then All Mail, a page at a time.
 const CORPUS_LISTS = [
   `search/${encodeURIComponent('subject:"Corpus"')}`,
   "all",
@@ -398,7 +397,6 @@ const captureCorpus = async (app: ElectronApplication) => {
     }
     const seen = shapes.get(entry.kind) ?? 0;
     shapes.set(entry.kind, seen + 1);
-    // A kind sent to fill a gap is taken once, and any other shape a few times.
     if (entry.named ? seen > 0 : seen >= PER_SHAPE) {
       continue;
     }
@@ -418,6 +416,14 @@ const captureCorpus = async (app: ElectronApplication) => {
 };
 
 const run = async () => {
+  if (
+    process.argv.includes("--corpus") &&
+    process.argv.includes("--out-of-office")
+  ) {
+    throw new Error(
+      "--corpus and --out-of-office capture from different states of the account; run them one at a time"
+    );
+  }
   const profile = process.env.MERU_TEST_PROFILE_DIR;
   if (profile === undefined || profile === "") {
     throw new Error(
@@ -446,10 +452,11 @@ const run = async () => {
     }
   }
   const corpus = process.argv.includes("--corpus");
+  const outOfOffice = process.argv.includes("--out-of-office");
   let taken = capture;
   if (corpus) {
     taken = captureCorpus;
-  } else if (process.argv.includes("--out-of-office")) {
+  } else if (outOfOffice) {
     taken = captureOutOfOffice;
   }
   // MERU_E2E blanks every pane, so the capture turns off what the end-to-end launch sets; a window that may never be on screen is throttled by Chromium until Gmail stops drawing an opened thread.
