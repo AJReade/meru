@@ -3,8 +3,8 @@ import type { StyleRule } from "../../content/styles.ts";
 import { cssOf } from "../../content/styles.ts";
 import type { GmailFeature } from "../feature.ts";
 
-// 3.x's selector, `:7` holding `:k`, rests on ids Gmail numbers in the order it builds the page, which rot with a build; nothing else on the banner is known to be its own without a capture of a signed-in session with the reply on, and its link to `#settings/general` is shared by other alerts, such as the one asking to enable desktop notifications.
-const OUT_OF_OFFICE_BANNER = String.raw`#\:7:has(div#\:k)`;
+// Gmail numbers its ids in the order it builds the page, so they rot with a build, and the banner holds nothing of its own to name it by but its words, which are the user's subject and Gmail's translated controls. It is the bar Gmail draws above Google's header, empty while the reply is off, holding an "End now" button followed by a link to the settings, `#`, as its last child, which no other bar there is known to hold.
+export const OUT_OF_OFFICE_BANNER = `div:has(+ h1 > header[role="banner"]):has(> div > [role="button"] + a[href="#"]:last-child)`;
 
 export const hideOutOfOfficeBannerRules: readonly StyleRule[] = [
   { declarations: "display: none !important;", selector: OUT_OF_OFFICE_BANNER },

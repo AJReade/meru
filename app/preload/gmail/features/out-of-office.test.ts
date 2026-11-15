@@ -2,8 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { gmail } from "../../../shared/channels/gmail.ts";
 import { mountGmail, reached, stylesWith } from "../testing.ts";
+import inboxRows from "./fixtures/inbox-rows.html?raw";
 import outOfOfficeBanner from "./fixtures/out-of-office.html?raw";
-import { hideOutOfOfficeBannerRules, outOfOffice } from "./out-of-office.ts";
+import {
+  OUT_OF_OFFICE_BANNER,
+  hideOutOfOfficeBannerRules,
+  outOfOffice,
+} from "./out-of-office.ts";
 
 describe(outOfOffice, () => {
   it("says the profile is out of office while the banner shows, and only when that changes", async () => {
@@ -17,7 +22,8 @@ describe(outOfOffice, () => {
 
     expect(page.bridge.sentOn(gmail.outOfOffice)).toStrictEqual([{ on: true }]);
 
-    document.querySelector(`[id=":7"]`)?.remove();
+    // Gmail empties the bar when the reply is turned off.
+    document.querySelector(OUT_OF_OFFICE_BANNER)?.replaceChildren();
     await page.settle();
 
     expect(page.bridge.sentOn(gmail.outOfOffice)).toStrictEqual([
@@ -34,6 +40,17 @@ describe(outOfOffice, () => {
     });
     page.run();
 
+    expect(page.bridge.sentOn(gmail.outOfOffice)).toStrictEqual([
+      { on: false },
+    ]);
+    page.app.dispose();
+  });
+
+  it("takes the empty bar of a page whose reply is off for no banner", () => {
+    const page = mountGmail({ features: [outOfOffice()], html: inboxRows });
+    page.run();
+
+    expect(document.querySelector(`[id=":7"]`)).not.toBeNull();
     expect(page.bridge.sentOn(gmail.outOfOffice)).toStrictEqual([
       { on: false },
     ]);

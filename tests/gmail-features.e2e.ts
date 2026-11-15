@@ -19,9 +19,9 @@ import {
 } from "./app.ts";
 import { startGmailStub } from "./gmail-stub.ts";
 
-// The markers each feature anchors on, as the hand-made fixtures under app/preload/gmail/features/fixtures hold them; Compose opens its pop-out only on a Shift-click, as Gmail does.
+// The markers each feature anchors on, as the fixtures under app/preload/gmail/features/fixtures hold them; Compose opens its pop-out only on a Shift-click, as Gmail does.
 const MAILBOX = `<!doctype html><title>Gmail</title>
-<div id=":7"><div id=":k" role="alert">Your vacation responder is on. <a href="#settings/general">Vacation Settings</a></div></div>
+<div id=":d"><div id=":7"><div class="w-MH a6P" id=":k">Away<span class="e w-asJ" id=":9" role="button" tabindex="0">End now</span>&nbsp;<a href="#" class="e w-asJ" id=":l">Out of Office Settings</a></div></div><h1 class="qp"><header id="gb" role="banner"></header></h1></div>
 <div role="navigation"><div class="T-I T-I-KE L3" gh="cm" role="button" tabindex="0">Compose</div></div>
 <div role="main">
   <table role="grid"><tbody>

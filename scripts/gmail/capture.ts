@@ -1,6 +1,7 @@
 // Writes the Gmail fixtures the preload's tests read, from a signed-in profile, each document scrubbed of everything personal:
-// MERU_TEST_PROFILE_DIR=<a user data directory signed in to Gmail> node scripts/gmail/capture.ts [--in-place] [--corpus], after pnpm build and once the account has sent itself the two messages named below, then vp fmt; --in-place runs on the directory itself, for one that is a copy already.
+// MERU_TEST_PROFILE_DIR=<a user data directory signed in to Gmail> node scripts/gmail/capture.ts [--in-place] [--corpus | --out-of-office], after pnpm build and once the account has sent itself the two messages named below, then vp fmt; --in-place runs on the directory itself, for one that is a copy already.
 // --corpus writes the message bodies the dark theme's tests read instead, one per thread of All Mail.
+// --out-of-office writes only out-of-office.html, from the inbox once Gmail shows the out-of-office banner, so the account's reply is turned on in Gmail's settings first and off again after.
 // The scrub keeps what the features anchor on and nothing a person wrote: roles, ARIA states and the ids they point at, Gmail's generated classes and ids, `gh`, `act`, `role`, field names, icon path data, Gmail's control words in `aria-label` and `data-tooltip`, thread and message ids as counters, an address's shape (`email`, and `href` down to the view and the print view's `view` and `permmsgid`), and that a chip has a `download_url`.
 import { existsSync } from "node:fs";
 import {
@@ -90,13 +91,17 @@ const lockProfile = async (profile: string): Promise<() => Promise<void>> => {
   }
 };
 
-// Each hand-made fixture a capture replaces in place, by the document it is taken from. labels.html stays hand-made: the scrub takes out every label's name, which is what its test colours by; so does mailbox-key.html, since the scrub takes out the script the marker is written in; so do out-of-office.html and message-sent.html, whose states a page at rest does not hold.
+// Each hand-made fixture a capture replaces in place, by the document it is taken from. labels.html stays hand-made: the scrub takes out every label's name, which is what its test colours by; so does mailbox-key.html, since the scrub takes out the script the marker is written in; so does message-sent.html, whose state a page at rest does not hold.
 // promo-banner.html and upgrade-button.html stay hand-made: the scrub takes out the `data-pep-id` and `data-action-behavior` values their rules read, and the account is offered neither.
 const FROM_INBOX = ["inbox-rows.html"];
 // Taken from the conversation the account sent itself with an attachment, with Compose open over it. conversation.html, links.html and trimmed-content.html stay hand-made until the account holds a conversation of several messages, an outside link and a folded quote.
 const FROM_THREAD = ["attachments.html"];
 // Taken from the message the account sent itself past Gmail's clipping size.
 const FROM_CLIPPED = ["clipped.html"];
+// Taken from the inbox while the account's out-of-office reply is on, under --out-of-office.
+const FROM_OUT_OF_OFFICE = ["out-of-office.html"];
+// The bar above Google's header, which Gmail leaves empty while no notice shows; looser than the feature's anchor, which the fixture is there to test.
+const NOTICE_BAR = 'div:has(+ h1 > header[role="banner"]):not(:empty)';
 
 /** The subjects of the two messages the account is sent before a capture, which the capture opens by searching for them. */
 const ATTACHMENT_SUBJECT = "Meru capture attachment";
@@ -212,6 +217,13 @@ const openBySubject = async (
 
 const writeAll = async (names: readonly string[], html: string) =>
   await Promise.all(names.map(async (name) => await write(name, html)));
+
+const captureOutOfOffice = async (app: ElectronApplication) => {
+  const pane = await gmailPane(app);
+  await waitFor(app, pane, '[role="main"]', "Gmail's inbox");
+  await waitFor(app, pane, NOTICE_BAR, "The out-of-office banner");
+  return await writeAll(FROM_OUT_OF_OFFICE, await documentOf(app, pane));
+};
 
 const capture = async (app: ElectronApplication) => {
   const pane = await gmailPane(app);
@@ -354,13 +366,19 @@ const run = async () => {
     }
   }
   const corpus = process.argv.includes("--corpus");
+  let taken = capture;
+  if (corpus) {
+    taken = captureCorpus;
+  } else if (process.argv.includes("--out-of-office")) {
+    taken = captureOutOfOffice;
+  }
   // MERU_E2E blanks every pane, so the capture turns off what the end-to-end launch sets; a window that may never be on screen is throttled by Chromium until Gmail stops drawing an opened thread.
   const { app, close } = await launch({
     env: { MERU_E2E: "0", MERU_TEST_BACKGROUND: corpus ? "0" : "1" },
     userData,
   });
   try {
-    for (const file of await (corpus ? captureCorpus(app) : capture(app))) {
+    for (const file of await taken(app)) {
       console.log(`Wrote ${file}`);
     }
   } finally {
