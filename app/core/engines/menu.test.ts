@@ -23,8 +23,10 @@ describe(buildMenu, () => {
       labels: {
         edit: "Edit",
         file: "File",
+        hideOthers: "Hide others",
         history: "History",
         profiles: "Profiles",
+        unhide: "Show all",
         view: "View",
       },
       platform: "linux",

@@ -15,12 +15,13 @@ const EDIT_ROLES: readonly MenuEntry<never>[] = [
 
 const MINIMIZE: MenuEntry<never> = { kind: "role", role: "minimize" };
 
-const MAC_APP_ROLES: readonly MenuEntry<never>[] = [
+// Electron labels these two in title case, against the sentence case of everything else the app draws.
+const macAppRoles = (labels: MenuLabels): readonly MenuEntry<never>[] => [
   { kind: "role", role: "services" },
   { kind: "separator" },
   { kind: "role", role: "hide" },
-  { kind: "role", role: "hideOthers" },
-  { kind: "role", role: "unhide" },
+  { kind: "role", label: labels.hideOthers, role: "hideOthers" },
+  { kind: "role", label: labels.unhide, role: "unhide" },
   { kind: "separator" },
 ];
 
@@ -33,9 +34,9 @@ interface MenuCommand<Id extends string> {
   readonly menu?: { readonly section: MenuSectionId; readonly order: number };
 }
 
-/** The titles of the submenus the app names itself, in the user's language. */
+/** The titles of the submenus the app names itself and the labels of the macOS roles it relabels, in the user's language. */
 export type MenuLabels = Readonly<
-  Record<Exclude<MenuSectionId, "app">, string>
+  Record<Exclude<MenuSectionId, "app"> | "hideOthers" | "unhide", string>
 >;
 
 interface MenuOptions<Id extends string> {
@@ -99,7 +100,7 @@ export const buildMenu = <Id extends string>({
         { kind: "separator" },
         ...actions("app"),
         { kind: "separator" },
-        ...(mac ? MAC_APP_ROLES : []),
+        ...(mac ? macAppRoles(labels) : []),
         { kind: "role", role: "quit" },
       ],
       kind: "app",

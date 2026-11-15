@@ -23,7 +23,9 @@ const entry = (item: MenuEntry<CommandId>): MenuItemConstructorOptions => {
     return { type: "separator" };
   }
   if (item.kind === "role") {
-    return { role: item.role };
+    return item.label === undefined
+      ? { role: item.role }
+      : { label: item.label, role: item.role };
   }
   return {
     accelerator: item.accelerator,

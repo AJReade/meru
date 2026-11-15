@@ -270,6 +270,22 @@ describe(ApplicationMenu, () => {
     ]);
   });
 
+  it("labels the roles Electron would title-case in sentence case", async () => {
+    const { sections } = await setup("darwin");
+    const [app] = sections();
+    expect(
+      app?.kind === "app" &&
+        app.entries.flatMap((entry) =>
+          entry.kind === "role" && entry.label !== undefined
+            ? [[entry.role, entry.label]]
+            : []
+        )
+    ).toStrictEqual([
+      ["hideOthers", "Hide others"],
+      ["unhide", "Show all"],
+    ]);
+  });
+
   it("enables Restart to update once an update is ready, rebuilding the menu", async () => {
     const { built, feed, sections } = await setup("linux");
     const install = () =>

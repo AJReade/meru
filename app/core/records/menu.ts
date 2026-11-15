@@ -23,6 +23,8 @@ export type MenuEntry<Id extends string> =
   | { readonly kind: "separator" }
   | {
       readonly kind: "role";
+      /** Absent to keep the label Electron gives the role. */
+      readonly label?: string;
       readonly role:
         | "undo"
         | "redo"

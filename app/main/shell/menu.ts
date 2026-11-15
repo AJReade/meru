@@ -29,8 +29,10 @@ interface ApplicationMenuOptions {
 const labels = (): MenuLabels => ({
   edit: msg`Edit`,
   file: msg`File`,
+  hideOthers: msg`Hide others`,
   history: msg`History`,
   profiles: msg`Profiles`,
+  unhide: msg`Show all`,
   view: msg`View`,
 });
 
