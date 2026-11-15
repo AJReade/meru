@@ -1,7 +1,7 @@
-import type { ImagePixels } from "./pixels.ts";
+import type { PageCanvas } from "./canvas.ts";
 
-/** Images' pixels as a test gives them, by address; any other image answers none, as one the page cannot read. */
-export class FakeImagePixels {
+/** The page's canvas as a test gives it: images' pixels by address, any other image answering none, as one the page cannot read. */
+export class FakeCanvas implements PageCanvas {
   readonly #answers = new Map<string, Uint8ClampedArray>();
   /** Every address asked for, in order. */
   readonly asked: string[] = [];
@@ -19,7 +19,7 @@ export class FakeImagePixels {
     this.#answers.set(source, pixels);
   }
 
-  readonly pixels: ImagePixels = async (source) => {
+  readonly pixels = async (source: string): Promise<Uint8ClampedArray> => {
     this.asked.push(source);
     await Promise.resolve();
     return this.#answers.get(source) ?? new Uint8ClampedArray(0);

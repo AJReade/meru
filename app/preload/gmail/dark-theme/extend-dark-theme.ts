@@ -72,7 +72,7 @@ const sheetOf = (
  * turning it off or Gmail's theme turning light puts every element back.
  */
 export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
-  apply: ({ document, pixels, scheduler, settings, style, undo }) => {
+  apply: ({ canvas, document, scheduler, settings, style, undo }) => {
     if (!settings.switches.extendDarkTheme) {
       style("");
       return;
@@ -109,7 +109,7 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
       ) {
         return;
       }
-      const sampled = await pixels(image.currentSrc);
+      const sampled = await canvas.pixels(image.currentSrc);
       if (on && image.isConnected && imageTone(sampled) === "dark") {
         turnLight(image, mark);
       }

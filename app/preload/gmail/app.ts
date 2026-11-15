@@ -6,7 +6,7 @@ import type { Bridge } from "../content/bridge-port.ts";
 import { failureReporter } from "../content/failures.ts";
 import { DomScheduler } from "../content/scheduler.ts";
 import { StyleLayers } from "../content/styles.ts";
-import type { ImagePixels } from "./dark-theme/pixels.ts";
+import type { PageCanvas } from "./dark-theme/canvas.ts";
 import type { GmailFeature, PageLocation } from "./feature.ts";
 import { gmailFeatures } from "./features/index.ts";
 import { GmailRpc } from "./rpc.ts";
@@ -19,7 +19,7 @@ export interface GmailAppOptions {
   /** Gmail's own endpoints, which only a page's requests carry the credentials for. */
   readonly http: GmailHttp;
   /** Samples an image the page shows, which the page's own copy is too tainted to give. */
-  readonly pixels: ImagePixels;
+  readonly canvas: PageCanvas;
   /** The page's cookies, which carry Gmail's action token. */
   readonly cookie: () => string;
   readonly features?: readonly GmailFeature[];
@@ -94,7 +94,7 @@ export const startGmail = (options: GmailAppOptions): GmailApp => {
           document,
           location,
           http: options.http,
-          pixels: options.pixels,
+          canvas: options.canvas,
           rpc,
           once: (key) => {
             const asking = !asked.has(key);

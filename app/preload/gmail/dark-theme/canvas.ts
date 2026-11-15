@@ -1,5 +1,8 @@
-/** A small image's pixels, sampled down to a few hundred, or none when the image cannot be read; nothing is kept once they are answered. */
-export type ImagePixels = (source: string) => Promise<Uint8ClampedArray>;
+/** What the theme asks of a 2D canvas in the page. */
+export interface PageCanvas {
+  /** A small image's pixels, sampled down to a few hundred, or none when the image cannot be read; nothing is kept once they are answered. */
+  readonly pixels: (source: string) => Promise<Uint8ClampedArray>;
+}
 
 const SIDE = 24;
 
@@ -32,10 +35,12 @@ const sample = async (source: string): Promise<Uint8ClampedArray> => {
  * An image the request cannot reach, such as one whose host sends no CORS header, answers no pixels
  * and is left as it is.
  */
-export const pagePixels: ImagePixels = async (source) => {
-  try {
-    return await sample(source);
-  } catch {
-    return new Uint8ClampedArray(0);
-  }
-};
+export const pageCanvas = (): PageCanvas => ({
+  pixels: async (source) => {
+    try {
+      return await sample(source);
+    } catch {
+      return new Uint8ClampedArray(0);
+    }
+  },
+});

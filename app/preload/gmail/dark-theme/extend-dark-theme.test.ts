@@ -15,7 +15,7 @@ import conversation from "../features/fixtures/conversation-dark.html?raw";
 import { mountGmail, switchesWith } from "../testing.ts";
 import { TURN_LIGHT } from "./engine.ts";
 import { extendDarkTheme } from "./extend-dark-theme.ts";
-import { FakeImagePixels } from "./fake-pixels.ts";
+import { FakeCanvas } from "./fake-canvas.ts";
 import { TEST_MARK } from "./testing.ts";
 
 // Node gives a test no collector to call unless one is exposed, which a fresh context can take after the flag is set.
@@ -257,12 +257,12 @@ describe(extendDarkTheme, () => {
   });
 
   it("turns a dark logo on a darkened ground light, and nothing it cannot read", async () => {
-    const pixels = new FakeImagePixels();
-    pixels.answer("https://example.com/logo.png", [20, 20, 20, 255], 40);
+    const canvas = new FakeCanvas();
+    canvas.answer("https://example.com/logo.png", [20, 20, 20, 255], 40);
     const page = mountGmail({
       features: [extendDarkTheme(TEST_MARK)],
       html: `${conversation}<style>.iY img { width: 74px; }</style>`,
-      pixels,
+      canvas,
       settings: on,
     });
     const logo = document.querySelector("img.logo");
@@ -273,7 +273,7 @@ describe(extendDarkTheme, () => {
     logo.dispatchEvent(new Event("load"));
     await pause(0);
 
-    expect([pixels.asked, logo.style.getPropertyValue("filter")]).toStrictEqual(
+    expect([canvas.asked, logo.style.getPropertyValue("filter")]).toStrictEqual(
       [["https://example.com/logo.png"], TURN_LIGHT]
     );
     page.app.dispose();
