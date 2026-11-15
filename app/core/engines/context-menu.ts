@@ -47,6 +47,9 @@ const MAILTO = "mailto:";
 
 const WEB_ADDRESS = /^https?:/iu;
 
+/** Whether the address is a web page's, the only kind Open in Default Browser hands the browser. */
+export const isWebAddress = (url: string): boolean => WEB_ADDRESS.test(url);
+
 // Chromium downloads an image from a page's data and blob addresses as it does from the web; it gives none at all for a data address over about 2 MB, and any other scheme, such as javascript:, is nothing to save. Copy Image Address takes only a web address, since a blob address means nothing outside the page that made it and a data address is the image itself, up to megabytes of text.
 const SAVEABLE_IMAGE = /^(?:https?|data|blob):/iu;
 

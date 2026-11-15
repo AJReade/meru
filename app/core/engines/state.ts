@@ -349,7 +349,7 @@ export const openTab = (
 
 /** Whether the tab may close: a pinned tab stays, and a profile keeps at least one tab. */
 export const canClose = (
-  state: ProfilesState,
+  state: Pick<ProfilesState, "tabs">,
   tabId: string,
   singleInstance: SingleInstance
 ): Result<undefined, StateError> => {

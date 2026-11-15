@@ -96,13 +96,28 @@ export type ContextMenuItem =
   /** macOS's Share submenu, which the system fills for the address. */
   | { readonly kind: "share"; readonly label: string; readonly url: string };
 
+/** The items of a sidebar row's menu. */
+export type TabMenuItemId =
+  | "reload"
+  | "splitVertical"
+  | "splitHorizontal"
+  | "leaveGroup"
+  | "copyUrl"
+  | "openInDefaultBrowser"
+  | "sleepWhenIdle"
+  | "close"
+  | "closeOthers"
+  | "closeBelow";
+
 /** An item as the native menu takes it, its action bound. */
 export type ContextMenuEntry =
   | {
       readonly kind: "item";
-      readonly id: ContextMenuItemId;
+      readonly id: ContextMenuItemId | TabMenuItemId;
       readonly label: string;
       readonly enabled: boolean;
+      /** Present on a checkbox, absent on a plain item. */
+      readonly checked?: boolean;
       readonly run: () => void;
     }
   | { readonly kind: "separator" }
