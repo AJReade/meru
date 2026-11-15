@@ -39,6 +39,7 @@ describe(parseColour, () => {
       parseColour("#fff"),
       parseColour("#1a73e8"),
       parseColour("transparent"),
+      parseColour("hsla(0, 100%, 50%, 0.1)"),
       parseColour("currentcolor"),
     ]).toStrictEqual([
       { a: 1, b: 51, g: 51, r: 51 },
@@ -46,6 +47,7 @@ describe(parseColour, () => {
       { a: 1, b: 255, g: 255, r: 255 },
       { a: 1, b: 232, g: 115, r: 26 },
       { a: 0, b: 0, g: 0, r: 0 },
+      { a: 0.1, b: 0, g: 0, r: 255 },
       undefined,
     ]);
   });

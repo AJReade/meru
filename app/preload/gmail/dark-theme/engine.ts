@@ -112,17 +112,26 @@ const isHtml = (element: Element): element is HTMLElement =>
 
 /** The ground under `root`, read off its nearest ancestor that paints one, darkened as the walk would darken it. */
 const groundAbove = (root: Element, { colourOf, styleOf }: Theme): Rgba => {
+  const shades: Rgba[] = [];
+  let ground = DARK_SURFACE;
   for (
     let ancestor = root.parentElement;
     ancestor !== null;
     ancestor = ancestor.parentElement
   ) {
     const colour = backgroundOf(styleOf(ancestor), colourOf);
+    if (colour !== undefined && colour.a >= 1) {
+      ground = darkBackground(colour);
+      break;
+    }
     if (colour !== undefined && colour.a > 0) {
-      return over(darkBackground(colour), DARK_SURFACE);
+      shades.push(colour);
     }
   }
-  return DARK_SURFACE;
+  for (const shade of shades.toReversed()) {
+    ground = darkBackground(over(shade, ground));
+  }
+  return ground;
 };
 
 interface Paint {
@@ -137,6 +146,39 @@ interface Painted extends Paint {
 
 type WriteTo = (property: string, value: string) => void;
 
+/** The element's own background colour, darkened, and the ground it leaves for what the element holds. */
+const paintColour = (
+  background: Rgba,
+  pictured: boolean,
+  inherited: Paint,
+  write: WriteTo
+): Paint => {
+  const { ground, darkened } = inherited;
+  if (background.a === 0) {
+    return inherited;
+  }
+  if (background.a < 1) {
+    // A translucent ground is a shade of what lies behind it, a code block's or a quote's on a light page, so it is never the sender's own ground to keep: what it holds is decided against it laid over the ground behind, the one the walk wrote or kept.
+    if (ground === undefined) {
+      return inherited;
+    }
+    const shade = over(background, ground);
+    const dark = darkened && !pictured ? darkBackground(shade) : shade;
+    if (dark !== shade) {
+      write("background-color", formatColour(dark));
+    }
+    return { darkened, ground: dark };
+  }
+  const dark = pictured ? background : darkBackground(background);
+  if (dark !== background) {
+    write("background-color", formatColour(dark));
+  }
+  return {
+    darkened: dark !== background || (darkened && ground === undefined),
+    ground: over(dark, ground ?? DARK_SURFACE),
+  };
+};
+
 /**
  * The element's own background and background image, darkened, and the ground they leave for what
  * the element holds. Under a picture the colour is kept: it is what the picture was drawn to sit on
@@ -149,22 +191,16 @@ const paintBackground = (
   write: WriteTo,
   colourOf: ColourOf
 ): Paint => {
-  let { ground, darkened } = inherited;
   const image = style.backgroundImage;
   const pictured = image.includes("url(") && !isDarkIcon(image);
   const background = backgroundOf(style, colourOf);
   if (background === undefined) {
     // A ground the walk cannot read is one it cannot decide a text against, so what the element holds is left as the mail set it.
-    return { darkened, ground: undefined };
+    return { darkened: inherited.darkened, ground: undefined };
   }
-  if (background !== undefined && background.a > 0) {
-    const dark = pictured ? background : darkBackground(background);
-    if (dark !== background) {
-      write("background-color", formatColour(dark));
-    }
-    darkened = dark !== background || (darkened && ground === undefined);
-    ground = over(dark, ground ?? DARK_SURFACE);
-  }
+  const painted = paintColour(background, pictured, inherited, write);
+  const { darkened } = painted;
+  let { ground } = painted;
   if (image.includes("gradient(") && UNREAD_STOP.test(image)) {
     ground = undefined;
   } else if (image.includes("gradient(")) {

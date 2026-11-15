@@ -38,6 +38,8 @@ const DARK_SATURATION = 0.5;
 
 const RGB =
   /^rgba?\(\s*(?<r>[\d.]+)[\s,]+(?<g>[\d.]+)[\s,]+(?<b>[\d.]+)(?:[\s,/]+(?<a>[\d.]+%?))?\s*\)$/u;
+const HSL =
+  /^hsla?\(\s*(?<h>[\d.]+)(?:deg)?[\s,]+(?<s>[\d.]+)%[\s,]+(?<l>[\d.]+)%(?:[\s,/]+(?<a>[\d.]+%?))?\s*\)$/u;
 const HEX = /^#(?<digits>[\da-f]{3,8})$/iu;
 const COLOUR_TOKEN = /rgba?\([^)]*\)|#[\da-f]{3,8}\b/giu;
 
@@ -72,6 +74,17 @@ export const parseColour = (text: string): Rgba | undefined => {
   const digits = HEX.exec(trimmed)?.groups?.digits;
   if (digits !== undefined) {
     return fromHex(digits);
+  }
+  const hsl = HSL.exec(trimmed)?.groups;
+  if (hsl !== undefined) {
+    return fromHsl(
+      {
+        h: Number(hsl.h) % 360,
+        l: Number(hsl.l) / 100,
+        s: Number(hsl.s) / 100,
+      },
+      alphaOf(hsl.a)
+    );
   }
   const rgb = RGB.exec(trimmed)?.groups;
   if (rgb === undefined) {
