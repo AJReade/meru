@@ -20,6 +20,7 @@ import type {
   WindowSpec,
 } from "../../core/ports.ts";
 import { platformOf } from "../../core/records/platform.ts";
+import { clipboardPort, createContextMenu } from "./context-menu.ts";
 import { createBadge, createNotifications, createTray } from "./desktop.ts";
 import { createDownloads, dialogs, progressBar } from "./downloads.ts";
 import { createEntitlementApi } from "./entitlement-api.ts";
@@ -230,6 +231,8 @@ export const createElectronPorts = (): Ports => ({
   downloads: createDownloads({ platform: platformOf(process.platform) }),
   dialogs,
   sessions: createSessions(),
+  clipboard: clipboardPort,
+  contextMenu: createContextMenu(),
   shell: {
     openExternal: async (url) => {
       await shell.openExternal(url);

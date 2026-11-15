@@ -1,5 +1,10 @@
 import type { DownloadProgress } from "./engines/downloads.ts";
 import type { KeyInput } from "./engines/shortcuts.ts";
+import type {
+  ContextMenuEntry,
+  ContextMenuParams,
+  PageAction,
+} from "./records/context-menu.ts";
 import type { Disposition } from "./records/link.ts";
 import type {
   Navigation,
@@ -316,6 +321,30 @@ export interface ShellPort {
   readonly showItemInFolder: (path: string) => void;
 }
 
+/** The system clipboard. */
+export interface ClipboardPort {
+  /** Rejects when the system refuses the write. */
+  readonly writeText: (text: string) => Promise<void>;
+  /** Writes the address as text and as a bookmark named `title`, which an app that takes bookmarks pastes as a link; rejects when the system refuses the write. */
+  readonly writeBookmark: (title: string, url: string) => Promise<void>;
+}
+
+/** The native menu a right-click in a page opens, and what its items do to that page. */
+export interface ContextMenuPort {
+  /** Calls `listener` with each right-click in the page `contentsId`; nothing once the page is gone. */
+  readonly listen: (
+    contentsId: number,
+    listener: (params: ContextMenuParams) => void
+  ) => Unsubscribe;
+  /** Shows the menu over the page `contentsId` where the pointer is. */
+  readonly popup: (
+    contentsId: number,
+    entries: readonly ContextMenuEntry[]
+  ) => void;
+  /** Does `action` to the page `contentsId`, nothing once it is gone. */
+  readonly act: (contentsId: number, action: PageAction) => void;
+}
+
 /** The most of a body a session request reads; a feed or a page past it is not what was asked for. */
 export const SESSION_BODY_CAP = 1024 * 1024;
 
@@ -486,6 +515,8 @@ export interface Ports {
   readonly downloads: DownloadPort;
   readonly dialogs: DialogPort;
   readonly shell: ShellPort;
+  readonly clipboard: ClipboardPort;
+  readonly contextMenu: ContextMenuPort;
   readonly theme: ThemePort;
   readonly views: ViewFactoryPort;
   readonly windows: WindowFactoryPort;
