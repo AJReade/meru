@@ -368,6 +368,8 @@ export const themeTree = (
     );
   }
   for (const editor of editors) {
+    // A reply or a forward quotes the mail's markup, marks and overrides with it, which would go out with the message.
+    releaseTree(editor, mark);
     editor.setAttribute(mark, SKIPPED);
   }
   for (const { element, property, value } of writes) {
@@ -448,6 +450,28 @@ export const releaseTree = (root: ParentNode, mark: string): number => {
     release(element, mark);
   }
   return marked.length;
+};
+
+/**
+ * Puts back what the theme wrote on what arrived in or with an editor, which Gmail sends as the
+ * mail: `element` and what it holds when it landed inside one, and otherwise whatever an editor it
+ * brought holds, as when Gmail quotes a marked body into a reply or a forward.
+ */
+export const releaseArrived = (
+  element: Element,
+  mark: string,
+  inEditor: boolean
+): void => {
+  if (!inEditor) {
+    for (const marked of element.querySelectorAll(`${EDITOR} [${mark}]`)) {
+      release(marked, mark);
+    }
+    return;
+  }
+  if (element.hasAttribute(mark)) {
+    release(element, mark);
+  }
+  releaseTree(element, mark);
 };
 
 /**

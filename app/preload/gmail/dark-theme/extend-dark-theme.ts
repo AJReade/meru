@@ -10,6 +10,7 @@ import {
   hoverSheet,
   newMark,
   release,
+  releaseArrived,
   releaseTree,
   themeAgain,
   themeTree,
@@ -120,12 +121,12 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
       let arrived = true;
       const notice = (records: readonly MutationRecord[]) => {
         for (const record of records) {
-          if (
-            !arrived &&
-            record.addedNodes.length > 0 &&
-            !insideEditor(record.target)
-          ) {
-            arrived = true;
+          const inEditor = insideEditor(record.target);
+          arrived ||= !inEditor && record.addedNodes.length > 0;
+          for (const node of record.addedNodes) {
+            if (node instanceof Element) {
+              releaseArrived(node, mark, inEditor);
+            }
           }
         }
       };

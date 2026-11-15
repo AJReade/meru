@@ -96,6 +96,25 @@ describe(extendDarkTheme, () => {
     page.app.dispose();
   });
 
+  it("puts back the marks and overrides of a themed body Gmail quotes into the reply", async () => {
+    const page = mountGmail({
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation,
+      settings: on,
+    });
+    const body = document.querySelector(".a3s");
+    const before = body?.innerHTML;
+    page.run();
+    const themed = body?.innerHTML.includes(TEST_MARK);
+    const quote = document.createElement("blockquote");
+    quote.innerHTML = body?.innerHTML ?? "";
+    document.querySelector(".editor")?.append(quote);
+    await page.settle();
+
+    expect([themed, quote.innerHTML === before]).toStrictEqual([true, true]);
+    page.app.dispose();
+  });
+
   it("puts every element back as the mail had it when turned off", () => {
     const page = mountGmail({
       features: [extendDarkTheme(TEST_MARK)],

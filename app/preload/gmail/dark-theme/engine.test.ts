@@ -137,6 +137,24 @@ describe(themeTree, () => {
     ]).toStrictEqual([SKIPPED, "color: rgb(34, 34, 34)", 0, 0]);
   });
 
+  it("puts back a themed body that arrives quoted in a new editor", () => {
+    const body = mount(
+      `<div class="a3s"><div id="mail" style="background-color: rgb(255, 255, 255); color: rgb(34, 34, 34)"><p>Quoted</p></div></div>`
+    );
+    const before = body.innerHTML;
+    themeTree(body, theme);
+    const editor = document.createElement("div");
+    editor.setAttribute("contenteditable", "true");
+    editor.innerHTML = body.innerHTML;
+    body.append(editor);
+    themeAgain(body, theme);
+
+    expect([editor.getAttribute(TEST_MARK), editor.innerHTML]).toStrictEqual([
+      SKIPPED,
+      before,
+    ]);
+  });
+
   it("keeps a background under a picture and decides its text against it", () => {
     const body = mount(
       `<div class="a3s"><div style="background-color: rgb(255, 255, 255); color: rgb(51, 51, 51)"><div id="pictured" style="background-image: url('https://example.com/hero.png'); background-color: rgb(255, 255, 255); color: rgb(0, 0, 0) !important">Over a picture</div></div></div>`
