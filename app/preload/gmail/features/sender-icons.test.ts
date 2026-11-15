@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { gmail } from "../../../shared/channels/gmail.ts";
 import { mountGmail, switchesWith } from "../testing.ts";
@@ -21,6 +21,29 @@ const iconsOf = (rowId: string) =>
   ].map((icon) => icon.getAttribute("src"));
 
 describe(senderIcons.id, () => {
+  it("runs one query a batch over the whole list, however many rows it holds", async () => {
+    const page = mountGmail({
+      features: [senderIcons],
+      html: inboxRows,
+      settings: { switches: switchesWith("showSenderIcons") },
+    });
+    page.run();
+    const queries = [
+      vi.spyOn(document, "querySelectorAll"),
+      vi.spyOn(document, "querySelector"),
+      vi.spyOn(Element.prototype, "querySelectorAll"),
+      vi.spyOn(Element.prototype, "querySelector"),
+    ];
+    document.body.append(document.createElement("p"));
+    await page.settle();
+    const made = queries.reduce((sum, spy) => sum + spy.mock.calls.length, 0);
+    for (const spy of queries) {
+      spy.mockRestore();
+    }
+    expect([rows().length > 10, made]).toStrictEqual([true, 1]);
+    page.app.dispose();
+  });
+
   it("puts one icon per sender domain beside each row's senders, each row's icons under an id of its own", () => {
     const page = mountGmail({
       features: [senderIcons],

@@ -44,23 +44,11 @@ export const senderIcons: GmailFeature = {
       }
       return source;
     };
-    const decorate = (row: HTMLElement) => {
-      const column = row.querySelector(SENDER)?.closest("td");
-      if (
-        column === null ||
-        column === undefined ||
-        column.querySelector(".meru-sender-icons") !== null
-      ) {
-        return;
-      }
-      const domains = new Set(
-        queryAll(column, SENDER, isHtmlElement).flatMap(
-          (sender) => domainOf(sender) ?? []
-        )
-      );
-      if (domains.size === 0) {
-        return;
-      }
+    const decorate = (
+      row: HTMLElement,
+      column: HTMLElement,
+      domains: ReadonlySet<string>
+    ) => {
       const icons = document.createElement("div");
       icons.className = "meru-sender-icons";
       icons.id = `meru-sender-icons-${row.id}`;
@@ -73,11 +61,47 @@ export const senderIcons: GmailFeature = {
       }
       column.append(icons);
     };
-    // Gmail keeps a row's element when new mail moves the list and redraws its cells, taking the icons with them, so every batch looks at every row again rather than at each row once.
+    // Gmail keeps a row's element when new mail moves the list and redraws its cells, taking the icons with them, so every batch looks at every row again rather than at each row once; one query finds every row's senders and the icons it still has, since a list of a hundred rows would otherwise run several queries a row on every change of the page.
     undo(
       scheduler.everyBatch(() => {
-        for (const row of queryAll(document, "tr.zA[id]", isHtmlElement)) {
-          decorate(row);
+        const columns = new Map<
+          HTMLElement,
+          { row: HTMLElement; domains: Set<string>; drawn: boolean }
+        >();
+        const rows = new Set<HTMLElement>();
+        for (const found of queryAll(
+          document,
+          `tr.zA[id] ${SENDER}, tr.zA[id] .meru-sender-icons`,
+          isHtmlElement
+        )) {
+          const column = found.closest("td");
+          const row = column?.closest("tr");
+          if (column === null || row === null || row === undefined) {
+            continue;
+          }
+          let entry = columns.get(column);
+          if (entry === undefined) {
+            // A row's icons go beside its first sender, in that sender's cell.
+            if (rows.has(row)) {
+              continue;
+            }
+            rows.add(row);
+            entry = { domains: new Set(), drawn: false, row };
+            columns.set(column, entry);
+          }
+          if (found.classList.contains("meru-sender-icons")) {
+            entry.drawn = true;
+          } else {
+            const domain = domainOf(found);
+            if (domain !== undefined) {
+              entry.domains.add(domain);
+            }
+          }
+        }
+        for (const [column, { domains, drawn, row }] of columns) {
+          if (!drawn && domains.size > 0) {
+            decorate(row, column, domains);
+          }
         }
       })
     );
