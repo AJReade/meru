@@ -65,10 +65,15 @@ const insideEditor = (node: Node): boolean =>
   ((node instanceof Element ? node : node.parentElement)?.closest(EDITOR) ??
     null) !== null;
 
-/** Whether Gmail's own dark theme is on. */
+/** Whether Gmail's own dark theme is on, read off the body's ground or, while the body's is clear, the root's; no other mark of the theme is known. */
 export const isGmailDark = (document: Document, styleOf: StyleOf): boolean => {
-  const ground = parseColour(styleOf(document.body).backgroundColor);
-  return ground !== undefined && ground.a > 0 && luminance(ground) < DARK_PAGE;
+  for (const box of [document.body, document.documentElement]) {
+    const ground = parseColour(styleOf(box).backgroundColor);
+    if (ground !== undefined && ground.a > 0) {
+      return luminance(ground) < DARK_PAGE;
+    }
+  }
+  return false;
 };
 
 /** The conversation's sheet: the nearest box under its subject that paints a ground, Gmail's white one. */
@@ -100,14 +105,18 @@ const sheetOf = (
 export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
   // Images whose pixels could not be read, which this page load does not try again.
   const unread = new Set<string>();
+  // Whether the last apply's undo left the page themed for this apply to keep: every change of a `gmail.*` setting undoes and applies every feature, and putting the conversation back only to theme it again would cost a walk and could show it light for a frame.
+  let pending = false;
   return {
     apply: ({ canvas, document, scheduler, settings, style, undo }) => {
-      if (!settings.switches.extendDarkTheme) {
-        style("");
-        return;
-      }
+      const kept = pending;
+      pending = false;
       const view = document.defaultView;
-      if (view === null) {
+      if (!settings.switches.extendDarkTheme || view === null) {
+        if (kept) {
+          releaseTree(document, mark);
+        }
+        style("");
         return;
       }
       const styleOf: StyleOf = (element) => view.getComputedStyle(element);
@@ -221,7 +230,14 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
       style(hoverSheet(mark));
       undo(() => {
         roots.clear();
-        releaseTree(document, mark);
+        // The page goes back as the mail had it unless the apply that follows in the same turn keeps the theme on.
+        pending = true;
+        queueMicrotask(() => {
+          if (pending) {
+            pending = false;
+            releaseTree(document, mark);
+          }
+        });
       });
       undo(
         scheduler.register(conversationEntry, (subject) => {

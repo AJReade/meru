@@ -142,6 +142,28 @@ describe(extendDarkTheme, () => {
     page.app.dispose();
   });
 
+  it("keeps the conversation as it is through a change of another setting, and puts it back once the page goes", async () => {
+    const page = mountGmail({
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation,
+      settings: on,
+    });
+    const before = document.body.innerHTML;
+    page.run();
+    const themed = document.body.innerHTML;
+
+    page.change({ ...on, userStyles: "/* another setting */" });
+    await pause(0);
+    const changed = document.body.innerHTML === themed;
+    page.app.dispose();
+    await pause(0);
+
+    expect([changed, document.body.innerHTML === before]).toStrictEqual([
+      true,
+      true,
+    ]);
+  });
+
   it("puts every element back as the mail had it when turned off", () => {
     const page = mountGmail({
       features: [extendDarkTheme(TEST_MARK)],
@@ -167,6 +189,21 @@ describe(extendDarkTheme, () => {
     page.run();
 
     expect(document.querySelectorAll(`[${TEST_MARK}]`)).toHaveLength(0);
+    page.app.dispose();
+  });
+
+  it("reads Gmail's theme off the root's ground while the body's is clear", () => {
+    const page = mountGmail({
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation.replace(
+        "body {\n    background-color: rgb(17, 17, 17);",
+        "html {\n    background-color: rgb(17, 17, 17);"
+      ),
+      settings: on,
+    });
+    page.run();
+
+    expect(marked()).toBeGreaterThan(0);
     page.app.dispose();
   });
 
