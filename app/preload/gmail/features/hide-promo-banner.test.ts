@@ -5,7 +5,7 @@ import promoBanner from "./fixtures/promo-banner.html?raw";
 import { hidePromoBanner, hidePromoBannerRules } from "./hide-promo-banner.ts";
 
 describe(hidePromoBanner.id, () => {
-  it("reaches the banner holding the onramp and leaves Gmail's other banners", () => {
+  it("reaches the promotion in Gmail's banner and above the list, and leaves Gmail's other banners", () => {
     const page = mountGmail({
       features: [hidePromoBanner],
       html: promoBanner,
@@ -13,10 +13,11 @@ describe(hidePromoBanner.id, () => {
     });
 
     const found = reached(hidePromoBannerRules);
-    expect(found).toHaveLength(1);
-    expect(
-      found[0]?.querySelector("[data-rp-onramp-container]")
-    ).not.toBeNull();
+    expect(found.map((element) => element.textContent.trim())).toStrictEqual([
+      "Get more storage",
+      "Get more storage",
+      "Using Gmail to run your business?",
+    ]);
     expect(page.sheet("hidePromoBanner")).toContain("display: none !important");
     page.app.dispose();
   });
