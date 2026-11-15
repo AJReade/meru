@@ -20,6 +20,8 @@ const RULE_CONTRAST = 1.5;
 
 // A background this dark already reads as part of a dark page.
 const DARK_LUMINANCE = 0.18;
+// A dark colour this saturated is the sender's tint, such as a purple a gradient ends on, rather than a grey whose lightness is all it says.
+const DARK_TINT = 0.2;
 
 // A colour this saturated and no lighter is a brand's or a highlight's: a button, a banner, a marker; darkening it would wreck what it says, and its text is checked against it as it stands.
 const BRAND_SATURATION = 0.4;
@@ -184,12 +186,20 @@ const darkened = (colour: Rgba, lift: number): Rgba => {
   );
 };
 
-/** What a background becomes on the dark page: a light ground is darkened, keeping its hue and how far below white it sat; a dark one, a brand's colour and a transparent one stay. */
+/**
+ * What a background becomes on the dark page: a light ground is darkened, keeping its hue and how
+ * far below white it sat; a dark one, a brand's colour and a transparent one stay. A grey is kept
+ * as dark only up to the lightness a darkened one lands at most, so a grey just lighter than one
+ * kept never ends darker than it; a dark tint is the sender's colour and is kept as it is.
+ */
 export const darkBackground = (colour: Rgba): Rgba => {
+  if (colour.a === 0 || isBrand(colour)) {
+    return colour;
+  }
+  const { s, l } = toHsl(colour);
   if (
-    colour.a === 0 ||
-    luminance(colour) <= DARK_LUMINANCE ||
-    isBrand(colour)
+    luminance(colour) <= DARK_LUMINANCE &&
+    (l <= DARKEST_LAYER || s >= DARK_TINT)
   ) {
     return colour;
   }

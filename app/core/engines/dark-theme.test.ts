@@ -86,6 +86,17 @@ describe(darkBackground, () => {
     ]).toStrictEqual([true, true, true]);
   });
 
+  it("keeps the order of the greys up to where it lands them at its lightest, so a darker panel never ends lighter than a lighter one", () => {
+    const greys = Array.from({ length: 13 }, (_, step) => {
+      const channel = (step * 17).toString(16).padStart(2, "0");
+      return luminance(
+        darkBackground(colour(`#${channel}${channel}${channel}`))
+      );
+    });
+
+    expect(greys).toStrictEqual(greys.toSorted((one, other) => one - other));
+  });
+
   it("darkens a pastel without turning it neon", () => {
     const green = darkBackground(colour("#e8f5e9"));
 
