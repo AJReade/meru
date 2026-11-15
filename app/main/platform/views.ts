@@ -3,11 +3,15 @@ import type {
   BrowserWindowConstructorOptions,
   Event,
   HandlerDetails,
+  RenderProcessGoneDetails,
   View,
   WebContents,
 } from "electron";
 
+import type { LogPort } from "../../core/log.ts";
 import type {
+  BlankPopupWindow,
+  Clock,
   OpenListener,
   PageRoutes,
   PopOut,
@@ -17,10 +21,8 @@ import type {
   ViewSpec,
 } from "../../core/ports.ts";
 import type { Disposition } from "../../core/records/link.ts";
+import { holdBlankPopup } from "./blank-popup.ts";
 import { onBeforeInput } from "./keys.ts";
-
-/** How long a blank popup may wait for its first navigation; Google's sign-in points its window at accounts.google.com in the same task that opens it. */
-const BLANK_POPUP_TIMEOUT = 5000;
 
 const handles = new WeakMap<ViewPort, WebContentsView>();
 const ports = new WeakMap<View, ViewPort>();
@@ -51,37 +53,52 @@ interface Child {
   readonly routes: PageRoutes;
 }
 
-// Google's sign-in opens a blank window and only then points it at accounts.google.com, so on Electron 45 the window cannot be judged by its address when it opens; it waits hidden for its first navigation, and one that never navigates, such as a page that writes into it, is closed rather than left hidden for good. tests/popup.e2e.ts reproduces both.
+interface ViewFactoryOptions {
+  readonly clock: Pick<Clock, "schedule">;
+  readonly log: LogPort;
+}
+
+const blankWindow = (popup: BrowserWindow): BlankPopupWindow => {
+  const contents = popup.webContents;
+  return {
+    destroy: () => {
+      if (!popup.isDestroyed()) {
+        popup.destroy();
+      }
+    },
+    onClosed: (listener) => {
+      popup.once("closed", listener);
+      return () => {
+        popup.off("closed", listener);
+      };
+    },
+    onGone: (listener) => {
+      const gone = (_event: Event, details: RenderProcessGoneDetails) => {
+        listener(details.reason);
+      };
+      contents.on("render-process-gone", gone);
+      return () => {
+        contents.off("render-process-gone", gone);
+      };
+    },
+    show: () => {
+      if (!popup.isDestroyed()) {
+        popup.show();
+      }
+    },
+  };
+};
+
+// Google's sign-in opens a blank window and only then points it at accounts.google.com, so on Electron 45 the window cannot be judged by its address when it opens; it waits hidden for its first navigation. tests/popup.e2e.ts reproduces it.
 const openBlank = (
   options: BrowserWindowConstructorOptions,
-  opener: PageRoutes
+  opener: PageRoutes,
+  factory: ViewFactoryOptions
 ): Child => {
   const popup = new BrowserWindow({ ...options, show: false });
-  const unused = setTimeout(() => {
-    popup.destroy();
-  }, BLANK_POPUP_TIMEOUT);
-  popup.once("closed", () => {
-    clearTimeout(unused);
-  });
-  let decided = false;
   return {
     contents: popup.webContents,
-    routes: {
-      ...opener,
-      open: (url, disposition) => {
-        if (decided || disposition !== "inPlace") {
-          return opener.open(url, disposition);
-        }
-        decided = true;
-        clearTimeout(unused);
-        if (opener.popup(url)) {
-          popup.show();
-          return false;
-        }
-        popup.destroy();
-        return true;
-      },
-    },
+    routes: holdBlankPopup(blankWindow(popup), opener, factory),
   };
 };
 
@@ -138,17 +155,18 @@ const openPopOut = (
 const route = (
   contents: WebContents,
   routes: PageRoutes,
-  opener: ViewSpec
+  opener: ViewSpec,
+  factory: ViewFactoryOptions
 ): void => {
   const adopt = (child: Child): WebContents => {
-    route(child.contents, child.routes, opener);
+    route(child.contents, child.routes, opener, factory);
     return child.contents;
   };
   contents.setWindowOpenHandler(({ url, disposition }) => {
     if (url === "about:blank") {
       return {
         action: "allow",
-        createWindow: (options) => adopt(openBlank(options, routes)),
+        createWindow: (options) => adopt(openBlank(options, routes, factory)),
       };
     }
     const popOut = routes.popOut(url, dispositionOf(disposition));
@@ -178,7 +196,7 @@ const route = (
   contents.on("will-redirect", guard);
 };
 
-const createView = (spec: ViewSpec): ViewPort => {
+const createView = (spec: ViewSpec, factory: ViewFactoryOptions): ViewPort => {
   const view = new WebContentsView({
     webPreferences: {
       additionalArguments: [...(spec.arguments ?? [])],
@@ -214,7 +232,8 @@ const createView = (spec: ViewSpec): ViewPort => {
         popupListeners.size === 0 ||
         [...popupListeners].some((listener) => listener(url)),
     },
-    spec
+    spec,
+    factory
   );
 
   const port: ViewPort = {
@@ -339,4 +358,8 @@ const createView = (spec: ViewSpec): ViewPort => {
   return port;
 };
 
-export const viewFactory: ViewFactoryPort = { create: createView };
+export const createViewFactory = (
+  options: ViewFactoryOptions
+): ViewFactoryPort => ({
+  create: (spec) => createView(spec, options),
+});

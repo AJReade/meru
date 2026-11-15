@@ -50,6 +50,7 @@ import {
 } from "./platform/ports.ts";
 import { createElectronUpdater } from "./platform/updater.ts";
 import {
+  isPackaged,
   placeUserData,
   systemDownloadsDir,
   userDataDir,
@@ -122,12 +123,13 @@ const closeTabOf =
 const start = async () => {
   const dist = path.join(import.meta.dirname, "..");
   placeUserData(path.join(dist, "..", ".."));
-  const ports = createElectronPorts();
+  const packaged = isPackaged();
   const log = createFileLog({
     directory: path.join(userDataDir(), "logs"),
-    minimum: ports.lifecycle.packaged ? "info" : "debug",
-    mirror: !ports.lifecycle.packaged,
+    minimum: packaged ? "info" : "debug",
+    mirror: !packaged,
   });
+  const ports = createElectronPorts(log.scoped("views"));
   fileLog = log;
   const pages: PageOptions = {
     devServer: process.env.MERU_RENDERER_URL,

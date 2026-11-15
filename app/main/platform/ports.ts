@@ -12,7 +12,9 @@ import {
   shell,
 } from "electron";
 
+import type { LogPort } from "../../core/log.ts";
 import type {
+  Clock,
   EntitlementApi,
   LifecyclePort,
   Ports,
@@ -30,7 +32,7 @@ import { ipcTransport } from "./ipc.ts";
 import { onBeforeInput } from "./keys.ts";
 import { onlinePort } from "./online.ts";
 import { createSessions } from "./session.ts";
-import { handleOf, portOf, viewFactory } from "./views.ts";
+import { createViewFactory, handleOf, portOf } from "./views.ts";
 
 const createWindow = (spec: WindowSpec): WindowPort => {
   const { titleBar } = spec;
@@ -164,7 +166,18 @@ const createQuitHold = (): LifecyclePort["onQuit"] => {
   };
 };
 
-export const createElectronPorts = (): Ports => ({
+const clock: Clock = {
+  now: () => Date.now(),
+  schedule: (delay, task) => {
+    const timer = setTimeout(task, delay);
+    return () => {
+      clearTimeout(timer);
+    };
+  },
+};
+
+/** The ports over Electron; `log` is the views', which write what a popup's page did. */
+export const createElectronPorts = (log: LogPort): Ports => ({
   lifecycle: {
     ...createFailureWatch(),
     onQuit: createQuitHold(),
@@ -188,15 +201,7 @@ export const createElectronPorts = (): Ports => ({
       await app.whenReady();
     },
   },
-  clock: {
-    now: () => Date.now(),
-    schedule: (delay, task) => {
-      const timer = setTimeout(task, delay);
-      return () => {
-        clearTimeout(timer);
-      };
-    },
-  },
+  clock,
   displays: {
     displays: () => {
       const primary = screen.getPrimaryDisplay().id;
@@ -262,7 +267,7 @@ export const createElectronPorts = (): Ports => ({
       };
     },
   },
-  views: viewFactory,
+  views: createViewFactory({ clock, log }),
   windows: { create: createWindow },
 });
 

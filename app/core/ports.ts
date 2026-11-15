@@ -102,6 +102,16 @@ export interface PopOutWindow {
   readonly onClosed: (listener: () => void) => Unsubscribe;
 }
 
+/** The hidden window a blank popup waits in until its first navigation decides it. */
+export interface BlankPopupWindow {
+  readonly show: () => void;
+  /** Takes the window down, or does nothing once it is down. */
+  readonly destroy: () => void;
+  readonly onClosed: (listener: () => void) => Unsubscribe;
+  /** Hears the page's renderer end, with Chromium's reason, such as `crashed` or `clean-exit`. */
+  readonly onGone: (listener: (reason: string) => void) => Unsubscribe;
+}
+
 export type PopOutListener = (
   url: string,
   disposition: Disposition

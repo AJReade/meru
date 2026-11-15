@@ -33,6 +33,8 @@ export const placeUserData = (root: string): void => {
   }
 };
 
+export const isPackaged = (): boolean => app.isPackaged;
+
 /** Where the app keeps its user data, once `placeUserData` has had its say. */
 export const userDataDir = (): string => app.getPath("userData");
 
