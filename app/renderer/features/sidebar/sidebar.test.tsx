@@ -154,6 +154,22 @@ describe(Sidebar, () => {
     ]);
   });
 
+  it("asks main for a row's menu on a right-click, in place of the page's own", () => {
+    const { container, sentOn } = mount();
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      container
+        .querySelector("[data-tab-id=drive] [role=tab]")
+        ?.dispatchEvent(event);
+    });
+    expect([event.defaultPrevented, sentOn(sidebar.showTabMenu)]).toStrictEqual(
+      [true, [{ tabId: "drive" }]]
+    );
+  });
+
   it("draws the pinned Gmail row as its icon alone, outlined, with no drag handle or close control", async () => {
     const { container } = mount();
     await act(async () => {

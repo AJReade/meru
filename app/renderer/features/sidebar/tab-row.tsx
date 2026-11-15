@@ -7,6 +7,7 @@ import type { DropTarget, SidebarSize } from "../../../core/engines/sidebar.ts";
 import type { Tab } from "../../../core/records/tab.ts";
 import { appById, isSingleInstanceId } from "../../../shared/apps.ts";
 import { tabs as tabChannels } from "../../../shared/channels/profiles.ts";
+import { sidebar } from "../../../shared/channels/sidebar.ts";
 import { msg } from "../../../shared/msg.ts";
 import { useClient } from "../../client-context.tsx";
 import { Button } from "../../ui/button.tsx";
@@ -176,6 +177,10 @@ export const TabRowButton = ({
         }}
         onClick={() => {
           void client.invoke(tabChannels.focus, { tabId: tab.id });
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          client.send(sidebar.showTabMenu, { tabId: tab.id });
         }}
         ref={pinned ? undefined : ref}
         role="tab"
