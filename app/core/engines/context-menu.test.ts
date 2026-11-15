@@ -9,7 +9,7 @@ import {
   contextMenuOf,
   emailAddressOf,
   lookUpName,
-  messageIdOf,
+  messageLinkOf,
 } from "./context-menu.ts";
 import type { ContextMenuLabels } from "./context-menu.ts";
 
@@ -357,6 +357,12 @@ describe(contextMenuOf, () => {
     ).toStrictEqual(["selectAll", "-", "copyLink"]);
   });
 
+  it("offers no Copy Message Link on a page off the mailbox", () => {
+    expect(
+      layout(menu({ pageUrl: `https://example.com/#inbox/${MESSAGE}` }))
+    ).toStrictEqual(["selectAll"]);
+  });
+
   it("offers Copy Message Link on a Gmail page showing a message, with Share on macOS", () => {
     const pageUrl = `${MAILBOX}/#inbox/${MESSAGE}`;
     const link = `${MAILBOX}/#inbox/${MESSAGE}`;
@@ -444,27 +450,46 @@ describe(lookUpName, () => {
   });
 });
 
-describe(messageIdOf, () => {
-  it("reads the message of a label's or a search's view", () => {
+describe(messageLinkOf, () => {
+  it("links the message of a label's or a search's view under the mailbox's address", () => {
+    const link = `${MAILBOX}/#inbox/${MESSAGE}`;
     expect([
-      messageIdOf(`${MAILBOX}/#inbox/${MESSAGE}`, MAILBOX),
-      messageIdOf(`${MAILBOX}#sent/${MESSAGE}`, MAILBOX),
-      messageIdOf(`${MAILBOX}/#search/from%3Ame/${MESSAGE}`, MAILBOX),
-      messageIdOf(`${MAILBOX}/#label/Work/${MESSAGE}?compose=new`, MAILBOX),
-    ]).toStrictEqual([MESSAGE, MESSAGE, MESSAGE, MESSAGE]);
+      messageLinkOf(`${MAILBOX}/#inbox/${MESSAGE}`, MAILBOX),
+      messageLinkOf(`${MAILBOX}#sent/${MESSAGE}`, MAILBOX),
+      messageLinkOf(`${MAILBOX}/#search/from%3Ame/${MESSAGE}`, MAILBOX),
+      messageLinkOf(`${MAILBOX}/#label/Work/${MESSAGE}?compose=new`, MAILBOX),
+    ]).toStrictEqual([link, link, link, link]);
   });
 
-  it("finds none in a list, a short id, another account or another page", () => {
+  it("keeps the account slot and the origin of the page, whatever its query", () => {
     expect([
-      messageIdOf(`${MAILBOX}/#inbox`, MAILBOX),
-      messageIdOf(`${MAILBOX}/#search/${MESSAGE}`, MAILBOX),
-      messageIdOf(`${MAILBOX}/#inbox/abc`, MAILBOX),
-      messageIdOf(
+      messageLinkOf(
         `https://mail.google.com/mail/u/1/#inbox/${MESSAGE}`,
         MAILBOX
       ),
-      messageIdOf(`https://example.com/#inbox/${MESSAGE}`, MAILBOX),
-      messageIdOf(`${MAILBOX}/`, MAILBOX),
+      messageLinkOf(`${MAILBOX}/?ui=2#inbox/${MESSAGE}`, MAILBOX),
+      messageLinkOf(
+        `http://127.0.0.1:8080/mail/u/2/?ui=2#label/Work/${MESSAGE}`,
+        "http://127.0.0.1:8080/mail/u/0"
+      ),
+    ]).toStrictEqual([
+      `https://mail.google.com/mail/u/1/#inbox/${MESSAGE}`,
+      `${MAILBOX}/#inbox/${MESSAGE}`,
+      `http://127.0.0.1:8080/mail/u/2/#inbox/${MESSAGE}`,
+    ]);
+  });
+
+  it("finds none in a list, a short id, or a page off the mailbox", () => {
+    expect([
+      messageLinkOf(`${MAILBOX}/#inbox`, MAILBOX),
+      messageLinkOf(`${MAILBOX}/#search/${MESSAGE}`, MAILBOX),
+      messageLinkOf(`${MAILBOX}/#inbox/abc`, MAILBOX),
+      messageLinkOf(`https://example.com/mail/u/0/#inbox/${MESSAGE}`, MAILBOX),
+      messageLinkOf(
+        `https://mail.google.com/calendar/u/0/#inbox/${MESSAGE}`,
+        MAILBOX
+      ),
+      messageLinkOf(`${MAILBOX}/`, MAILBOX),
     ]).toStrictEqual([null, null, null, null, null, null]);
   });
 });

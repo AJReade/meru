@@ -32,7 +32,7 @@ export interface ContextMenuContext {
   readonly platform: Platform;
   /** A run from the repository, which offers Inspect Element. */
   readonly development: boolean;
-  /** The Gmail mailbox's address, under which a page showing a message offers its link. */
+  /** The Gmail mailbox's address, whose origin a page showing a message must share to offer its link. */
   readonly mailbox: string;
   readonly labels: ContextMenuLabels;
 }
@@ -74,17 +74,15 @@ export const lookUpName = (selection: string): string => {
   return graphemes.join("").replaceAll("&", "&&");
 };
 
-/** The id of the message a Gmail address shows, from its fragment, such as `#inbox/<id>` or `#search/<query>/<id>`; null for a list or anything else. */
-export const messageIdOf = (url: string, mailbox: string): string | null => {
-  const hashAt = url.indexOf("#");
-  if (hashAt === -1) {
-    return null;
-  }
-  const page = url.slice(0, hashAt).replace(/\/$/u, "");
-  if (page !== mailbox.replace(/\/$/u, "")) {
-    return null;
-  }
-  const [path = ""] = url.slice(hashAt + 1).split("?");
+// A Gmail page's address: its origin, the account's slot under it, any query, then the view in the fragment.
+const GMAIL_PAGE =
+  /^(?<origin>[a-z][a-z0-9+.-]*:\/\/[^/?#]+)(?<slot>\/mail\/u\/\d+)\/?(?:\?[^#]*)?#(?<fragment>.*)$/iu;
+
+const ORIGIN = /^[a-z][a-z0-9+.-]*:\/\/[^/?#]+/iu;
+
+/** The id of the message a view shows, from a fragment such as `inbox/<id>` or `search/<query>/<id>`; null for a list or anything else. */
+const messageIdOf = (fragment: string): string | null => {
+  const [path = ""] = fragment.split("?");
   const segments = path.split("/");
   const [view = ""] = segments;
   const at = QUERY_VIEWS.has(view) ? 2 : 1;
@@ -92,6 +90,26 @@ export const messageIdOf = (url: string, mailbox: string): string | null => {
   return segments.length === at + 1 && id !== undefined && MESSAGE_ID.test(id)
     ? id
     : null;
+};
+
+/** The address of the message a Gmail page shows, under the page's own origin and account slot, such as `/mail/u/1/`, whatever its query; null for a page off the mailbox's origin or showing no message. */
+export const messageLinkOf = (
+  pageUrl: string,
+  mailbox: string
+): string | null => {
+  const page = GMAIL_PAGE.exec(pageUrl)?.groups;
+  const origin = ORIGIN.exec(mailbox)?.[0];
+  if (
+    page?.origin === undefined ||
+    origin === undefined ||
+    page.origin.toLowerCase() !== origin.toLowerCase()
+  ) {
+    return null;
+  }
+  const id = messageIdOf(page.fragment ?? "");
+  return id === null
+    ? null
+    : messageUrl(`${page.origin}${page.slot ?? ""}`, id);
 };
 
 /** The address a mailto link writes to, without its scheme, query or escapes; the link as it is when it cannot be decoded. */
@@ -312,11 +330,10 @@ const message = (
   params: ContextMenuParams,
   { labels, mailbox, platform }: ContextMenuContext
 ): Section => {
-  const id = messageIdOf(params.pageUrl, mailbox);
-  if (id === null) {
+  const url = messageLinkOf(params.pageUrl, mailbox);
+  if (url === null) {
     return [];
   }
-  const url = messageUrl(mailbox.replace(/\/$/u, ""), id);
   return [
     {
       action: { kind: "copyText", text: url },
