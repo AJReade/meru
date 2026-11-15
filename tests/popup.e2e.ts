@@ -2,14 +2,23 @@ import type { ElectronApplication } from "@playwright/test";
 
 import { expect, inspect, must, panesOf, test } from "./app.ts";
 
-/** Every window but the main one: its address and whether it shows. */
+/** Every window but the main one: its address and whether it shows. A window Electron is closing can answer isDestroyed() false while its web contents are gone, so a read that throws counts as no address. */
 const popupsOf = async (app: ElectronApplication) =>
   await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()
-      .filter((window) => window.webContents.getURL() !== "")
-      .filter((window) => !window.webContents.getURL().includes("chrome.html"))
-      .map((window) => ({
-        url: new URL(window.webContents.getURL()).host,
+      .map((window) => {
+        try {
+          return {
+            window,
+            url: window.isDestroyed() ? "" : window.webContents.getURL(),
+          };
+        } catch {
+          return { window, url: "" };
+        }
+      })
+      .filter(({ url }) => url !== "" && !url.includes("chrome.html"))
+      .map(({ window, url }) => ({
+        url: new URL(url).host,
         visible: window.isVisible(),
       }))
   );
@@ -64,7 +73,13 @@ const createdOf = async (app: ElectronApplication) =>
 const closeSignIn = async (app: ElectronApplication) => {
   await app.evaluate(({ BrowserWindow }) => {
     for (const window of BrowserWindow.getAllWindows()) {
-      if (window.webContents.getURL().includes("accounts.google.com")) {
+      let url = "";
+      try {
+        url = window.isDestroyed() ? "" : window.webContents.getURL();
+      } catch {
+        url = "";
+      }
+      if (url.includes("accounts.google.com")) {
         window.close();
       }
     }
