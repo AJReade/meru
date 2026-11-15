@@ -67,8 +67,12 @@ describe(themeTree, () => {
     expect([
       ground === undefined ? 1 : contrast(ground, DARK_SURFACE) < 1.2,
       light?.getAttribute(TEST_MARK),
-      body.querySelector("#button")?.hasAttribute(TEST_MARK),
-    ]).toStrictEqual([true, "background-color: rgb(249, 249, 249)", false]);
+      body.querySelector("#button")?.getAttribute("style"),
+    ]).toStrictEqual([
+      true,
+      "-1background-color: rgb(249, 249, 249)",
+      "background-color: rgb(26, 115, 232); color: rgb(255, 255, 255)",
+    ]);
   });
 
   it("reaches only what is new when it walks a subtree again", () => {

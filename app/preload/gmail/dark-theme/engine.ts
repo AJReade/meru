@@ -211,17 +211,42 @@ const paintElement = (
   return { ...paint, text };
 };
 
+/** Whether an element shows the ground the walk darkened under it through a ground of its own that is clear, which a mail's `:hover` rule could fill. */
+const holdsHover = (style: CSSStyleDeclaration, frame: Frame): boolean => {
+  const background = parseColour(style.backgroundColor);
+  return (
+    frame.darkened &&
+    frame.ground !== undefined &&
+    background !== undefined &&
+    background.a === 0 &&
+    !style.backgroundImage.includes("(")
+  );
+};
+
 const ignore: WriteTo = () => {
   // An element a former walk wrote to keeps what it was given.
+};
+
+// A mark's value is a flag, a kind and, for an element written to, the `style` attribute it had: the flag says whether its hover ground is held (`HOLD`) or not (`PLAIN`), the kind whether the walk only looked at it (`LOOKED`), wrote to an element that had no `style` attribute (`NO_STYLE`) or wrote over the one that follows (`HAD_STYLE`).
+const HOLD = "t";
+const PLAIN = "-";
+const LOOKED = ".";
+const NO_STYLE = "0";
+const HAD_STYLE = "1";
+
+const writtenValue = (flag: string, element: Element): string => {
+  const style = element.getAttribute("style");
+  return style === null ? `${flag}${NO_STYLE}` : `${flag}${HAD_STYLE}${style}`;
 };
 
 /**
  * Darkens `root` and what it holds, in one pass: every computed style is read before anything is
  * written, since a colour written on a parent changes what its children report. A light background
  * is darkened, a text colour is kept wherever it already reads on its new ground and turned until
- * it does otherwise, a border is darkened, and what sits on an image is left as the mail set it. An
- * element written to carries the mark with its former `style`; one already marked is not written to
- * again, so a walk over a subtree a former walk covered only reaches what is new. Nothing is kept.
+ * it does otherwise, a border is darkened, and what sits on an image is left as the mail set it.
+ * Every element the walk looks at carries the mark, holding its former `style` when it was written
+ * to; one already marked is not written to again, so a walk over a subtree a former walk covered
+ * only reaches what is new. Nothing is kept.
  */
 export const themeTree = (
   root: Element,
@@ -230,7 +255,8 @@ export const themeTree = (
 ): Themed => {
   const writes: Write[] = [];
   const images: HTMLImageElement[] = [];
-  const touched = new Set<HTMLElement>();
+  const touched = new Set<Element>();
+  const looked = new Map<Element, string>();
   const stack: Frame[] = [
     {
       darkened: true,
@@ -246,9 +272,9 @@ export const themeTree = (
       continue;
     }
     const style = styleOf(element);
+    const marked = element.hasAttribute(mark);
     let paint: Painted = { ...frame, text: frame.parentText };
     if (isHtml(element)) {
-      const marked = element.hasAttribute(mark);
       paint = paintElement(
         element,
         style,
@@ -270,6 +296,9 @@ export const themeTree = (
         images.push(element);
       }
     }
+    if (!marked) {
+      looked.set(element, holdsHover(style, frame) ? HOLD : PLAIN);
+    }
     for (
       let child = element.lastElementChild;
       child !== null;
@@ -284,8 +313,11 @@ export const themeTree = (
       });
     }
   }
-  for (const element of touched) {
-    element.setAttribute(mark, element.getAttribute("style") ?? "");
+  for (const [element, flag] of looked) {
+    element.setAttribute(
+      mark,
+      touched.has(element) ? writtenValue(flag, element) : `${flag}${LOOKED}`
+    );
   }
   for (const { element, property, value } of writes) {
     element.style.setProperty(property, value, "important");
@@ -293,25 +325,73 @@ export const themeTree = (
   return { images, touched: touched.size };
 };
 
+const NOTHING: Themed = { images: [], touched: 0 };
+
+/**
+ * Themes what arrived under `root` since it was walked: one query for the elements without the
+ * mark, nothing more when there are none, and a walk of each new subtree from its top, so a box
+ * Gmail adds, a body it redraws and a body it puts into a message it already showed are dark in
+ * the frame they appear in.
+ */
+export const themeAgain = (
+  root: Element,
+  theme: Theme,
+  skip: string = EDITOR
+): Themed => {
+  if (!root.hasAttribute(theme.mark)) {
+    return themeTree(root, theme, skip);
+  }
+  const fresh = root.querySelectorAll(`:not([${theme.mark}])`);
+  if (fresh.length === 0) {
+    return NOTHING;
+  }
+  const images: HTMLImageElement[] = [];
+  let touched = 0;
+  let top: Element | undefined;
+  for (const element of fresh) {
+    // In document order an element's descendants follow it, so one walk from the top takes them all; an editor is never marked, so what it holds is passed over here rather than walked.
+    if (top?.contains(element) === true || element.closest(skip) !== null) {
+      continue;
+    }
+    top = element;
+    const themed = themeTree(element, theme, skip);
+    images.push(...themed.images);
+    touched += themed.touched;
+  }
+  return { images, touched };
+};
+
 /** Turns a dark image on a darkened ground light, marking it as the walk marks what it writes. */
 export const turnLight = (image: HTMLImageElement, mark: string): void => {
-  if (!image.hasAttribute(mark)) {
-    image.setAttribute(mark, image.getAttribute("style") ?? "");
+  const value = image.getAttribute(mark);
+  if (value === null || value.charAt(1) === LOOKED) {
+    image.setAttribute(mark, writtenValue(value?.charAt(0) ?? PLAIN, image));
   }
   image.style.setProperty("filter", TURN_LIGHT, "important");
 };
 
-/** Puts back what the theme wrote under `root`, each element's `style` as the mail had it. */
+/** Puts back what the theme wrote under `root`, each element's `style` as the mail had it, and takes its marks off. */
 export const releaseTree = (root: ParentNode, mark: string): number => {
   const marked = root.querySelectorAll(`[${mark}]`);
   for (const element of marked) {
-    const before = element.getAttribute(mark) ?? "";
-    if (before === "") {
+    const value = element.getAttribute(mark) ?? "";
+    const kind = value.charAt(1);
+    if (kind === NO_STYLE) {
       element.removeAttribute("style");
-    } else {
-      element.setAttribute("style", before);
+    } else if (kind === HAD_STYLE) {
+      element.setAttribute("style", value.slice(2));
     }
     element.removeAttribute(mark);
   }
   return marked.length;
 };
+
+/**
+ * The feature's style sheet: an element the walk left without a ground of its own, on a ground it
+ * darkened, keeps that ground while the pointer is over it. A mail's own `:hover` rule would paint
+ * its light hover ground under the text the walk lightened; the walk cannot see a `:hover` rule,
+ * and a ground it darkened is held already by its inline `!important`. The layer is what lets this
+ * rule's `!important` beat a mail's own `!important` whatever its selector's weight.
+ */
+export const hoverSheet = (mark: string): string =>
+  `@layer meru-dark { :is(.a3s, [data-meru-clipped]) [${mark}^="${HOLD}"]:hover { background-color: transparent !important; } }`;

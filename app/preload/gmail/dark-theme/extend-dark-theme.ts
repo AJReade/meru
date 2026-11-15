@@ -7,9 +7,10 @@ import type { SelectorEntry } from "../../content/selectors.ts";
 import type { GmailFeature } from "../feature.ts";
 import {
   EDITOR,
+  hoverSheet,
   newMark,
   releaseTree,
-  themeTree,
+  themeAgain,
   turnLight,
 } from "./engine.ts";
 import type { StyleOf, Theme } from "./engine.ts";
@@ -65,13 +66,15 @@ const sheetOf = (
 
 /**
  * Extends Gmail's dark theme to the conversation it leaves light: its sheet, each message as it
- * comes and a clipped message's rest once loaded, each walked once in the frame it appears in, before
- * it is painted. It holds nothing between frames: what it wrote lives on the elements, which go with
- * the message, and turning it off or Gmail's theme turning light puts every element back.
+ * comes and a clipped message's rest once loaded, each walked in the frame it appears in, before it
+ * is painted, and walked again on every batch for whatever arrived under it since. What it wrote
+ * lives on the elements, which go with the message; it holds only the roots still on the page, and
+ * turning it off or Gmail's theme turning light puts every element back.
  */
 export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
-  apply: ({ document, pixels, scheduler, settings, undo }) => {
+  apply: ({ document, pixels, scheduler, settings, style, undo }) => {
     if (!settings.switches.extendDarkTheme) {
+      style("");
       return;
     }
     const view = document.defaultView;
@@ -80,6 +83,8 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
     }
     const styleOf: StyleOf = (element) => view.getComputedStyle(element);
     const theme: Theme = { mark, styleOf };
+    // Each root with what its walk passes over.
+    const roots = new Map<Element, string>();
     let on = true;
     const look = async (image: HTMLImageElement) => {
       if (
@@ -103,7 +108,7 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
         releaseTree(document, mark);
         return;
       }
-      for (const image of themeTree(root, theme, skip).images) {
+      for (const image of themeAgain(root, theme, skip).images) {
         if (image.complete) {
           lookAt(image);
         } else {
@@ -117,8 +122,14 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
         }
       }
     };
+    const found = (skip: string) => (root: Element) => {
+      roots.set(root, skip);
+      walk(root, skip);
+    };
+    style(hoverSheet(mark));
     undo(() => {
       on = false;
+      roots.clear();
       releaseTree(document, mark);
     });
     undo(
@@ -126,18 +137,21 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
         const sheet = sheetOf(subject, styleOf);
         if (sheet !== undefined) {
           // Each message is walked as its own entry finds it, so the sheet's walk leaves them to it.
-          walk(sheet, `${EDITOR}, ${MESSAGE}`);
+          found(`${EDITOR}, ${MESSAGE}`)(sheet);
         }
       })
     );
+    undo(scheduler.register(messageEntry, found(EDITOR)));
+    undo(scheduler.register(clippedEntry, found(EDITOR)));
     undo(
-      scheduler.register(messageEntry, (message) => {
-        walk(message, EDITOR);
-      })
-    );
-    undo(
-      scheduler.register(clippedEntry, (box) => {
-        walk(box, EDITOR);
+      scheduler.everyBatch(() => {
+        for (const [root, skip] of roots) {
+          if (root.isConnected) {
+            walk(root, skip);
+          } else {
+            roots.delete(root);
+          }
+        }
       })
     );
   },

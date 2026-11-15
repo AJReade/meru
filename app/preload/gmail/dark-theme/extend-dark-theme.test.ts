@@ -10,6 +10,7 @@ import {
   luminance,
   parseColour,
 } from "../../../core/engines/dark-theme.ts";
+import type { Rgba } from "../../../core/engines/dark-theme.ts";
 import conversation from "../features/fixtures/conversation-dark.html?raw";
 import { mountGmail, switchesWith } from "../testing.ts";
 import { TURN_LIGHT } from "./engine.ts";
@@ -29,6 +30,21 @@ const LIGHT_GMAIL = conversation.replace(
 );
 
 const on = { switches: switchesWith("extendDarkTheme") };
+
+/** The first ground a box paints under the element, itself included. */
+const groundOf = (selector: string): Rgba | undefined => {
+  for (
+    let box = document.querySelector(selector);
+    box !== null;
+    box = box.parentElement
+  ) {
+    const colour = parseColour(getComputedStyle(box).backgroundColor);
+    if (colour !== undefined && colour.a > 0) {
+      return colour;
+    }
+  }
+  return undefined;
+};
 
 const colourOf = (selector: string, property: "backgroundColor" | "color") => {
   const element = document.querySelector(selector);
@@ -120,6 +136,78 @@ describe(extendDarkTheme, () => {
     await page.settle();
 
     expect(rest.querySelector("p")?.hasAttribute(TEST_MARK)).toBeTruthy();
+    page.app.dispose();
+  });
+
+  it.each([
+    {
+      add: () => {
+        const box = document.createElement("div");
+        box.innerHTML = `<p id="added" style="background-color: rgb(255, 255, 255); color: rgb(34, 34, 34)">Added</p>`;
+        document.querySelector(".iY")?.append(box);
+      },
+      case: "a box Gmail adds to the sheet",
+    },
+    {
+      add: () => {
+        const body = document.querySelector(".a3s");
+        if (body !== null) {
+          body.innerHTML = `<div style="background-color: rgb(255, 255, 255)"><p id="added" style="color: rgb(51, 51, 51)">Redrawn</p></div>`;
+        }
+      },
+      case: "a body Gmail redraws in a message",
+    },
+    {
+      add: () => {
+        const message = document.querySelector("[data-message-id]");
+        const body = document.createElement("div");
+        body.className = "a3s";
+        body.innerHTML = `<table bgcolor="#ffffff"><tr><td><span id="added" style="color: rgb(68, 68, 68)">Expanded</span></td></tr></table>`;
+        message?.append(body);
+      },
+      case: "a body Gmail puts into a message it showed",
+    },
+  ])("themes $case in the frame it appears in", async ({ add }) => {
+    const page = mountGmail({
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation,
+      settings: on,
+    });
+    page.run();
+
+    add();
+    await page.settle();
+
+    const text = colourOf("#added", "color");
+    const ground = groundOf("#added");
+    expect(
+      text === undefined || ground === undefined ? 0 : contrast(text, ground)
+    ).toBeGreaterThanOrEqual(TEXT_CONTRAST);
+    page.app.dispose();
+  });
+
+  it("holds a clear ground the mail's hover rule would light, in the feature's sheet", () => {
+    const page = mountGmail({
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation.replace(
+        "<p>Body text.</p>",
+        `<a id="clear" style="background-color: rgba(0, 0, 0, 0)">Link</a>`
+      ),
+      settings: on,
+    });
+    page.run();
+
+    const sheet = page.sheet("extendDarkTheme") ?? "";
+    const rule = /\[(?<mark>[\w-]+)\^="(?<flag>\w)"\]:hover/u.exec(
+      sheet
+    )?.groups;
+    expect([
+      rule?.mark,
+      document.querySelector(`#clear[${TEST_MARK}^="${rule?.flag ?? "?"}"]`) !==
+        null,
+    ]).toStrictEqual([TEST_MARK, true]);
+    page.change({ switches: switchesWith() });
+    expect(page.sheet("extendDarkTheme")).toBeUndefined();
     page.app.dispose();
   });
 
