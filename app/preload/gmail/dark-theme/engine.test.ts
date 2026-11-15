@@ -102,6 +102,16 @@ describe(themeTree, () => {
     ).toHaveLength(0);
   });
 
+  it("keeps a background under a picture and decides its text against it", () => {
+    const body = mount(
+      `<div class="a3s"><div style="background-color: rgb(255, 255, 255); color: rgb(51, 51, 51)"><div id="pictured" style="background-image: url('https://example.com/hero.png'); background-color: rgb(255, 255, 255); color: rgb(0, 0, 0) !important">Over a picture</div></div></div>`
+    );
+    const before = body.querySelector("#pictured")?.getAttribute("style");
+    themeTree(body, theme);
+
+    expect(body.querySelector("#pictured")?.getAttribute("style")).toBe(before);
+  });
+
   it("leaves a mark the mail carries alone, whatever it holds", () => {
     const mark = newMark();
     const body = mount(

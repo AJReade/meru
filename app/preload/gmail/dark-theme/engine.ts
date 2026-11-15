@@ -75,7 +75,7 @@ interface Write {
 
 interface Frame {
   readonly element: Element;
-  /** The opaque colour its parent's content sits on, or undefined over an image, where text is left as the mail set it. */
+  /** The opaque colour its parent's content sits on, or undefined where the walk cannot tell it, where text is left as the mail set it. */
   readonly ground: Rgba | undefined;
   /** Whether that ground is one the theme darkened, on which a dark image needs turning light. */
   readonly darkened: boolean;
@@ -121,23 +121,29 @@ interface Painted extends Paint {
 
 type WriteTo = (property: string, value: string) => void;
 
-/** The element's own background and background image, darkened, and the ground they leave for what the element holds. */
+/**
+ * The element's own background and background image, darkened, and the ground they leave for what
+ * the element holds. Under a picture the colour is kept: it is what the picture was drawn to sit on
+ * and what shows where the picture does not load, so text decided against it reads either way,
+ * where a darkened colour would leave light text over a light picture.
+ */
 const paintBackground = (
   style: CSSStyleDeclaration,
   inherited: Paint,
   write: WriteTo
 ): Paint => {
   let { ground, darkened } = inherited;
+  const image = style.backgroundImage;
+  const pictured = image.includes("url(") && !isDarkIcon(image);
   const background = parseColour(style.backgroundColor);
   if (background !== undefined && background.a > 0) {
-    const dark = darkBackground(background);
+    const dark = pictured ? background : darkBackground(background);
     if (dark !== background) {
       write("background-color", formatColour(dark));
     }
     darkened = dark !== background || (darkened && ground === undefined);
     ground = over(dark, ground ?? DARK_SURFACE);
   }
-  const image = style.backgroundImage;
   if (image.includes("gradient(")) {
     const gradient = darkGradient(image);
     if (gradient.image !== image) {
@@ -146,12 +152,8 @@ const paintBackground = (
     if (gradient.ground !== undefined) {
       ground = over(gradient.ground, ground ?? DARK_SURFACE);
     }
-  } else if (image.includes("url(")) {
-    if (isDarkIcon(image)) {
-      write("filter", TURN_LIGHT);
-    } else {
-      ground = undefined;
-    }
+  } else if (image.includes("url(") && !pictured) {
+    write("filter", TURN_LIGHT);
   }
   return { darkened, ground };
 };
@@ -199,15 +201,15 @@ const paintElement = (
     element.style.color === "" &&
     !element.hasAttribute("color");
   const shown = inherits ? frame.parentText : formatColour(colour);
-  const text = formatColour(
-    ground === undefined ? colour : darkText(colour, ground)
-  );
+  if (ground === undefined) {
+    // On a ground the walk cannot tell, the text stays as it shows rather than be given a colour decided against nothing.
+    return { ...paint, text: shown };
+  }
+  const text = formatColour(darkText(colour, ground));
   if (text !== shown) {
     write("color", text);
   }
-  if (ground !== undefined) {
-    paintBorders(style, ground, write);
-  }
+  paintBorders(style, ground, write);
   return { ...paint, text };
 };
 
@@ -243,7 +245,7 @@ const writtenValue = (flag: string, element: Element): string => {
  * Darkens `root` and what it holds, in one pass: every computed style is read before anything is
  * written, since a colour written on a parent changes what its children report. A light background
  * is darkened, a text colour is kept wherever it already reads on its new ground and turned until
- * it does otherwise, a border is darkened, and what sits on an image is left as the mail set it.
+ * it does otherwise, a border is darkened, and a background under a picture keeps its colour.
  * Every element the walk looks at carries the mark, holding its former `style` when it was written
  * to; one already marked is not written to again, so a walk over a subtree a former walk covered
  * only reaches what is new. Nothing is kept.

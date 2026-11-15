@@ -55,7 +55,7 @@ const gradientGround = (image: string): Rgba | undefined => {
   return { a: 1, b: mean("b"), g: mean("g"), r: mean("r") };
 };
 
-/** What an element's text sits on as the page paints it, or undefined over an image. */
+/** What an element's text sits on as the page paints it where its pictures do not show, as when Gmail hides a mail's images or one fails to load. */
 const groundOf = (element: Element): Rgba | undefined => {
   const layers: Rgba[] = [];
   for (
@@ -64,9 +64,6 @@ const groundOf = (element: Element): Rgba | undefined => {
     box = box.parentElement
   ) {
     const style = styleOf(box);
-    if (style.backgroundImage.includes("url(")) {
-      return undefined;
-    }
     const gradient = gradientGround(style.backgroundImage);
     if (gradient !== undefined) {
       layers.push(gradient);
@@ -119,7 +116,7 @@ const shownColour = (element: HTMLElement): string => {
   return styleOf(element).color;
 };
 
-/** Every element holding text of its own, with the contrast its text has on its ground. */
+/** Every element holding text of its own, with the contrast its text has on its ground, its pictures left out. */
 export const textContrasts = (root: Element) =>
   queryAll(root, "*", isHtmlElement).flatMap((element) => {
     const holdsText = [...element.childNodes].some(
