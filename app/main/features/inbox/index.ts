@@ -123,6 +123,11 @@ export class Inbox {
     );
   }
 
+  /** Reads the profile's feed now, starting its interval again; a profile not followed has none to read. */
+  read(profileId: string): void {
+    void this.#read(profileId);
+  }
+
   /** Reads every profile's feed now, each starting its interval again. */
   readAll(): void {
     for (const profileId of this.#feeds.keys()) {

@@ -13,7 +13,9 @@ import {
   settingsSurface,
 } from "../../../shared/channels/surfaces.ts";
 import { FakeLog } from "../../../test/fakes/log.ts";
+import { FakeOnline } from "../../../test/fakes/online.ts";
 import { FakePopOutWindow } from "../../../test/fakes/pop-out-window.ts";
+import { FakePower } from "../../../test/fakes/power.ts";
 import { FakeShell } from "../../../test/fakes/shell.ts";
 import { unwrap } from "../../../test/result.ts";
 import { PRO, testApp } from "../../testing.ts";
@@ -21,7 +23,9 @@ import {
   ACT_TIMEOUT,
   Gmail,
   NAVIGATE_TIMEOUT,
+  REFRESH_INTERVAL,
   SENT_UNDO_WINDOW,
+  UNREAD_SETTLE,
   USER_STYLES_FILE,
   USER_STYLES_LIMIT,
   USER_STYLES_SETTLE,
@@ -39,6 +43,9 @@ const setup = async (given: Entitlement = PRO) => {
   const shell = new FakeShell();
   const woken: string[] = [];
   const opened: { profileId: string; hash: string }[] = [];
+  const read: string[] = [];
+  const online = new FakeOnline();
+  const power = new FakePower();
   const feature = new Gmail({
     clock: app.clock,
     commands: app.commands,
@@ -48,6 +55,11 @@ const setup = async (given: Entitlement = PRO) => {
     favicons: "https://www.google.com/s2/favicons",
     log: log.scoped("gmail"),
     mailbox: MAILBOX,
+    online,
+    power,
+    readFeed: (profileId) => {
+      read.push(profileId);
+    },
     openMailbox: (profileId, hash) => {
       opened.push({ hash, profileId });
     },
@@ -84,8 +96,11 @@ const setup = async (given: Entitlement = PRO) => {
     entitle,
     feature,
     log,
+    online,
     opened,
+    power,
     pushed,
+    read,
     request,
     shell,
     tab,
@@ -271,6 +286,55 @@ describe(Gmail, () => {
       error: "refused",
       ok: false,
     });
+  });
+
+  it("refreshes the profile's page after an action Gmail took, and not after one it refused", async () => {
+    const { app, feature, pushed, request, tab } = await setup();
+    const refused = feature.act(tab.id, "FMfcg", "archive");
+    unwrap(request(gmail.mailActed, { acted: false, id: 0 }));
+    await refused;
+    expect(pushed(gmailPushes.refresh)).toStrictEqual([]);
+
+    const acted = feature.act(tab.id, "FMfcg", "archive");
+    unwrap(request(gmail.mailActed, { acted: true, id: 1 }));
+    await acted;
+    expect(pushed(gmailPushes.refresh)).toStrictEqual([{}]);
+
+    // A second action in quick succession is covered by the first refresh.
+    app.clock.advance(REFRESH_INTERVAL - 1);
+    const again = feature.act(tab.id, "FMfcg", "markRead");
+    unwrap(request(gmail.mailActed, { acted: true, id: 2 }));
+    await again;
+    expect(pushed(gmailPushes.refresh)).toHaveLength(1);
+  });
+
+  it("refreshes the profile's page when its feed has new mail, on resume and when the network returns, at most once an interval", async () => {
+    const { app, online, power, pushed, tab } = await setup();
+    app.events.emit("mail.arrived", { entries: [], profileId: "elsewhere" });
+    expect(pushed(gmailPushes.refresh)).toStrictEqual([]);
+
+    app.events.emit("mail.arrived", { entries: [], profileId: tab.profileId });
+    power.resume();
+    expect(pushed(gmailPushes.refresh)).toHaveLength(1);
+
+    app.clock.advance(REFRESH_INTERVAL);
+    power.resume();
+    app.clock.advance(REFRESH_INTERVAL);
+    online.set(false);
+    expect(pushed(gmailPushes.refresh)).toHaveLength(2);
+    online.set(true);
+    expect(pushed(gmailPushes.refresh)).toHaveLength(3);
+  });
+
+  it("reads the profile's feed once the count its page shows stops changing", async () => {
+    const { app, read, request, tab } = await setup();
+    unwrap(request(gmail.unreadChanged));
+    app.clock.advance(UNREAD_SETTLE - 1);
+    unwrap(request(gmail.unreadChanged));
+    app.clock.advance(UNREAD_SETTLE - 1);
+    expect(read).toStrictEqual([]);
+    app.clock.advance(1);
+    expect(read).toStrictEqual([tab.profileId]);
   });
 
   it("refuses an action no page answers for, and one whose tab has no page even after it is woken", async () => {

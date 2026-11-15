@@ -7,7 +7,9 @@ import type { LogPort } from "../../../core/log.ts";
 import type {
   Clock,
   FsPort,
+  OnlinePort,
   PopOutWindow,
+  PowerPort,
   ShellPort,
   Unsubscribe,
 } from "../../../core/ports.ts";
@@ -58,6 +60,12 @@ export const WAKE_TIMEOUT = 5000;
 /** How long a sent message's pop-out stays, hidden, for its Undo, as 3.x keeps it; Gmail's own longest undo period is 30 seconds. */
 export const SENT_UNDO_WINDOW = 30_000;
 
+// The least time between two refreshes of one page, as Gmail's own list takes a moment to fetch and a burst of callers, such as several notifications' actions, wants one.
+export const REFRESH_INTERVAL = 3000;
+
+// A page reports each change of the count it shows, and reading a message can change it twice in quick succession, so the feed is read once the changes stop.
+export const UNREAD_SETTLE = 1000;
+
 // An editor saves in several writes, each of which the watch may report, so a read waits for the writes to stop.
 export const USER_STYLES_SETTLE = 200;
 
@@ -92,6 +100,10 @@ export interface GmailOptions {
   readonly wake: (tabId: string) => void;
   /** Where a sender's icon is asked for by its domain. */
   readonly favicons: string;
+  /** Reads the profile's feed now, which the page asks for when the count it shows changes. */
+  readonly readFeed: (profileId: string) => void;
+  readonly online: Pick<OnlinePort, "onChange">;
+  readonly power: Pick<PowerPort, "onResume">;
   readonly log: LogPort;
 }
 
@@ -142,6 +154,10 @@ export class Gmail {
   >();
   /** Whoever waits for a tab to get a page, by tab id. */
   readonly #waking = new Map<string, Set<(contentsId: number) => void>>();
+  /** When each page was last asked to refresh, by its web contents id. */
+  readonly #refreshed = new Map<number, number>();
+  /** The feed read each profile waits for while its page's count settles, by profile id. */
+  readonly #unread = new Map<string, Unsubscribe>();
   #nextNavigation = 0;
   #nextAction = 0;
   #userStyles = "";
@@ -186,6 +202,20 @@ export class Gmail {
             reason,
             status,
           });
+          return ok(undefined);
+        },
+        unreadChanged: (_payload, { profileId }) => {
+          if (profileId === undefined) {
+            return err("noProfile");
+          }
+          this.#unread.get(profileId)?.();
+          this.#unread.set(
+            profileId,
+            this.#options.clock.schedule(UNREAD_SETTLE, () => {
+              this.#unread.delete(profileId);
+              this.#options.readFeed(profileId);
+            })
+          );
           return ok(undefined);
         },
         mailActionFailed: ({ reason }, { profileId }) => {
@@ -264,11 +294,22 @@ export class Gmail {
       }),
       settings.subscribe((changes) => {
         if (changes.some(({ key }) => key.startsWith("gmail."))) {
-          this.#refresh();
+          this.#republish();
         }
       }),
       events.on("entitlement.changed", () => {
-        this.#refresh();
+        this.#republish();
+      }),
+      events.on("mail.arrived", ({ profileId }) => {
+        this.refresh(profileId);
+      }),
+      this.#options.online.onChange((online) => {
+        if (online) {
+          this.#refreshAll();
+        }
+      }),
+      this.#options.power.onResume(() => {
+        this.#refreshAll();
       }),
       fs.watch(USER_STYLES_FILE, () => {
         this.#settle?.();
@@ -279,6 +320,9 @@ export class Gmail {
       }),
       () => {
         this.#settle?.();
+        for (const cancel of this.#unread.values()) {
+          cancel();
+        }
         for (const { close } of this.#sent.values()) {
           close();
         }
@@ -308,6 +352,7 @@ export class Gmail {
         );
         return () => {
           unassign();
+          this.#refreshed.delete(contentsId);
           if (this.#pages.get(tab.id)?.contentsId === contentsId) {
             this.#pages.delete(tab.id);
           }
@@ -350,9 +395,37 @@ export class Gmail {
     });
     const acted = await promise;
     if (acted === true) {
+      // The action went to Gmail's endpoint behind the page's back, so its list and counts still show the message as it was.
+      const profileId = this.#pages.get(tabId)?.profileId;
+      if (profileId !== undefined) {
+        this.refresh(profileId);
+      }
       return ok(undefined);
     }
     return this.#notActed(acted === undefined ? "silent" : "refused", tabId);
+  }
+
+  /** Has each of the profile's Gmail pages fetch its list again, at most once per `REFRESH_INTERVAL` a page; a profile with no page loaded has nothing to refresh. */
+  refresh(profileId: string): void {
+    const now = this.#options.clock.now();
+    for (const { contentsId, profileId: owner } of this.#pages.values()) {
+      const last = this.#refreshed.get(contentsId);
+      if (
+        owner === profileId &&
+        (last === undefined || now - last >= REFRESH_INTERVAL)
+      ) {
+        this.#refreshed.set(contentsId, now);
+        this.#options.registrar.push(contentsId, gmailPushes.refresh, {});
+      }
+    }
+  }
+
+  #refreshAll(): void {
+    for (const profileId of new Set(
+      [...this.#pages.values()].map((page) => page.profileId)
+    )) {
+      this.refresh(profileId);
+    }
   }
 
   #notActed(
@@ -531,7 +604,7 @@ export class Gmail {
     };
   }
 
-  #refresh(): void {
+  #republish(): void {
     const stylesState = this.#computeStylesState();
     if (!isEqual(stylesState, this.#stylesState)) {
       this.#stylesState = stylesState;
@@ -585,7 +658,7 @@ export class Gmail {
     }
     this.#userStyles = text;
     this.#tooLarge = tooLarge;
-    this.#refresh();
+    this.#republish();
   }
 
   // The editor or the file manager needs a file to open, so a first open makes an empty one.

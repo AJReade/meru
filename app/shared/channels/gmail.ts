@@ -111,6 +111,8 @@ export const gmail = defineChannels("gmail", {
   mailActed: event(
     z.object({ acted: z.boolean(), id: z.number().int().min(0) })
   ),
+  /** The inbox's unread count Gmail shows changed, so main reads the profile's feed now rather than at its next interval. */
+  unreadChanged: event(noPayload),
   /** An action Gmail refused, once per reason per page load, which main logs as a warning. */
   mailActionFailed: event(z.object({ reason: mailActionRefusalSchema })),
   /** A clipped message's whole body did not load, once per reason per page load, with the status Gmail answered when that is the reason. */
@@ -130,6 +132,8 @@ export const gmailPushes = definePushes("gmail", {
   dismissSentToast: push(z.object({ id: z.number().int().min(0) })),
   /** Clicks Gmail's own Undo of the message last sent in this page. */
   undoSend: push(noPayload),
+  /** Has Gmail fetch its list again, as its own Refresh button does. */
+  refresh: push(noPayload),
   /** Takes the page to a place in the mailbox, such as a message, by its address's fragment; the page answers `navigated` with the id. */
   navigate: push(
     z.object({

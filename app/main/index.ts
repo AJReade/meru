@@ -292,6 +292,11 @@ const start = async () => {
     favicons: faviconsOf(gmailOverride),
     log: log.scoped("gmail"),
     mailbox,
+    online: ports.online,
+    power: ports.power,
+    readFeed: (profileId) => {
+      inbox.read(profileId);
+    },
     openMailbox: (profileId, hash) => {
       const tab = gmailTabOf(profiles, profileId);
       if (tab !== undefined) {

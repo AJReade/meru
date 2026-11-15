@@ -11,10 +11,12 @@ import { navigate } from "./navigate.ts";
 import { needsSignIn } from "./needs-sign-in.ts";
 import { outOfOffice } from "./out-of-office.ts";
 import { popOuts } from "./pop-outs.ts";
+import { refresh } from "./refresh.ts";
 import { reverseConversation } from "./reverse-conversation.ts";
 import { senderIcons } from "./sender-icons.ts";
 import { sentToast } from "./sent-toast.ts";
 import { showTrimmedContent } from "./show-trimmed-content.ts";
+import { unreadChanged } from "./unread-changed.ts";
 import { urlPreview } from "./url-preview.ts";
 import { userStyles } from "./user-styles.ts";
 
@@ -32,10 +34,12 @@ export const gmailFeatures = (): readonly GmailFeature[] => [
   needsSignIn,
   outOfOffice(),
   popOuts,
+  refresh,
   reverseConversation,
   senderIcons,
   sentToast(),
   showTrimmedContent,
+  unreadChanged(),
   urlPreview,
   userStyles,
 ];

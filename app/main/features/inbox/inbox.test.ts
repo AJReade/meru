@@ -146,6 +146,20 @@ describe(Inbox, () => {
     });
   });
 
+  it("reads one profile's feed when asked, and starts its interval again", async () => {
+    const { advance, first, inbox, sessions, start } = await setup();
+    sessions.answer(INBOX_FEED_URL, feed(ONE_UNREAD));
+    await start();
+    await advance(20_000);
+    inbox.read(first);
+    inbox.read("elsewhere");
+    await advance(0);
+    await advance(29_999);
+    expect(sessions.fetched).toHaveLength(2);
+    await advance(1);
+    expect(sessions.fetched).toHaveLength(3);
+  });
+
   it("marks a profile whose session is sent to sign in, waits twice as long after each failure, and is back to every 30 seconds once the feed reads", async () => {
     const { advance, sessions, start, status } = await setup();
     sessions.answer(INBOX_FEED_URL, SIGNED_OUT);
