@@ -15,6 +15,8 @@ export class FakeDownloads implements DownloadPort {
   readonly stuck = new Set<string>();
   /** Each download under way, by id, with where it is being written. */
   readonly active = new Map<string, string>();
+  /** Pages that have closed, which a download cannot start from. */
+  readonly closedPages = new Set<number>();
   /** Every address a page was asked to download, in order. */
   readonly requested: { contentsId: number; url: string }[] = [];
   /** Each file marked as a finished download, in order. */
@@ -93,7 +95,11 @@ export class FakeDownloads implements DownloadPort {
   };
 
   readonly download = (contentsId: number, url: string) => {
+    if (this.closedPages.has(contentsId)) {
+      return false;
+    }
     this.requested.push({ contentsId, url });
+    return true;
   };
 
   readonly dragOut = async (contentsId: number, path: string) => {

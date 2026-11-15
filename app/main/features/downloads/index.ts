@@ -350,11 +350,17 @@ export class Downloads {
   /** Downloads `url` from the page `contentsId`, asking where to save it whatever `downloads.saveAs` says, as Save Image As does. */
   saveAs(contentsId: number, url: string): void {
     const now = this.#options.clock.now();
+    const pending = this.#pendingSaves.filter(
+      ({ expiresAt }) => expiresAt > now
+    );
+    // Armed before the download starts, since Chromium asks for its path before `download` returns; a page that has gone starts none, and a save left armed would ask about the next download of the address from any page.
     this.#pendingSaves = [
-      ...this.#pendingSaves.filter(({ expiresAt }) => expiresAt > now),
+      ...pending,
       { expiresAt: now + SAVE_AS_LIFETIME, url: URL.parse(url)?.href ?? url },
     ];
-    this.#options.downloads.download(contentsId, url);
+    if (!this.#options.downloads.download(contentsId, url)) {
+      this.#pendingSaves = pending;
+    }
   }
 
   async flush(): Promise<void> {

@@ -201,6 +201,22 @@ describe(Downloads, () => {
     ).toBe(at("late.png"));
   });
 
+  it("arms no Save Image As for a page that has gone, so a later download of the address saves silently", async () => {
+    const { dialogs, feature, port } = await setup();
+    port.closedPages.add(7);
+    feature.saveAs(7, "https://example.com/cat.png");
+    const { path: saved } = port.start({
+      suggestedName: "cat.png",
+      url: "https://example.com/cat.png",
+    });
+    await settle();
+    expect([port.requested, saved, dialogs.open]).toStrictEqual([
+      [],
+      at("cat.png"),
+      [],
+    ]);
+  });
+
   it("deletes an interrupted download's partial file, records it as failed with no file, and says so", async () => {
     const { feature, log, notifications, port } = await setup();
     const { id, path: written } = port.start({ suggestedName: "big.iso" });

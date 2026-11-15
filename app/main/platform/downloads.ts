@@ -145,7 +145,12 @@ export const createDownloads = (options: {
       }, 0);
     },
     download: (contentsId, url) => {
-      webContents.fromId(contentsId)?.downloadURL(url);
+      const contents = webContents.fromId(contentsId);
+      if (contents === undefined || contents.isDestroyed()) {
+        return false;
+      }
+      contents.downloadURL(url);
+      return true;
     },
     dragOut: async (contentsId, file) => {
       const contents = webContents.fromId(contentsId);
