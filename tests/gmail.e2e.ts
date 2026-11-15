@@ -106,10 +106,6 @@ test("acts on a message from a notification's button through the Gmail page, whi
   const stub = await startGmailStub(MAILBOX);
   try {
     const { app, chrome } = await launch({ env: { MERU_GMAIL_URL: stub.url } });
-    await invokeIn(chrome, settings.set, {
-      key: "notifications.actions",
-      value: true,
-    });
     // A feed's first read only remembers what it lists, so the mail must arrive after it, or a slow launch reads it first and never calls it new.
     await expect
       .poll(async () => {

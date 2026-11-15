@@ -28,8 +28,8 @@ export const notificationsSettings = [
     tier: "pro",
   }),
   defineSetting("notifications.actions", {
-    default: false,
-    description: msg`Offer Archive and Mark as read on a new email's notification. Off until the buttons have been proven against a signed-in Gmail session.`,
+    default: true,
+    description: msg`Offer Archive and Mark as read on a new email's notification.`,
     label: msg`Show actions`,
     page: "inbox",
     section: msg`Notifications`,

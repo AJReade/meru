@@ -78,8 +78,14 @@ describe(Notifications, () => {
     settings.set("notifications.playSound", false);
     await arrive();
     expect(port.shown.map((shown) => shown.spec)).toStrictEqual([
-      { silent: true, subtitle: "2024", title: "12345" },
       {
+        actions: ["Archive", "Mark as read"],
+        silent: true,
+        subtitle: "2024",
+        title: "12345",
+      },
+      {
+        actions: ["Archive", "Mark as read"],
         silent: true,
         subtitle: 'Q3 & Q4 "plans" – Tom\'s draft',
         title: "Tom O'Brien",
@@ -121,8 +127,9 @@ describe(Notifications, () => {
     });
   });
 
-  it("offers no buttons until the actions are turned on, and leaves the window where it is when one is pressed", async () => {
+  it("offers no buttons while the actions are turned off, and leaves the window where it is when one is pressed", async () => {
     const { acted, arrive, port, profiles, settings, shown } = await setup();
+    settings.set("notifications.actions", false);
     await arrive();
     expect([port.shown[0]?.spec.actions, port.shown[0]?.act]).toStrictEqual([
       undefined,
