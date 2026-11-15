@@ -104,7 +104,7 @@ test("darkens a mail under Gmail's dark theme while the setting is on, and gives
   }
 });
 
-// Each case's text colour and the first ground under it, read while the pointer is over it.
+// Whether the case at `CASE` is hovered, its text colour and the first ground under it.
 const HOVERED = `(() => {
   const ground = (element) => {
     for (let box = element; box !== null; box = box.parentElement) {
@@ -115,7 +115,7 @@ const HOVERED = `(() => {
     }
     return getComputedStyle(document.body).backgroundColor;
   };
-  const element = document.querySelector(window.zzCase);
+  const element = document.querySelector("CASE");
   return [element.matches(":hover"), getComputedStyle(element).color, ground(element)];
 })()`;
 const HOVERED_SCHEMA = z.tuple([z.boolean(), z.string(), z.string()]);
@@ -198,27 +198,50 @@ test("keeps a text readable while the pointer is over it, and a batch with nothi
     const { contentsId } = must(pane, "a pane");
     const readings: Record<string, number> = {};
     for (const [id] of HOVER_CASES) {
-      // oxlint-disable-next-line no-await-in-loop -- one case is under the pointer at a time
-      const point = await inPane(
-        app,
-        `(() => { window.zzCase = "#${id}"; const element = document.querySelector("#${id}"); element.scrollIntoView({ block: "center" }); const rect = element.getBoundingClientRect(); return [Math.round(rect.x + 10), Math.round(rect.y + rect.height / 2)]; })()`
-      );
-      const [x, y] = z.tuple([z.number(), z.number()]).parse(point);
-      // oxlint-disable-next-line no-await-in-loop -- the pointer moves before the case is read
-      await app.evaluate(
-        ({ webContents }, [contents, px, py]) => {
-          webContents
-            .fromId(contents)
-            ?.sendInputEvent({ type: "mouseMove", x: px, y: py });
+      // oxlint-disable-next-line no-await-in-loop -- one case is hovered at a time
+      const hovered = await app.evaluate(
+        async ({ webContents }, [contents, selector, read]) => {
+          // A synthetic mouse move sets no hover state in a window the real pointer has never entered, as on CI's xvfb and Windows runners, so the state is forced through DevTools, as Chromium's own tests force it.
+          const page = webContents.fromId(contents);
+          if (page === undefined) {
+            return null;
+          }
+          page.debugger.attach("1.3");
+          try {
+            const command = async (
+              method: string,
+              params: object = {}
+            ): Promise<unknown> =>
+              await page.debugger.sendCommand(method, params);
+            // oxlint-disable-next-line unicorn/consistent-function-scoping -- app.evaluate sends this function alone to main, so it can reach nothing outside it
+            const field = (answer: unknown, key: string): unknown =>
+              typeof answer === "object" && answer !== null && key in answer
+                ? Object.entries(answer).find(([name]) => name === key)?.[1]
+                : null;
+            await command("DOM.enable");
+            await command("CSS.enable");
+            const document = await command("DOM.getDocument");
+            const nodeId = field(
+              await command("DOM.querySelector", {
+                nodeId: field(field(document, "root"), "nodeId"),
+                selector,
+              }),
+              "nodeId"
+            );
+            await command("CSS.forcePseudoState", {
+              nodeId,
+              forcedPseudoClasses: ["hover"],
+            });
+            const answer: unknown = await page.executeJavaScript(read, true);
+            return answer;
+          } finally {
+            page.debugger.detach();
+          }
         },
-        [contentsId, x, y] as const
+        [contentsId, `#${id}`, HOVERED.replace("CASE", `#${id}`)] as const
       );
-      // oxlint-disable-next-line no-await-in-loop -- read once the pointer is over it
-      await expect
-        .poll(async () => HOVERED_SCHEMA.parse(await inPane(app, HOVERED))[0])
-        .toBe(true);
-      // oxlint-disable-next-line no-await-in-loop -- read once the pointer is over it
-      const [, text, ground] = HOVERED_SCHEMA.parse(await inPane(app, HOVERED));
+      const [isHovered, text, ground] = HOVERED_SCHEMA.parse(hovered);
+      expect(isHovered).toBe(true);
       readings[id] =
         Math.round(
           contrast(
