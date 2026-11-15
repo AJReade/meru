@@ -45,12 +45,17 @@ test("holds the entitlement from a signed token, refreshed from the API and kept
 }) => {
   test.setTimeout(90_000);
   stub.answer(PRO_KEY, { deviceLimit: 3, kind: "pro" });
+  // A run from the repository takes its license key from the environment and removes it when none is given.
   const run = async (
     url: string,
-    check: (app: ElectronApplication) => Promise<void>
+    check: (app: ElectronApplication) => Promise<void>,
+    licenseKey?: string
   ) => {
     const { app, close } = await launch({
-      env: { MERU_ENTITLEMENT_URL: url },
+      env: {
+        MERU_ENTITLEMENT_URL: url,
+        ...(licenseKey === undefined ? {} : { MERU_LICENSE_KEY: licenseKey }),
+      },
     });
     await check(app);
     await close();
@@ -77,12 +82,15 @@ test("holds the entitlement from a signed token, refreshed from the API and kept
   });
 
   // A license key the token was not issued for is asked about at launch.
-  await editState(userData, (data) => ({ ...data, licenseKey: PRO_KEY }));
-  await run(stub.url, async (app) => {
-    await awaitEntitlement(app, "licensed");
-    const entitlement = await entitlementOf(app);
-    expect(entitlement).toMatchObject({ kind: "licensed", plan: "pro" });
-  });
+  await run(
+    stub.url,
+    async (app) => {
+      await awaitEntitlement(app, "licensed");
+      const entitlement = await entitlementOf(app);
+      expect(entitlement).toMatchObject({ kind: "licensed", plan: "pro" });
+    },
+    PRO_KEY
+  );
 
   // An expired token is refreshed at launch, and a disabled answer flips the value.
   stub.answer(PRO_KEY, { kind: "disabled", reason: "refunded" });
@@ -98,15 +106,19 @@ test("holds the entitlement from a signed token, refreshed from the API and kept
     ...data,
     token: { licenseKey: PRO_KEY, value: expired },
   }));
-  await run(stub.url, async (app) => {
-    await awaitEntitlement(app, "disabled");
-    const entitlement = await entitlementOf(app);
-    expect(entitlement).toMatchObject({
-      kind: "disabled",
-      reason: "refunded",
-      source: "refreshed",
-    });
-  });
+  await run(
+    stub.url,
+    async (app) => {
+      await awaitEntitlement(app, "disabled");
+      const entitlement = await entitlementOf(app);
+      expect(entitlement).toMatchObject({
+        kind: "disabled",
+        reason: "refunded",
+        source: "refreshed",
+      });
+    },
+    PRO_KEY
+  );
   expect(stub.requests.at(-1)).toStrictEqual({
     deviceId,
     licenseKey: PRO_KEY,

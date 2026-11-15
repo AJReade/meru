@@ -3,7 +3,6 @@ import path from "node:path";
 import { chromeInsets } from "../core/engines/chrome.ts";
 import { GMAIL_URL } from "../core/engines/inbox.ts";
 import { GOOGLE_SIGN_IN } from "../core/engines/links.ts";
-import { ENTITLEMENT_URL } from "../core/entitlement/api.ts";
 import { acceptedKeys, importKeys } from "../core/entitlement/keys.ts";
 import { AppEvents } from "../core/events.ts";
 import { themeOf } from "../core/ports.ts";
@@ -63,6 +62,10 @@ import {
   recordingDesktop,
   RecordingShell,
 } from "./shell/e2e.ts";
+import {
+  applyLicenseKeyFromEnv,
+  entitlementUrl,
+} from "./shell/entitlement-env.ts";
 import { logFailures } from "./shell/failures.ts";
 import { IpcDispatcher } from "./shell/ipc.ts";
 import { ShortcutKeys } from "./shell/keys.ts";
@@ -178,7 +181,7 @@ const start = async () => {
   const events = new AppEvents();
   const entitlement = new Entitlement({
     api: createElectronEntitlementApi(
-      process.env.MERU_ENTITLEMENT_URL ?? ENTITLEMENT_URL
+      entitlementUrl(ports.lifecycle, process.env)
     ),
     lifecycle: ports.lifecycle,
     clock: ports.clock,
@@ -195,6 +198,7 @@ const start = async () => {
     subtle: crypto.subtle,
   });
   await entitlement.open();
+  applyLicenseKeyFromEnv(entitlement, ports.lifecycle, process.env);
 
   const settings = new SettingsStore({
     lifecycle: ports.lifecycle,

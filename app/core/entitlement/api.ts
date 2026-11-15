@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { EntitlementAnswer } from "../ports.ts";
 import { err, ok } from "../result.ts";
 
-/** Until the real endpoint is live; `MERU_ENTITLEMENT_URL` points a run at another. */
+/** Until the real endpoint is live; `MERU_ENTITLEMENT_URL` points a run from the repository at another. */
 export const ENTITLEMENT_URL = "https://api.meru.app/entitlement/issue";
 
 /** The body the app POSTs as JSON. */
