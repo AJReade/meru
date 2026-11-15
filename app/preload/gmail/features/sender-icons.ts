@@ -44,35 +44,41 @@ export const senderIcons: GmailFeature = {
       }
       return source;
     };
+    const decorate = (row: HTMLElement) => {
+      const column = row.querySelector(SENDER)?.closest("td");
+      if (
+        column === null ||
+        column === undefined ||
+        column.querySelector(".meru-sender-icons") !== null
+      ) {
+        return;
+      }
+      const domains = new Set(
+        queryAll(column, SENDER, isHtmlElement).flatMap(
+          (sender) => domainOf(sender) ?? []
+        )
+      );
+      if (domains.size === 0) {
+        return;
+      }
+      const icons = document.createElement("div");
+      icons.className = "meru-sender-icons";
+      icons.id = `meru-sender-icons-${row.id}`;
+      for (const domain of domains) {
+        const icon = document.createElement("img");
+        icon.alt = "";
+        icon.src = sourceOf(domain);
+        icon.title = domain;
+        icons.append(icon);
+      }
+      column.append(icons);
+    };
+    // Gmail keeps a row's element when new mail moves the list and redraws its cells, taking the icons with them, so every batch looks at every row again rather than at each row once.
     undo(
-      scheduler.register(senderIconsEntry, (row) => {
-        const column = row.querySelector(SENDER)?.closest("td");
-        if (
-          column === null ||
-          column === undefined ||
-          column.querySelector(".meru-sender-icons") !== null
-        ) {
-          return;
+      scheduler.everyBatch(() => {
+        for (const row of queryAll(document, "tr.zA[id]", isHtmlElement)) {
+          decorate(row);
         }
-        const domains = new Set(
-          queryAll(column, SENDER, isHtmlElement).flatMap(
-            (sender) => domainOf(sender) ?? []
-          )
-        );
-        if (domains.size === 0) {
-          return;
-        }
-        const icons = document.createElement("div");
-        icons.className = "meru-sender-icons";
-        icons.id = `meru-sender-icons-${row.id}`;
-        for (const domain of domains) {
-          const icon = document.createElement("img");
-          icon.alt = "";
-          icon.src = sourceOf(domain);
-          icon.title = domain;
-          icons.append(icon);
-        }
-        column.append(icons);
       })
     );
     undo(() => {
@@ -85,5 +91,6 @@ export const senderIcons: GmailFeature = {
       }
     });
   },
+  entry: senderIconsEntry,
   id: "senderIcons",
 };

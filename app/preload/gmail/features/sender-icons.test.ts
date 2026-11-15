@@ -68,6 +68,28 @@ describe(senderIcons.id, () => {
     page.app.dispose();
   });
 
+  it("draws a row's icons again when Gmail redraws its senders in the same row, as new mail moving the list does", async () => {
+    const page = mountGmail({
+      features: [senderIcons],
+      html: inboxRows,
+      settings: { switches: switchesWith("showSenderIcons") },
+    });
+    page.run();
+    const [first] = rows();
+    const column = first?.querySelector('span[email*="@"]')?.closest("td");
+    const senders = column?.innerHTML.replace(
+      /<div class="meru-sender-icons".*<\/div>$/u,
+      ""
+    );
+    if (column !== null && column !== undefined && senders !== undefined) {
+      column.innerHTML = senders;
+    }
+    await page.settle();
+
+    expect(iconsOf(first?.id ?? "")).toStrictEqual([favicon(SENDER_DOMAIN)]);
+    page.app.dispose();
+  });
+
   it("reports thread rows whose senders no longer carry their address", async () => {
     let now = 0;
     const page = mountGmail({
