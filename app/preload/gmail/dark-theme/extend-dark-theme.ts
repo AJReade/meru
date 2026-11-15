@@ -173,21 +173,22 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
       const landed = new Set<Element>();
       // Marked elements whose state Gmail changed since the last batch, which the next batch decides again.
       const changed = new Set<Element>();
-      const restyled = (record: MutationRecord, target: Element) => {
-        if (record.attributeName !== "style") {
-          return true;
-        }
-        const before = document.createElement("div").style;
-        before.cssText = record.oldValue ?? "";
-        const now = target.getAttribute("style") ?? "";
-        const after = document.createElement("div").style;
-        after.cssText = now;
-        return STATE_COLOURS.some(
-          (property) =>
-            before.getPropertyValue(property) !==
-            after.getPropertyValue(property)
+      const coloursOf = (text: string | null) => {
+        const declared = document.createElement("div").style;
+        declared.cssText = text ?? "";
+        return STATE_COLOURS.map((property) =>
+          declared.getPropertyValue(property)
         );
       };
+      const restyled = (record: MutationRecord, target: Element) =>
+        record.attributeName !== "style" ||
+        coloursOf(record.oldValue).join(";") !==
+          coloursOf(target.getAttribute("style")).join(";");
+      // An element a walk themed, other than an editor it skipped.
+      const themed = (node: Node): node is Element =>
+        node instanceof Element &&
+        node.hasAttribute(mark) &&
+        node.getAttribute(mark) !== SKIPPED;
       const notice = (records: readonly MutationRecord[]) => {
         for (const record of records) {
           const { target } = record;
@@ -195,9 +196,7 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
             if (record.attributeName === "contenteditable") {
               editable(target);
             } else if (
-              target instanceof Element &&
-              target.hasAttribute(mark) &&
-              target.getAttribute(mark) !== SKIPPED &&
+              themed(target) &&
               !insideEditor(target) &&
               restyled(record, target)
             ) {
@@ -208,11 +207,7 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
           }
           const inEditor = insideEditor(target);
           arrived ||= !inEditor && record.addedNodes.length > 0;
-          const into =
-            !inEditor &&
-            target instanceof Element &&
-            target.hasAttribute(mark) &&
-            target.getAttribute(mark) !== SKIPPED;
+          const into = !inEditor && themed(target);
           for (const node of record.addedNodes) {
             if (node instanceof Element) {
               releaseArrived(node, mark, inEditor);
@@ -230,10 +225,6 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
         childList: true,
         subtree: true,
       });
-      // What the theme writes is not a change of Gmail's: the records its own writes left are dropped, which no change of Gmail's can be among, since none runs while the theme does.
-      const own = () => {
-        watcher.takeRecords();
-      };
       undo(() => {
         watcher.disconnect();
       });
@@ -270,15 +261,15 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
           }
         }
       };
-      // Every write of the theme's goes through here, so Gmail's changes before it are heard and its own are not.
+      // Every write of the theme's goes through here, so Gmail's changes before it are heard and its own are not: the records its writes leave are dropped, which no change of Gmail's can be among, since none runs while the theme does.
       const writing = (root: Element, write: () => Themed) => {
         notice(watcher.takeRecords());
-        const themed = write();
-        if (themed.touched > 0) {
+        const done = write();
+        if (done.touched > 0) {
           settle(root);
         }
-        own();
-        look(themed.images);
+        watcher.takeRecords();
+        look(done.images);
       };
       const walk = (root: Element, skip: string) => {
         if (dark) {
@@ -296,14 +287,8 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => {
           writing(image, () => themeAfresh(image, theme));
         }
       };
-      const held = (element: Element) => {
-        for (const root of roots.keys()) {
-          if (root.contains(element)) {
-            return true;
-          }
-        }
-        return false;
-      };
+      const held = (element: Element) =>
+        [...roots.keys()].some((root) => root.contains(element));
       // A state Gmail changed is decided again with the messages in it, since a sheet's walk that passes over them leaves them taken back and unwalked.
       const redecide = () => {
         for (const element of changed) {

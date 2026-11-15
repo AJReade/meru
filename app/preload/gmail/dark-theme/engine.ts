@@ -29,8 +29,7 @@ export const newMark = (): string =>
 
 /**
  * Gmail sends an editor's markup as the mail, so an override written into one would reach the
- * recipient; the walk leaves every editor alone. Compose is themed apart, through an entry of its
- * own on the editor that writes a style sheet rather than inline styles, once it is built.
+ * recipient; the walk leaves every editor alone, and the feature's sheet themes one it reached.
  */
 export const EDITOR = '[contenteditable="true"]';
 
@@ -43,10 +42,10 @@ const DARK_GROUND = 0.2;
 const DARK_ICON =
   /gstatic\.com\/[^"')]*icons\/[^"')]*[_/](?:gm_)?(?:black|grey|grey[6-9]00|nv[6-9]00|n900|p900)[_-]\d+dp/u;
 
-export const isDarkIcon = (image: string): boolean => DARK_ICON.test(image);
+const isDarkIcon = (image: string): boolean => DARK_ICON.test(image);
 
 /** The pseudo-elements Gmail draws an icon on, as a `content` image or a `background-image`. */
-export const PSEUDOS = ["::before", "::after"] as const;
+const PSEUDOS = ["::before", "::after"] as const;
 
 // Turns a dark glyph light while keeping its hues where it has any.
 export const TURN_LIGHT = "invert(1) hue-rotate(180deg)";
