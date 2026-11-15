@@ -17,8 +17,8 @@ import type { Downloads } from "../downloads/index.ts";
 import type { Links } from "../links/index.ts";
 import type { ContentPage } from "../stage/tab-views.ts";
 
-// A single & marks the access key on Windows and Linux, which macOS's menus leave out.
-const LABELS: ContextMenuLabels = {
+// A single & marks the access key on Windows and Linux, which macOS's menus leave out. Read on every menu, so a change of language shows in the next one.
+const labels = (): ContextMenuLabels => ({
   copy: msg`&Copy`,
   copyEmailAddress: msg`Copy Email Address`,
   copyImage: msg`Cop&y Image`,
@@ -38,7 +38,7 @@ const LABELS: ContextMenuLabels = {
   searchWithGoogle: msg`&Search with Google`,
   selectAll: msg`Select &All`,
   share: msg`Share`,
-};
+});
 
 /** What a right-click was on, without its addresses or text, for a log line. */
 const shapeOf = (params: ContextMenuParams) => ({
@@ -110,7 +110,7 @@ export class ContextMenu {
     const { development, mailbox, platform } = this.#options;
     const items = contextMenuOf(params, {
       development,
-      labels: LABELS,
+      labels: labels(),
       mailbox,
       offersPage,
       platform,
