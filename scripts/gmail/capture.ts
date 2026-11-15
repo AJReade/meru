@@ -1,8 +1,17 @@
 // Writes the Gmail fixtures the preload's tests read, from a signed-in profile, each document scrubbed of everything personal:
 // MERU_TEST_PROFILE_DIR=<a user data directory signed in to Gmail> node scripts/gmail/capture.ts [--in-place] [--corpus], after pnpm build and once the account has sent itself the two messages named below, then vp fmt; --in-place runs on the directory itself, for one that is a copy already.
 // --corpus writes the message bodies the dark theme's tests read instead, one per thread of All Mail.
+// The scrub keeps what the features anchor on and nothing a person wrote: roles, ARIA states and the ids they point at, Gmail's generated classes and ids, `gh`, `act`, `role`, field names, icon path data, Gmail's control words in `aria-label` and `data-tooltip`, thread and message ids as counters, an address's shape (`email`, and `href` down to the view and the print view's `view` and `permmsgid`), and that a chip has a `download_url`.
 import { existsSync } from "node:fs";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  link,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
@@ -21,11 +30,71 @@ const CORPUS_SIZE = 32;
 // Mails sent to the account to fill a kind its inbox lacked are subjected "Corpus <kind>"; any other is named by its shape, a few of each, since the account's own mail repeats a handful of templates.
 const PER_SHAPE = 3;
 
+// 3.x's end-to-end suite holds this lock in a signed-in profile from copying it until it writes the session back, since two copies of one Google session running at once sign each other out; a capture takes it for its copy too.
+const PROFILE_LOCK = ".e2e-run.lock";
+const LOCK_WAIT = 90_000;
+
+const isRunning = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM is a process that runs under another user.
+    return error instanceof Error && "code" in error && error.code === "EPERM";
+  }
+};
+
+/** Takes 3.x's lock in the profile, waiting for a run that holds it and breaking one whose process has gone, and answers its release. */
+const lockProfile = async (profile: string): Promise<() => Promise<void>> => {
+  const lock = path.join(profile, PROFILE_LOCK);
+  const holder = String(process.pid);
+  const giveUpAt = Date.now() + LOCK_WAIT;
+  for (;;) {
+    const temporary = `${lock}.${process.pid}.${Date.now()}.tmp`;
+    // oxlint-disable-next-line no-await-in-loop -- one attempt at a time
+    await writeFile(temporary, holder, { mode: 0o600 });
+    try {
+      // A hard link fails when the lock exists, so the holder is in place before the lock appears, as 3.x takes it.
+      // oxlint-disable-next-line no-await-in-loop -- one attempt at a time
+      await link(temporary, lock);
+      return async () => {
+        if ((await readFile(lock, "utf-8").catch(() => "")) === holder) {
+          await rm(lock, { force: true });
+        }
+      };
+    } catch (error) {
+      if (
+        !(error instanceof Error && "code" in error && error.code === "EEXIST")
+      ) {
+        throw error;
+      }
+    } finally {
+      // oxlint-disable-next-line no-await-in-loop -- one attempt at a time
+      await rm(temporary, { force: true });
+    }
+    // oxlint-disable-next-line no-await-in-loop -- one attempt at a time
+    const held = await readFile(lock, "utf-8").catch(() => "");
+    const pid = Number(held.split(" ")[0]);
+    if (!Number.isInteger(pid) || pid <= 0 || !isRunning(pid)) {
+      // oxlint-disable-next-line no-await-in-loop -- one attempt at a time
+      await rm(lock, { force: true });
+      continue;
+    }
+    if (Date.now() > giveUpAt) {
+      throw new Error(
+        `Process ${pid} has held ${lock} for over ${LOCK_WAIT}ms; a capture waits for it rather than run beside it`
+      );
+    }
+    // oxlint-disable-next-line no-await-in-loop -- one attempt at a time
+    await pause(500);
+  }
+};
+
 // Each hand-made fixture a capture replaces in place, by the document it is taken from. labels.html stays hand-made: the scrub takes out every label's name, which is what its test colours by; so does mailbox-key.html, since the scrub takes out the script the marker is written in; so do out-of-office.html and message-sent.html, whose states a page at rest does not hold.
 // promo-banner.html and upgrade-button.html stay hand-made: the scrub takes out the `data-pep-id` and `data-action-behavior` values their rules read, and the account is offered neither.
-const FROM_INBOX = ["header.html", "inbox-rows.html"];
+const FROM_INBOX = ["inbox-rows.html"];
 // Taken from the conversation the account sent itself with an attachment, with Compose open over it. conversation.html, links.html and trimmed-content.html stay hand-made until the account holds a conversation of several messages, an outside link and a folded quote.
-const FROM_THREAD = ["attachments.html", "compose.html"];
+const FROM_THREAD = ["attachments.html"];
 // Taken from the message the account sent itself past Gmail's clipping size.
 const FROM_CLIPPED = ["clipped.html"];
 
@@ -275,7 +344,15 @@ const run = async () => {
     ? profile
     : await mkdtemp(path.join(tmpdir(), "meru-capture-"));
   if (!inPlace) {
-    await cp(profile, userData, { recursive: true });
+    const release = await lockProfile(profile);
+    try {
+      await cp(profile, userData, {
+        filter: (source) => !path.basename(source).startsWith(PROFILE_LOCK),
+        recursive: true,
+      });
+    } finally {
+      await release();
+    }
   }
   const corpus = process.argv.includes("--corpus");
   // MERU_E2E blanks every pane, so the capture turns off what the end-to-end launch sets; a window that may never be on screen is throttled by Chromium until Gmail stops drawing an opened thread.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { mountGmail, switchesWith } from "../testing.ts";
-import compose from "./fixtures/compose.html?raw";
+import compose from "./fixtures/attachments.html?raw";
 import { popOuts } from "./pop-outs.ts";
 
 /** Each click the element's page hears, by whether Shift was held. */

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { mountGmail, reached, stylesWith } from "../testing.ts";
-import header from "./fixtures/header.html?raw";
+import header from "./fixtures/inbox-rows.html?raw";
 import { hideGmailLogo, hideGmailLogoRules } from "./hide-gmail-logo.ts";
 
 describe(hideGmailLogo.id, () => {
