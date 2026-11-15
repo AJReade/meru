@@ -11,7 +11,7 @@ import {
 } from "../app/core/engines/dark-theme.ts";
 import { settings } from "../app/shared/channels/settings.ts";
 import { settingSet } from "../app/shared/settings/schema.ts";
-import { invokeIn } from "../scripts/lib/app.ts";
+import { invokeIn, valueOf } from "../scripts/lib/app.ts";
 import { awaitEntitlement, expect, must, panesOf, test } from "./app.ts";
 import { startGmailStub } from "./gmail-stub.ts";
 
@@ -55,11 +55,24 @@ const inPane = async (app: ElectronApplication, code: string) => {
 };
 
 const setTo = async (chrome: Page, value: boolean) => {
-  await invokeIn(
-    chrome,
-    settings.set,
-    must(settingSet("gmail.extendDarkTheme", value), "the setting as a switch")
+  valueOf(
+    await invokeIn(
+      chrome,
+      settings.set,
+      must(
+        settingSet("gmail.extendDarkTheme", value),
+        "the setting as a switch"
+      )
+    )
   );
+};
+
+// Whether the page runs an animation frame within a second: a pane answers scripts before it draws its first frame, and the feature walks only in a frame, so a late first frame would otherwise read as a feature that did nothing.
+const FRAMED = `new Promise((resolve) => { requestAnimationFrame(() => resolve(true)); setTimeout(() => resolve(false), 1000); })`;
+
+/** Waits until the pane draws frames, in which the feature walks once it is on. */
+const framed = async (app: ElectronApplication) => {
+  await expect.poll(async () => await inPane(app, FRAMED)).toBe(true);
 };
 
 // The sheet's ground as Chromium paints it, and how many elements carry the theme's mark, whose name ends in a suffix drawn for the page load.
@@ -79,6 +92,7 @@ test("darkens a mail under Gmail's dark theme while the setting is on, and gives
     await expect
       .poll(async () => await inPane(app, STATE))
       .toStrictEqual(["rgb(255, 255, 255)", 0]);
+    await framed(app);
     const before = await inPane(
       app,
       `document.querySelector(".a3s").outerHTML`
@@ -186,6 +200,7 @@ test("keeps a text readable while the pointer is over it, and a batch with nothi
     await expect
       .poll(async () => await inPane(app, STATE))
       .toStrictEqual(["rgb(255, 255, 255)", 0]);
+    await framed(app);
     await setTo(chrome, true);
     await expect
       .poll(async () => {
@@ -326,6 +341,7 @@ test("reads CSS Color 4's colours and keeps every text over them readable", asyn
     await expect
       .poll(async () => await inPane(app, STATE))
       .toStrictEqual(["rgb(255, 255, 255)", 0]);
+    await framed(app);
     await setTo(chrome, true);
     await expect
       .poll(async () => {
@@ -370,6 +386,7 @@ test("turns a dark glyph light and leaves a light picture as it is, read from th
     await expect
       .poll(async () => await inPane(app, FILTERS))
       .toStrictEqual(["none", "none"]);
+    await framed(app);
 
     await setTo(chrome, true);
     await expect
