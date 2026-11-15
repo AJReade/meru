@@ -407,24 +407,24 @@ export class Gmail {
 
   /** Has each of the profile's Gmail pages fetch its list again, at most once per `REFRESH_INTERVAL` a page; a profile with no page loaded has nothing to refresh. */
   refresh(profileId: string): void {
+    this.#refreshPages((owner) => owner === profileId);
+  }
+
+  #refreshAll(): void {
+    this.#refreshPages(() => true);
+  }
+
+  #refreshPages(of: (profileId: string) => boolean): void {
     const now = this.#options.clock.now();
-    for (const { contentsId, profileId: owner } of this.#pages.values()) {
+    for (const { contentsId, profileId } of this.#pages.values()) {
       const last = this.#refreshed.get(contentsId);
       if (
-        owner === profileId &&
+        of(profileId) &&
         (last === undefined || now - last >= REFRESH_INTERVAL)
       ) {
         this.#refreshed.set(contentsId, now);
         this.#options.registrar.push(contentsId, gmailPushes.refresh, {});
       }
-    }
-  }
-
-  #refreshAll(): void {
-    for (const profileId of new Set(
-      [...this.#pages.values()].map((page) => page.profileId)
-    )) {
-      this.refresh(profileId);
     }
   }
 
