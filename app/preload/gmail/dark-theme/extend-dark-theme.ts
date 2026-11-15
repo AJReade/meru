@@ -86,6 +86,22 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
     // Each root with what its walk passes over.
     const roots = new Map<Element, string>();
     let on = true;
+    let dark = false;
+    let looked: string | undefined;
+    // Gmail turns its theme by the body's class or style, or by a style sheet arriving, so the body's ground is read again only when one of those changed.
+    const follow = () => {
+      const { body } = document;
+      const key = `${body.className}\n${body.getAttribute("style") ?? ""}\n${document.styleSheets.length}`;
+      if (key === looked) {
+        return;
+      }
+      looked = key;
+      const was = dark;
+      dark = isGmailDark(document, styleOf);
+      if (was && !dark) {
+        releaseTree(document, mark);
+      }
+    };
     const look = async (image: HTMLImageElement) => {
       if (
         image.naturalWidth * image.naturalHeight > LARGEST_ICON ||
@@ -104,8 +120,7 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
       });
     };
     const walk = (root: Element, skip: string) => {
-      if (!isGmailDark(document, styleOf)) {
-        releaseTree(document, mark);
+      if (!dark) {
         return;
       }
       for (const image of themeAgain(root, theme, skip).images) {
@@ -124,6 +139,7 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
     };
     const found = (skip: string) => (root: Element) => {
       roots.set(root, skip);
+      follow();
       walk(root, skip);
     };
     style(hoverSheet(mark));
@@ -145,6 +161,7 @@ export const extendDarkTheme = (mark: string = newMark()): GmailFeature => ({
     undo(scheduler.register(clippedEntry, found(EDITOR)));
     undo(
       scheduler.everyBatch(() => {
+        follow();
         for (const [root, skip] of roots) {
           if (root.isConnected) {
             walk(root, skip);

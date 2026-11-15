@@ -46,6 +46,8 @@ const groundOf = (selector: string): Rgba | undefined => {
   return undefined;
 };
 
+const marked = () => document.querySelectorAll(`[${TEST_MARK}]`).length;
+
 const colourOf = (selector: string, property: "backgroundColor" | "color") => {
   const element = document.querySelector(selector);
   return element === null
@@ -119,6 +121,49 @@ describe(extendDarkTheme, () => {
     page.run();
 
     expect(document.querySelectorAll(`[${TEST_MARK}]`)).toHaveLength(0);
+    page.app.dispose();
+  });
+
+  it("follows Gmail's theme turning light and dark again", async () => {
+    const page = mountGmail({
+      features: [extendDarkTheme(TEST_MARK)],
+      html: conversation,
+      settings: on,
+    });
+    page.run();
+    const themed = marked();
+
+    document.body.setAttribute("style", "background-color: rgb(255, 255, 255)");
+    document.body.append(document.createElement("p"));
+    await page.settle();
+    const light = marked();
+    document.body.removeAttribute("style");
+    document.body.append(document.createElement("p"));
+    await page.settle();
+
+    expect([themed > 0, light, marked() > 0]).toStrictEqual([true, 0, true]);
+    page.app.dispose();
+  });
+
+  it("themes the conversation once Gmail's dark style sheet arrives after it", async () => {
+    const page = mountGmail({
+      features: [extendDarkTheme(TEST_MARK)],
+      html: LIGHT_GMAIL,
+      settings: on,
+    });
+    page.run();
+    const before = document.querySelectorAll(`[${TEST_MARK}]`).length;
+
+    const sheet = document.createElement("style");
+    sheet.textContent = "body { background-color: rgb(17, 17, 17); }";
+    document.body.append(sheet);
+    document.body.append(document.createElement("p"));
+    await page.settle();
+
+    expect([
+      before,
+      document.querySelectorAll(`[${TEST_MARK}]`).length > 0,
+    ]).toStrictEqual([0, true]);
     page.app.dispose();
   });
 
