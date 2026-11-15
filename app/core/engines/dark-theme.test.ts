@@ -8,6 +8,7 @@ import {
   darkBackground,
   darkBorder,
   darkGradient,
+  darkShadow,
   darkText,
   over,
   formatColour,
@@ -181,6 +182,18 @@ describe(darkBorder, () => {
     expect(dark.a).toBe(0.12);
     expect(shown).toBeLessThan(1.5);
     expect(shown).toBeCloseTo(contrast(over(seam, white), white), 1);
+  });
+});
+
+describe(darkShadow, () => {
+  it("darkens the light shadow Gmail draws above its stuck reply bar and keeps a dark one", () => {
+    const light = darkShadow("rgb(232, 234, 237) 0px -3px 2px -2px");
+    const dark = "rgba(0, 0, 0, 0.3) 0px 1px 2px 0px";
+
+    expect(luminance(colour(light.split(" 0px")[0] ?? "#fff"))).toBeLessThan(
+      0.05
+    );
+    expect(darkShadow(dark)).toBe(dark);
   });
 });
 

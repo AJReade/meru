@@ -297,6 +297,10 @@ export const darkGradient = (
   };
 };
 
+/** A box shadow with each colour in it darkened as a background is: a light shadow drawn as a seam on a light page, such as Gmail's above its stuck reply bar, would draw a light line on a dark one, while a dark shadow stays. */
+export const darkShadow = (shadow: string): string =>
+  darkGradient(shadow).image;
+
 /** What an image's sampled pixels say about it on a dark page: `dark` is dark artwork on a transparent ground, a logo or an icon that would vanish, which is turned light; anything else is left as it is. */
 export const imageTone = (pixels: Uint8ClampedArray): "dark" | "other" => {
   let transparent = 0;
