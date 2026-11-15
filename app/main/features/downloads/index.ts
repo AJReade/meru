@@ -137,7 +137,15 @@ interface DownloadsOptions {
   readonly closeTab: (contentsId: number) => void;
 }
 
-const revealLabel = (platform: Platform): string => {
+/** The titles and the opening action of a download's notifications. */
+export const DOWNLOAD_NOTICES = {
+  done: (name: string) => msg`Downloaded ${name}`,
+  failed: msg`Download failed`,
+  notMoved: msg`Download not moved`,
+  open: msg`Open`,
+};
+
+export const revealLabel = (platform: Platform): string => {
   if (platform === "darwin") {
     return msg`Show in Finder`;
   }
@@ -580,7 +588,7 @@ export class Downloads {
       {
         body: msg`The download of ${name} was interrupted.`,
         silent: !settings.get("notifications.playSound"),
-        title: msg`Download failed`,
+        title: DOWNLOAD_NOTICES.failed,
       },
       noop
     );
@@ -646,7 +654,7 @@ export class Downloads {
         actions: [revealLabel(platform)],
         body: msg`${name} could not be saved where you chose, so it was kept in ${path.dirname(saved)}.`,
         silent: !settings.get("notifications.playSound"),
-        title: msg`Download not moved`,
+        title: DOWNLOAD_NOTICES.notMoved,
       },
       platform === "linux" ? reveal : noop,
       reveal
@@ -670,9 +678,9 @@ export class Downloads {
     // A click on the body brings Meru forward on macOS and Windows, which would put the file or its folder behind it; the button does not. Some Linux notification servers draw no buttons, so there the body acts too.
     notifications.show(
       {
-        actions: [opens ? msg`Open` : revealLabel(platform)],
+        actions: [opens ? DOWNLOAD_NOTICES.open : revealLabel(platform)],
         silent: !settings.get("notifications.playSound"),
-        title: msg`Downloaded ${name}`,
+        title: DOWNLOAD_NOTICES.done(name),
       },
       platform === "linux" ? act : noop,
       act

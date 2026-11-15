@@ -18,7 +18,7 @@ import type { Links } from "../links/index.ts";
 import type { ContentPage } from "../stage/tab-views.ts";
 
 // A single & marks the access key on Windows and Linux, which macOS's menus leave out. Read on every menu, so a change of language shows in the next one.
-const labels = (): ContextMenuLabels => ({
+export const contextMenuLabels = (): ContextMenuLabels => ({
   copy: msg`&Copy`,
   copyEmailAddress: msg`Copy email address`,
   copyImage: msg`Cop&y image`,
@@ -110,7 +110,7 @@ export class ContextMenu {
     const { development, mailbox, platform } = this.#options;
     const items = contextMenuOf(params, {
       development,
-      labels: labels(),
+      labels: contextMenuLabels(),
       mailbox,
       offersPage,
       platform,

@@ -21,10 +21,16 @@ import type { Profiles } from "../profiles/index.ts";
 import type { SettingsStore } from "../settings/index.ts";
 
 /** The buttons a new email's notification offers, in the order they are drawn, as 3.x worded and ordered them, less the two that cannot be undone. */
-const MAIL_ACTIONS = [
+export const MAIL_ACTIONS = [
   { action: "archive", label: msg`Archive` },
   { action: "markRead", label: msg`Mark as read` },
 ] as const satisfies readonly { action: MailAction; label: string }[];
+
+/** The titles of the notifications that stand for several. */
+export const NOTICE_TITLES = {
+  heldBack: msg`More notifications held back`,
+  newEmails: (count: number) => msg`${count} new emails`,
+};
 
 interface NotificationsOptions {
   readonly clock: Pick<Clock, "now">;
@@ -98,7 +104,7 @@ export class Notifications {
     const silent = !settings.get("notifications.playSound");
     const notified = notifiable(arrived, newEmails, important);
     if (notified.length > MAX_MAIL_NOTICES) {
-      const count = msg`${notified.length} new emails`;
+      const count = NOTICE_TITLES.newEmails(notified.length);
       notifications.show(
         {
           silent,
@@ -195,10 +201,7 @@ export class Notifications {
     notifications.show(
       verdict === "show"
         ? appNotice(notification, options)
-        : appNotice(
-            { silent: true, title: msg`More notifications held back` },
-            options
-          ),
+        : appNotice({ silent: true, title: NOTICE_TITLES.heldBack }, options),
       () => {
         profiles.focusTab(tabId);
         this.#options.showWindow();

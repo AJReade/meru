@@ -41,6 +41,13 @@ const QUIT_LABELS: Readonly<Record<Platform, string>> = {
   win32: msg`Exit`,
 };
 
+/** The tray menu's own items on `platform`, beside the profiles' names. */
+export const trayLabels = (platform: Platform) => ({
+  hide: msg`Hide Meru`,
+  quit: QUIT_LABELS[platform],
+  show: msg`Show Meru`,
+});
+
 const TRAY_KEYS = new Set([
   "tray.icon",
   "tray.unreadCount",
@@ -143,7 +150,7 @@ export class Tray {
       { kind: "separator" },
       {
         kind: "item",
-        label: visible ? msg`Hide Meru` : msg`Show Meru`,
+        label: visible ? trayLabels(platform).hide : trayLabels(platform).show,
         run: () => {
           if (visible) {
             window.hide();
@@ -153,7 +160,7 @@ export class Tray {
         },
       },
       { kind: "separator" },
-      { kind: "quit", label: QUIT_LABELS[platform] },
+      { kind: "quit", label: trayLabels(platform).quit },
     ];
   }
 

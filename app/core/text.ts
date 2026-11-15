@@ -8,6 +8,7 @@ export const INTERFACE_NAMES: readonly string[] = [
   "Finder",
   "Gmail",
   "Google",
+  "KB",
   "Meet",
   "Meru",
   "Meru Pro",
@@ -20,8 +21,8 @@ export const INTERFACE_NAMES: readonly string[] = [
 const escape = (text: string): string =>
   text.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
 
-/** The words of `text` after its first that start with a capital and belong to none of `names`; empty for sentence case. An ampersand marking an access key is read past. */
-export const capitalsOutOfPlace = (
+/** The words of `text` out of sentence case, empty for none: a sentence whose first word starts in lower case, and after that word each word, or part of a hyphenated word, that starts with a capital and belongs to none of `names`. An ampersand marking an access key is read past, and a word with no letter, such as a placeholder, is no first word to fault. */
+export const outOfSentenceCase = (
   text: string,
   names: readonly string[]
 ): string[] => {
@@ -29,11 +30,19 @@ export const capitalsOutOfPlace = (
   for (const name of names.toSorted((a, b) => b.length - a.length)) {
     rest = rest.replaceAll(
       new RegExp(`(?<![\\p{L}\\d])${escape(name)}(?![\\p{L}\\d])`, "gu"),
-      "name"
+      "#"
     );
   }
   return rest
-    .split(/\s+/u)
-    .slice(1)
-    .filter((word) => /^[^\p{L}\d]*\p{Lu}/u.test(word));
+    .trim()
+    .split(/(?<=[.!?])\s+/u)
+    .flatMap((sentence) => {
+      const [first = "", ...parts] = sentence
+        .split(/\s+/u)
+        .flatMap((word) => word.split("-"));
+      return [
+        ...(/^[^\p{L}\d]*\p{Ll}/u.test(first) ? [first] : []),
+        ...parts.filter((part) => /^[^\p{L}\d]*\p{Lu}/u.test(part)),
+      ];
+    });
 };

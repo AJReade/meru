@@ -19,7 +19,8 @@ import type { Links } from "../links/index.ts";
 import type { Profiles } from "../profiles/index.ts";
 import type { Stages } from "../stage/index.ts";
 
-const labels = (): TabMenuLabels => ({
+/** The tab menu's labels, read on every menu so a change of language shows in the next one. */
+export const tabMenuLabels = (): TabMenuLabels => ({
   close: msg`Close`,
   closeBelow: msg`Close tabs below`,
   closeOthers: msg`Close other tabs`,
@@ -91,7 +92,7 @@ export class TabMenu {
       return err("unknownTab");
     }
     const items = tabMenuOf(profiles.state, tab, {
-      labels: labels(),
+      labels: tabMenuLabels(),
       shown: stages.shown(),
       singleInstance: isSingleInstanceId,
       url: stages.address(tabId) ?? tab.url,
