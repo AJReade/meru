@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { DownloadProgress } from "../../core/engines/downloads.ts";
 import type {
   BadgePort,
+  ContextMenuPort,
   GlobalShortcutPort,
   NotificationPort,
   NotificationSpec,
@@ -12,6 +13,7 @@ import type {
   TrayPort,
   TraySpec,
 } from "../../core/ports.ts";
+import type { ContextMenuEntry } from "../../core/records/context-menu.ts";
 import { entitlementSchema } from "../../core/records/entitlement.ts";
 import { rectSchema } from "../../core/records/rect.ts";
 import { updateStateSchema } from "../../core/records/update.ts";
@@ -33,7 +35,27 @@ export const E2E_CLICK_NOTIFICATION = "meruE2eClickNotification";
 /** The global under which the same run leaves a press of a button on the notification at the index it is given, as the suite's stand-in for pressing one in the notification centre. */
 export const E2E_ACT_NOTIFICATION = "meruE2eActNotification";
 
+/** The global under which the same run leaves a click on the item at the index it is given of the context menu built last, as the suite's stand-in for a click in the native menu. */
+export const E2E_CLICK_CONTEXT_MENU = "meruE2eClickContextMenu";
+
 export const e2eSnapshotSchema = z.object({
+  /** The context menu built last, as the app would have shown it. */
+  contextMenu: z.array(
+    z.discriminatedUnion("kind", [
+      z.object({
+        enabled: z.boolean(),
+        id: z.string(),
+        kind: z.literal("item"),
+        label: z.string(),
+      }),
+      z.object({ kind: z.literal("separator") }),
+      z.object({
+        kind: z.literal("share"),
+        label: z.string(),
+        url: z.string(),
+      }),
+    ])
+  ),
   /** Every address a link sent to the browser, in order. */
   external: z.array(z.string()),
   /** Every file opened in its application, in order. */
@@ -98,6 +120,33 @@ export class RecordingShell implements ShellPort {
     this.revealed.push(path);
   };
 }
+
+/** The context menus of a run under MERU_E2E: it hears the pages and acts on them as the platform's does, but keeps the menu it was asked to show rather than showing it. */
+interface RecordingContextMenu extends ContextMenuPort {
+  readonly shown: () => readonly ContextMenuEntry[];
+  /** Clicks the item at `index` of the menu shown last, as the native menu would; nothing for a disabled one. */
+  readonly click: (index: number) => void;
+}
+
+export const recordingContextMenu = (
+  platform: ContextMenuPort
+): RecordingContextMenu => {
+  let shown: readonly ContextMenuEntry[] = [];
+  return {
+    act: platform.act,
+    click: (index) => {
+      const entry = shown[index];
+      if (entry?.kind === "item" && entry.enabled) {
+        entry.run();
+      }
+    },
+    listen: platform.listen,
+    popup: (_contentsId, entries) => {
+      shown = entries;
+    },
+    shown: () => shown,
+  };
+};
 
 /** The app icon, notifications and tray of a run under MERU_E2E: each keeps what it was asked to show and shows nothing on the desktop the suite shares. */
 interface RecordingDesktop {
@@ -186,6 +235,7 @@ export const exposeE2e = (options: {
   readonly accelerators: () => Partial<Record<CommandId, string | null>>;
   readonly external: RecordingShell;
   readonly desktop: RecordingDesktop;
+  readonly contextMenu: RecordingContextMenu;
   readonly sessions: Pick<SessionPort, "fetchText">;
 }): void => {
   const snapshot = (): E2eSnapshot => {
@@ -193,6 +243,16 @@ export const exposeE2e = (options: {
     const desktop = options.desktop.read();
     return {
       badge: desktop.badge,
+      contextMenu: options.contextMenu.shown().map((entry) =>
+        entry.kind === "item"
+          ? {
+              enabled: entry.enabled,
+              id: entry.id,
+              kind: entry.kind,
+              label: entry.label,
+            }
+          : entry
+      ),
       entitlement: options.entitlement.current(),
       external: [...options.external.opened],
       files: [...options.external.files],
@@ -221,6 +281,7 @@ export const exposeE2e = (options: {
   Reflect.set(globalThis, E2E_GLOBAL, () => JSON.stringify(snapshot()));
   Reflect.set(globalThis, E2E_CLICK_NOTIFICATION, options.desktop.click);
   Reflect.set(globalThis, E2E_ACT_NOTIFICATION, options.desktop.act);
+  Reflect.set(globalThis, E2E_CLICK_CONTEXT_MENU, options.contextMenu.click);
   Reflect.set(
     globalThis,
     E2E_FETCH,

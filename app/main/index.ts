@@ -14,6 +14,7 @@ import type { OverlayKind } from "../shared/channels/surfaces.ts";
 import { commands as allCommands } from "../shared/commands/registry.ts";
 import { Appearance } from "./features/appearance/index.ts";
 import { Badge } from "./features/badge/index.ts";
+import { ContextMenu } from "./features/context-menu/index.ts";
 import { Downloads } from "./features/downloads/index.ts";
 import { Entitlement } from "./features/entitlement/index.ts";
 import {
@@ -53,7 +54,12 @@ import {
   userDataDir,
 } from "./platform/user-data.ts";
 import { CommandDispatcher } from "./shell/commands.ts";
-import { exposeE2e, recordingDesktop, RecordingShell } from "./shell/e2e.ts";
+import {
+  exposeE2e,
+  recordingContextMenu,
+  recordingDesktop,
+  RecordingShell,
+} from "./shell/e2e.ts";
 import { logFailures } from "./shell/failures.ts";
 import { IpcDispatcher } from "./shell/ipc.ts";
 import { ShortcutKeys } from "./shell/keys.ts";
@@ -253,6 +259,8 @@ const start = async () => {
 
   // The suite asserts on what the app would put on the desktop and puts nothing there.
   const recorded = recordingDesktop();
+  // A native menu cannot be read, and would wait on the desktop the suite shares, so the suite reads the one the app would show and clicks it here.
+  const recordedMenus = recordingContextMenu(ports.contextMenu);
   const desktop = e2e ? recorded : ports;
   // The end-to-end suite asserts on the links that would leave for the browser and the files it would open, and opens none.
   const externalLinks = new RecordingShell();
@@ -336,7 +344,9 @@ const start = async () => {
   const stages = new Stages({
     commands,
     content: (tab) =>
-      tab.appId === "gmail" ? gmail.page(tab) : google.page(tab),
+      contextMenu.page(
+        tab.appId === "gmail" ? gmail.page(tab) : google.page(tab)
+      ),
     ...(e2e
       ? {
           paneUrl: testPaneUrl(gmailOverride, process.env.MERU_GOOGLE_URL),
@@ -393,6 +403,7 @@ const start = async () => {
       mailbox,
       opened: (window, profileId) => {
         gmail.attachPopOut(window, profileId);
+        contextMenu.attach(window.contentsId);
       },
     },
     profiles,
@@ -429,6 +440,16 @@ const start = async () => {
   });
   await downloads.open();
   downloads.start();
+  const contextMenu = new ContextMenu({
+    clipboard: ports.clipboard,
+    contextMenu: e2e ? recordedMenus : ports.contextMenu,
+    development: !ports.lifecycle.packaged,
+    downloads,
+    links,
+    log: log.scoped("contextMenu"),
+    mailbox,
+    platform: ports.lifecycle.platform,
+  });
 
   const updater = new Updater({
     lifecycle: ports.lifecycle,
@@ -448,6 +469,7 @@ const start = async () => {
   if (e2e) {
     exposeE2e({
       accelerators: applicationAccelerators,
+      contextMenu: recordedMenus,
       desktop: recorded,
       entitlement,
       external: externalLinks,
